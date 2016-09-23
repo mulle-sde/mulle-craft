@@ -30,7 +30,7 @@
 #   ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
 #   POSSIBILITY OF SUCH DAMAGE.
 
-MULLE_INSTALL_VERSION="0.1"
+MULLE_INSTALL_VERSION="0.2"
 
 PATH="`pwd -P`/addictions/bin:$HOME/.linuxbrew/bin:/usr/local/bin:${HOME}/bin:${PATH}"
 
@@ -65,9 +65,15 @@ fail()
 do_clone_magic()
 {
    local url
+   local scm
+   local tag
    local prefix
 
    url="$1"
+   [ $# -ne 0 ] && shift
+   tag="$1"
+   [ $# -ne 0 ] && shift
+   scm="$1"
    [ $# -ne 0 ] && shift
    prefix="$1"
    [ $# -ne 0 ] && shift
@@ -97,7 +103,7 @@ do_clone_magic()
    (
       cd "${random}"|| exit 1 ;
       mulle-bootstrap init -n ;
-      echo "$url" > .bootstrap/repositories
+      echo "$url;;$tag;$scm" > .bootstrap/repositories
       mulle-bootstrap -a "$@" || fail "failed in \"${random}\""
 
       if [ -z "${prefix}" ]
@@ -201,6 +207,9 @@ usage:
       -b              : don't fetch and build dependencies with mulle-bootstrap
       -m <executable> : specify make program to use
       -p <prefix>     : install prefix
+      -t <tag|branch> : specify tag or branch to fetch from URL
+      -s <scm>        : specify an SCM other than git (e.g. svn)
+      -p <prefix>     : install prefix
 
    Arguments:
       url             : URL to clone, build and install.
@@ -233,6 +242,20 @@ main()
             [ $# -eq 0 ] && usage
 
             CMAKE_INSTALL_PREFIX="$1"
+         ;;
+
+         -t|--tag|--branch)
+            shift
+            [ $# -eq 0 ] && usage
+
+            TAG="$1"
+         ;;
+
+         -s|--scm)
+            shift
+            [ $# -eq 0 ] && usage
+
+            SCM="$1"
          ;;
 
          -b|--brew)
@@ -279,6 +302,9 @@ main()
    then
       setup_make_environment
 
+      [ -z "${TAG}" ]         || fail "tag option is not compatible with local mode"
+      [ -z "${SCM}" ]         || fail "scm option is not compatible with local mode"
+
       do_fetch
       [ ! -f CMakeLists.txt ] && fail "Can only build cmake based projects, in local mode"
       do_build "$@"
@@ -287,7 +313,7 @@ main()
       [ -z "${BREW_INSTALL}" ] || fail "brew option is not compatible with URL install"
       [ -z "${MAKE}" ]         || fail "make option is not compatible with URL install"
 
-      do_clone_magic "${URL}" "${CMAKE_INSTALL_PREFIX}" "$@"
+      do_clone_magic "${URL}" "${TAG}" "${SCM}" "${CMAKE_INSTALL_PREFIX}" "$@"
    fi
 }
 
