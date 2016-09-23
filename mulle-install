@@ -1,0 +1,290 @@
+#! /bin/sh
+#
+#   Copyright (c) 2016 Nat! - Mulle kybernetiK
+#   Copyright (c) 2016 Nat! - Codeon GmbH
+#   All rights reserved.
+#
+#   Redistribution and use in source and binary forms, with or without
+#   modification, are permitted provided that the following conditions are met:
+#
+#   Redistributions of source code must retain the above copyright notice, this
+#   list of conditions and the following disclaimer.
+#
+#   Redistributions in binary form must reproduce the above copyright notice,
+#   this list of conditions and the following disclaimer in the documentation
+#   and/or other materials provided with the distribution.
+#
+#   Neither the name of Mulle kybernetiK nor the names of its contributors
+#   may be used to endorse or promote products derived from this software
+#   without specific prior written permission.
+#
+#   THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
+#   AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+#   IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
+#   ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE
+#   LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR
+#   CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF
+#   SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS
+#   INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN
+#   CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
+#   ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
+#   POSSIBILITY OF SUCH DAMAGE.
+
+MULLE_INSTALL_VERSION="0.0"
+
+PATH="`pwd -P`/addictions/bin:$HOME/.linuxbrew/bin:/usr/local/bin:${HOME}/bin:${PATH}"
+
+
+
+if [ "${MULLE_BOOTSTRAP_NO_COLOR}" != "YES" ]
+then
+   # Escape sequence and resets
+   C_RESET="\033[0m"
+
+   # Useable Foreground colours, for black/white white/black
+   C_RED="\033[0;31m"     C_GREEN="\033[0;32m"
+   C_BLUE="\033[0;34m"    C_MAGENTA="\033[0;35m"
+   C_CYAN="\033[0;36m"
+
+   C_BR_RED="\033[0;91m"
+   C_BOLD="\033[1m"
+
+   #
+   # restore colors if stuff gets wonky
+   #
+   trap 'printf "${C_RESET}"' TERM EXIT
+fi
+
+
+fail()
+{
+   echo "${C_BR_RED}$*${C_RESET}" >&2
+   exit 1
+}
+
+
+do_clone_magic()
+{
+   local url
+   local prefix
+
+   url="$1"
+   [ $# -ne 0 ] && shift
+   prefix="$1"
+   [ $# -ne 0 ] && shift
+
+
+   [ -z "${url}" ] && fail "URL is empty"
+
+   #
+   # if url is local directory, make relative absolute
+   #
+   case "${url}" in
+      /*|*:/*)
+      ;;
+
+      *)
+         if [ -d "${url}" ]
+         then
+            url="`pwd -P`/${url}"
+         fi
+      ;;
+   esac
+
+   local random
+
+   random=`mktemp -d -t "mulle-install.XXXX"`
+
+   (
+      cd "${random}"|| exit 1 ;
+      mulle-bootstrap init -n ;
+      echo "$url" > .bootstrap/repositories
+      mulle-bootstrap -a "$@" || fail "failed in \"${random}\""
+
+      if [ -z "${prefix}" ]
+      then
+         mulle-bootstrap install || fail "failed in \"${random}\""
+      else
+         mulle-bootstrap install "${prefix}" || fail "failed in \"${random}\""
+      fi
+   )
+   chmod -R ugo+w "${random}"
+   rm -rf "${random}"
+}
+
+
+#
+# Generic install.sh script to install a library or tool on multiple platforms.
+# Dependencies are either also installed or not, depending on the -b switch
+#
+do_fetch()
+{
+   if [ "${BREW_INSTALL}" = "YES" ]
+   then
+      # only fetch, but don't build
+      mulle-bootstrap -a fetch # --embedded-only
+   else
+      mulle-bootstrap -a
+   fi
+}
+
+
+setup_make_environment()
+{
+   if [ -z "${MAKE}" ]
+   then
+      case "`uname`" in
+         MINGW*)
+            MAKE="nmake"
+         ;;
+
+         *)
+            MAKE="make"
+         ;;
+      esac
+   fi
+
+   if [ -z "${CMAKE_GENERATOR}" ]
+   then
+      case "${MAKE}" in
+         nmake*)
+            CMAKE_GENERATOR="NMake Makefiles"
+         ;;
+
+         *)
+            CMAKE_GENERATOR="Unix Makefiles"
+         ;;
+      esac
+   fi
+}
+
+
+do_build()
+{
+   mkdir build 2> /dev/null
+   (
+      cd build ;
+      cmake -DCMAKE_INSTALL_PREFIX="${CMAKE_INSTALL_PREFIX}" -G "${CMAKE_GENERATOR}" .. || fail "cmake"
+   )
+}
+
+
+#
+# if we are using brew the dependencies are also installed via
+# brew, otherwise install dependencies too
+#
+do_install()
+{
+   (
+      cd build ;
+      "${MAKE}" install || fail "make" ;
+
+      if [ "${BREW_INSTALL}" != "YES" ]
+      then
+         mulle-bootstrap install "${CMAKE_INSTALL_PREFIX}"
+      fi
+   )
+}
+
+
+usage()
+{
+   cat <<EOF >&2
+usage:
+   mulle-install [options] [url]
+
+   Options:
+      -b              : don't fetch and build dependencies with mulle-bootstrap
+      -m <executable> : specify make program to use
+      -p <prefix>     : install prefix
+
+   Arguments:
+      url             : URL to clone, build and install.
+                        If no URL is specified, mulle-install will use "local
+                        mode". The current directory is assumed to be the
+                        project directory.
+                        "Local mode" is limited to cmake projects.
+EOF
+   exit 1
+}
+
+
+main()
+{
+   case "`uname`" in
+      MINGW*)
+         DEFAULT_INSTALL="~"
+      ;;
+
+      *)
+         DEFAULT_INSTALL="/usr/local"
+      ;;
+   esac
+
+   while [ $# -ne 0 ]
+   do
+      case "$1" in
+         -p|--prefix)
+            shift
+            [ $# -eq 0 ] && usage
+
+            CMAKE_INSTALL_PREFIX="$1"
+         ;;
+
+         -b|--brew)
+            BREW_INSTALL="YES"
+         ;;
+
+         -m|--make)
+            shift
+            [ $# -eq 0 ] && usage
+
+            MAKE="$1"
+         ;;
+
+         -t|--trace)
+            set -x
+         ;;
+
+         --version)
+            echo "${MULLE_INSTALL_VERSION}"
+            exit 0
+         ;;
+
+         -h|--help)
+            usage
+         ;;
+
+         -*)
+            fail "unknown option \"$1\""
+         ;;
+
+         *)
+            break
+         ;;
+      esac
+
+      shift
+   done
+
+
+   URL="$1"
+   [ $# -ne 0 ] && shift
+
+   if [ -z "${URL}" ]
+   then
+      setup_make_environment
+
+      do_fetch
+      [ ! -f CMakeLists.txt ] && fail "Can only build cmake based projects, in local mode"
+      do_build "$@"
+      do_install
+   else
+      [ -z "${BREW_INSTALL}" ] || fail "brew option is not compatible with URL install"
+      [ -z "${MAKE}" ]         || fail "make option is not compatible with URL install"
+
+      do_clone_magic "${URL}" "${CMAKE_INSTALL_PREFIX}" "$@"
+   fi
+}
+
+main "$@"
