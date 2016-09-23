@@ -61,7 +61,6 @@ class ${PROJECT} < Formula
 
   depends_on 'mulle-bootstrap'
   depends_on 'cmake'
-  depends_on 'make'
 
   def install
      system "./install.sh", "#{prefix}"
