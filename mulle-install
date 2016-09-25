@@ -30,36 +30,9 @@
 #   ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
 #   POSSIBILITY OF SUCH DAMAGE.
 
-MULLE_INSTALL_VERSION="0.2"
+MULLE_INSTALL_VERSION="0.3"
 
 PATH="`pwd -P`/addictions/bin:$HOME/.linuxbrew/bin:/usr/local/bin:${HOME}/bin:${PATH}"
-
-
-if [ "${MULLE_BOOTSTRAP_NO_COLOR}" != "YES" ]
-then
-   # Escape sequence and resets
-   C_RESET="\033[0m"
-
-   # Useable Foreground colours, for black/white white/black
-   C_RED="\033[0;31m"     C_GREEN="\033[0;32m"
-   C_BLUE="\033[0;34m"    C_MAGENTA="\033[0;35m"
-   C_CYAN="\033[0;36m"
-
-   C_BR_RED="\033[0;91m"
-   C_BOLD="\033[1m"
-
-   #
-   # restore colors if stuff gets wonky
-   #
-   trap 'printf "${C_RESET}"' TERM EXIT
-fi
-
-
-fail()
-{
-   echo "${C_BR_RED}$*${C_RESET}" >&2
-   exit 1
-}
 
 
 do_clone_magic()
@@ -76,6 +49,8 @@ do_clone_magic()
    scm="$1"
    [ $# -ne 0 ] && shift
    prefix="$1"
+   [ $# -ne 0 ] && shift
+   debug="$1"
    [ $# -ne 0 ] && shift
 
 
@@ -97,24 +72,37 @@ do_clone_magic()
    esac
 
    local random
+   local debugoptions
 
-   random=`mktemp -d -t "mulle-install.XXXX"`
+   if [ ! -z "${debug}" ]
+   then
+      debugoptions="--configuration Debug"
+   fi
+
+   random=`exekutor mktemp -d -t "mulle-install.XXXX"`
 
    (
-      cd "${random}"|| exit 1 ;
-      mulle-bootstrap init -n ;
-      echo "$url;;$tag;$scm" > .bootstrap/repositories
-      mulle-bootstrap -a "$@" || fail "failed in \"${random}\""
-
-      if [ -z "${prefix}" ]
+      exekutor cd "${random}"|| exit 1 ;
+      exekutor mulle-bootstrap init -n ;
+      exekutor echo "$url;;$tag;$scm" > .bootstrap/repositories
+      exekutor mulle-bootstrap  ${BOOTSTRAP_FLAGS} -a bootstrap ${debugoptions} "$@" || exit 1
+      if [ -z "${DONT_INSTALL}" ]
       then
-         mulle-bootstrap install || fail "failed in \"${random}\""
-      else
-         mulle-bootstrap install "${prefix}" || fail "failed in \"${random}\""
+         if [ -z "${prefix}" ]
+         then
+            exekutor mulle-bootstrap install || exit 1
+         else
+            exekutor mulle-bootstrap install "${prefix}" || exit 1
+         fi
       fi
    )
-   chmod -R ugo+w "${random}"
-   rm -rf "${random}"
+   if [ -z "${DONT_REMOVE}" ]
+   then
+      exekutor chmod -R ugo+w "${random}"
+      exekutor rm -rf "${random}"
+   else
+      log_info "Build in \"${random}\""
+   fi
 }
 
 
@@ -129,12 +117,12 @@ do_fetch()
       return
    fi
 
-   if [ "${BREW_INSTALL}" = "YES" ]
+   if [ "${FETCH_ONLY}" = "YES" ]
    then
       # only fetch, but don't build
-      mulle-bootstrap -a fetch # --embedded-only
+      exekutor mulle-bootstrap ${BOOTSTRAP_FLAGS} -a fetch # --embedded-only
    else
-      mulle-bootstrap -a
+      exekutor mulle-bootstrap ${BOOTSTRAP_FLAGS} -a
    fi
 }
 
@@ -171,10 +159,23 @@ setup_make_environment()
 
 do_build()
 {
+   local debugoptions
+
+   if [ ! -z "${debug}" ]
+   then
+      debugoptions="-DCMAKE_BUILD_TYPE=Debug"
+   fi
+
    mkdir build 2> /dev/null
    (
-      cd build ;
-      cmake -DCMAKE_INSTALL_PREFIX="${CMAKE_INSTALL_PREFIX}" -G "${CMAKE_GENERATOR}" .. || fail "cmake"
+      # CMAKE_FLAGS same as in mulle-bootstrap
+      exekutor cd build ;
+      exekutor cmake -DCMAKE_INSTALL_PREFIX="${CMAKE_INSTALL_PREFIX}" \
+                     -G "${CMAKE_GENERATOR}" \
+                     ${debugoptions} \
+                     ${CMAKE_FLAGS} \
+                     "$@" \
+                     .. || exit 1
    )
 }
 
@@ -186,12 +187,12 @@ do_build()
 do_install()
 {
    (
-      cd build ;
-      "${MAKE}" install || fail "make" ;
+      exekutor cd build ;
+      exekutor "${MAKE}" ${MAKE_FLAGS} install || exit 1 ;
 
-      if [ -d .bootstrap -a "${BREW_INSTALL}" != "YES" ]
+      if [ -d .bootstrap -a "${FETCH_ONLY}" != "YES" ]
       then
-         mulle-bootstrap install "${CMAKE_INSTALL_PREFIX}"
+         exekutor mulle-bootstrap install "${CMAKE_INSTALL_PREFIX}" || exit 1
       fi
    )
 }
@@ -204,12 +205,13 @@ usage:
    mulle-install [options] [url]
 
    Options:
-      -b              : don't fetch and build dependencies with mulle-bootstrap
+      -b <tag|branch> : specify tag or branch to fetch from URL
+      -d              : build debug
+      -f              : don't build dependencies with mulle-bootstrap
+                        Embedded_repositories will be fetched though.
       -m <executable> : specify make program to use
-      -p <prefix>     : install prefix
-      -t <tag|branch> : specify tag or branch to fetch from URL
+      -p <prefix>     : install prefix (default: ${DEFAULT_INSTALL})
       -s <scm>        : specify an SCM other than git (e.g. svn)
-      -p <prefix>     : install prefix
 
    Arguments:
       url             : URL to clone, build and install.
@@ -222,8 +224,39 @@ EOF
 }
 
 
+setup_bootstrap_environment()
+{
+   local libexec
+
+   libexec="`mulle-bootstrap library-path 2> /dev/null | head -1`"
+   if [ -z "${libexec}" ]
+   then
+      echo "mulle-bootstrap not installed or not in PATH" >&2
+      exit 1
+   fi
+
+   PATH="${libexec}:$PATH"
+
+   . mulle-bootstrap-logging.sh
+   . mulle-bootstrap-functions.sh
+}
+
+
 main()
 {
+   setup_bootstrap_environment
+
+   local executable
+
+   BOOTSTRAP_FLAGS=
+
+   executable=`basename "$0"`
+
+   if [ "`basename "$executable"`" = "mulle-build" ]
+   then
+      DONT_INSTALL="YES"
+   fi
+
    case "`uname`" in
       MINGW*)
          DEFAULT_INSTALL="~"
@@ -237,29 +270,27 @@ main()
    while [ $# -ne 0 ]
    do
       case "$1" in
-         -p|--prefix)
-            shift
-            [ $# -eq 0 ] && usage
-
-            CMAKE_INSTALL_PREFIX="$1"
-         ;;
-
-         -t|--tag|--branch)
+         -b|--tag|--branch)
             shift
             [ $# -eq 0 ] && usage
 
             TAG="$1"
          ;;
 
-         -s|--scm)
-            shift
-            [ $# -eq 0 ] && usage
-
-            SCM="$1"
+         -d|--debug)
+            DEBUG="YES"
          ;;
 
-         -b|--brew)
-            BREW_INSTALL="YES"
+         -nr|--no-remove)
+            DONT_REMOVE="YES"
+         ;;
+
+         -ni|--no-install)
+            DONT_INSTALL="YES"
+         ;;
+
+         -f|--fetch|--brew)  # brew is historic :)
+            FETCH_ONLY="YES"
          ;;
 
          -m|--make)
@@ -269,8 +300,51 @@ main()
             MAKE="$1"
          ;;
 
+         -p|--prefix)
+            shift
+            [ $# -eq 0 ] && usage
+
+            CMAKE_INSTALL_PREFIX="$1"
+         ;;
+
+         -s|--scm)
+            shift
+            [ $# -eq 0 ] && usage
+
+            SCM="$1"
+         ;;
+
+         -n|--dry-run)
+            MULLE_EXECUTOR_DRY_RUN="YES"
+         ;;
+
+         -te|--trace-execution)
+            BOOTSTRAP_FLAGS="${BOOTSTRAP_FLAGS} $1"
+            MULLE_EXECUTOR_TRACE="YES"
+         ;;
+
          -t|--trace)
+            BOOTSTRAP_FLAGS="${BOOTSTRAP_FLAGS} $1"
             set -x
+         ;;
+
+         -v|--verbose)
+            BOOTSTRAP_FLAGS="${BOOTSTRAP_FLAGS} $1"
+            MULLE_BOOTSTRAP_FLUFF="NO"
+            MULLE_BOOTSTRAP_VERBOSE="YES"
+         ;;
+
+         -vv|--very-verbose)
+            BOOTSTRAP_FLAGS="${BOOTSTRAP_FLAGS} $1"
+            MULLE_BOOTSTRAP_FLUFF="YES"
+            MULLE_BOOTSTRAP_VERBOSE="YES"
+         ;;
+
+         -vvv|--very-verbose-with-settings)
+            BOOTSTRAP_FLAGS="${BOOTSTRAP_FLAGS} $1"
+            MULLE_BOOTSTRAP_FLUFF="YES"
+            MULLE_BOOTSTRAP_VERBOSE="YES"
+            MULLE_EXECUTOR_TRACE="YES"
          ;;
 
          --version)
@@ -302,18 +376,21 @@ main()
    then
       setup_make_environment
 
-      [ -z "${TAG}" ]         || fail "tag option is not compatible with local mode"
-      [ -z "${SCM}" ]         || fail "scm option is not compatible with local mode"
+      [ -z "${TAG}" ]        || fail "-t option is not compatible with local mode"
+      [ -z "${SCM}" ]        || fail "-s option is not compatible with local mode"
 
       do_fetch
       [ ! -f CMakeLists.txt ] && fail "Can only build cmake based projects, in local mode"
       do_build "$@"
-      do_install
+      if [ -z "${DONT_INSTALL}" ]
+      then
+         do_install
+      fi
    else
-      [ -z "${BREW_INSTALL}" ] || fail "brew option is not compatible with URL install"
-      [ -z "${MAKE}" ]         || fail "make option is not compatible with URL install"
+      [ -z "${FETCH_ONLY}" ] || fail "-f option is not compatible with URL install"
+      [ -z "${MAKE}" ]       || fail "-m option is not compatible with URL install"
 
-      do_clone_magic "${URL}" "${TAG}" "${SCM}" "${CMAKE_INSTALL_PREFIX}" "$@"
+      do_clone_magic "${URL}" "${TAG}" "${SCM}" "${CMAKE_INSTALL_PREFIX}" "${DEBUG}" "$@"
    fi
 }
 

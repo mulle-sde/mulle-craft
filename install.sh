@@ -57,5 +57,8 @@ then
 fi
 
 install -m "${mode}" mulle-install "${bin}" || fail "failed install into ${bin}"
-printf "install: ${C_MAGENTA}${C_BOLD}mulle-install${C_RESET}\n" "$bin/$i" >&2
+printf "install: ${C_MAGENTA}${C_BOLD}mulle-install${C_RESET}\n" "${bin}/mulle-install" >&2
+
+ln -sf mulle-install "${bin}/mulle-build" || fail "failed install into ${bin}"
+printf "install: ${C_MAGENTA}${C_BOLD}mulle-build${C_RESET}\n" "${bin}/mulle-build" >&2
 

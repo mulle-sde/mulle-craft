@@ -1,14 +1,49 @@
 # mulle-install
 
-Install [mulle-bootstrap](//www.mulle-kybernetik.com/software/git/mulle-bootstrap) based projects conveniently on multiple platforms
-(OSX, Linux, Windows)
+Install [mulle-bootstrap](//www.mulle-kybernetik.com/software/git/mulle-bootstrap)
+based projects conveniently on multiple platforms (OSX, Linux, Windows)
+
+> If your project has no dependencies but is `cmake` based, **mulle-install**
+> can be useful too.
 
 **mulle-bootstrap** solves the dependency problems of your project during
-development. But **mulle-install** is a tool to facilitate installation of your project
-with a package manager like [homebrew](//brew.sh). It can also be used standalone.
+development. But **mulle-install** is a tool to facilitate installation of your
+project with a package manager like [homebrew](//brew.sh). It can also be used
+standalone.
+
+## Installing mulle-install
+
+```
+brew tap mulle-kybernetik/software
+brew install mulle-install
+```
+
+or manually:
+
+Install [mulle-bootstrap](//www.mulle-kybernetik.com/repositories/mulle-bootstrap)  first.
+Then:
+
+```
+git clone -b release https:://www.mulle-kybernetik.com/repositories/mulle-install
+cd mulle-install
+./install.sh
+```
+
+## Usage
+
+#### Common Options
+
+Option      | Description                                   |
+------------|-----------------------------------------------|
+-d          | Build debug                                   |
+-n          | Dry run, don't actually execute               |
+-v          | Verbose                                       |
+-vv         | Very verbose                                  |
+-vvv        | Extremely verbose                             |
+-t          | Trace shell script                            |
 
 
-## URL mode
+### URL mode
 
 ```
 mulle-install https://github.com/my-name/my-repo.git
@@ -19,17 +54,16 @@ from. It will then use **mulle-bootstrap** to acquire the necessary
 dependencies and build the project. If the build was successful, the output
 of the project **and** the built dependencies are installed.
 
-### Options in URL Mode
+#### Options in URL Mode
 
 Option            |  Description                                  |
 ------------------|-----------------------------------------------|
--t &lt;tag&gt;    | Tag/branch to fetch                           |
+-b &lt;branch&gt; | Tag/branch to fetch                           |
 -s &lt;scm&gt;    | SCM to use (default: git).                    |
 -p &lt;prefix&gt; | Installation prefix.                          |
 
 
-
-## Local mode
+### Local mode
 
 ```
 mulle-install
@@ -41,17 +75,16 @@ will fetch all dependencies. Then it will build those dependencies using **cmake
 Finally the product **and** the built dependencies are installed.
 
 
+#### Options in Local Mode
 
-### Options in Local Mode
-
-Option      |                                                               |
-------------|---------------------------------------------------------------|
--f          | Do not build and install dependencies via mulle-bootstrap. mulle-bootstrap will fetch only embedded repositories. This is useful if the dependencies are installed by brew or some other package manager. |
--m &lt;exe&gt;    | Specify the make program to use                               |
--p &lt;prefix&gt; | Installation prefix
+Option            | Description                                   |
+------------------|-----------------------------------------------|
+-f                | Do not build dependencies via mulle-bootstrap. mulle-bootstrap will fetch only embedded repositories. This is useful if the dependencies are installed by brew or some other package manager. |
+-m &lt;exe&gt;    | Specify the make program to use               |
+-p &lt;prefix&gt; | Installation prefix                           |
 
 
-## Typical usage with "homebrew"
+## Typical usage with package manager "homebrew"
 
 You want to create a "homebrew" formula. Your dependencies are also managed
 my homebrew. So you don't build the dependencies again, just specify them
@@ -61,9 +94,10 @@ with homebrew to fetch:
 class MyFormula < Formula
   ...
   depends_on 'MyOtherFormula'
+  depends_on 'mulle-install' => :build
 
   def install
-     system "/usr/local/bin/mulle-install", "-f", "-p", "#{prefix}"
+     system "mulle-install", "-f", "-p", "#{prefix}"
   end
   ...
 end
