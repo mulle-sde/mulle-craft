@@ -35,6 +35,34 @@ MULLE_INSTALL_VERSION="0.3"
 PATH="`pwd -P`/addictions/bin:$HOME/.linuxbrew/bin:/usr/local/bin:${HOME}/bin:${PATH}"
 
 
+usage()
+{
+   cat <<EOF >&2
+usage:
+   ${executable} [options] [url|clean]
+
+   Options:
+      -b <tag|branch> : specify tag or branch to fetch from URL
+      -d              : build debug
+      -f              : don't build dependencies with mulle-bootstrap
+                        Embedded_repositories will be fetched though.
+      -m <executable> : specify make program to use
+      -p <prefix>     : install prefix (default: ${DEFAULT_INSTALL})
+      -s <scm>        : specify an SCM other than git (e.g. svn)
+
+   Arguments:
+      clean           : clean project
+      url             : URL to clone, build and install.
+                        If no URL is specified, mulle-install will use "local
+                        mode". The current directory is assumed to be the
+                        project directory.
+                        "Local mode" is limited to cmake projects.
+EOF
+   exit 1
+}
+
+
+
 do_clone_magic()
 {
    local url
@@ -106,23 +134,41 @@ do_clone_magic()
 }
 
 
-#
-# Generic install.sh script to install a library or tool on multiple platforms.
-# Dependencies are either also installed or not, depending on the -b switch
-#
-do_fetch()
+do_dependencies()
 {
    if [ ! -d .bootstrap ]
    then
       return
    fi
 
+   #
+   # assume .bootstrap.auto is setup correctly
+   # in OPTIMISTIC mode, that means we don't refresh or fetch
+   #
+   if [ -d .bootstrap.auto -a ! -z "${OPTIMISTIC}" ]
+   then
+      if [ "${FETCH_ONLY}" = "YES" ]
+      then
+         return
+      fi
+      BOOTSTRAP_FLAGS="${BOOTSTRAP_FLAGS} --skip-refresh"
+   fi
+
    if [ "${FETCH_ONLY}" = "YES" ]
    then
       # only fetch, but don't build
-      exekutor mulle-bootstrap ${BOOTSTRAP_FLAGS} -a fetch # --embedded-only
+      exekutor mulle-bootstrap ${BOOTSTRAP_FLAGS} fetch || exit 1 # --embedded-only
    else
-      exekutor mulle-bootstrap ${BOOTSTRAP_FLAGS} -a
+      exekutor mulle-bootstrap ${BOOTSTRAP_FLAGS} || exit 1
+   fi
+
+   #
+   # after the first fetch don't warn about scripts again
+   #
+   if [ "`basename "$executable"`" = "mulle-build" ]
+   then
+      log_verbose "Don't warn about scripts next build"
+      mulle-bootstrap config --on dont_warn_scripts
    fi
 }
 
@@ -166,16 +212,28 @@ do_build()
       debugoptions="-DCMAKE_BUILD_TYPE=Debug"
    fi
 
-   mkdir build 2> /dev/null
+   local relative
+
+   case "${BUILDDIR}" in
+      */*)
+        relative="`perfect_relative_path_between "${PWD}" "${BUILDDIR}"`"
+      ;;
+
+      *)
+         relative=".."
+      ;;
+   esac
+
+   mkdir "${BUILDDIR}" 2> /dev/null
    (
       # CMAKE_FLAGS same as in mulle-bootstrap
-      exekutor cd build ;
+      exekutor cd "${BUILDDIR}" ;
       exekutor cmake -DCMAKE_INSTALL_PREFIX="${CMAKE_INSTALL_PREFIX}" \
                      -G "${CMAKE_GENERATOR}" \
                      ${debugoptions} \
                      ${CMAKE_FLAGS} \
                      "$@" \
-                     .. || exit 1
+                     "${relative}" || exit 1
    )
 }
 
@@ -186,41 +244,23 @@ do_build()
 #
 do_install()
 {
+   local command
+
+   if [ -z "${DONT_INSTALL}" ]
+   then
+      command="install"
+   fi
+
    (
       exekutor cd build ;
-      exekutor "${MAKE}" ${MAKE_FLAGS} install || exit 1 ;
+      exekutor "${MAKE}" ${MAKE_FLAGS} ${command} || exit 1 ;
 
-      if [ -d .bootstrap -a "${FETCH_ONLY}" != "YES" ]
+
+      if [ -d .bootstrap -a -z "${FETCH_ONLY}" -a -z "${DONT_INSTALL}" ]
       then
          exekutor mulle-bootstrap install "${CMAKE_INSTALL_PREFIX}" || exit 1
       fi
    )
-}
-
-
-usage()
-{
-   cat <<EOF >&2
-usage:
-   mulle-install [options] [url]
-
-   Options:
-      -b <tag|branch> : specify tag or branch to fetch from URL
-      -d              : build debug
-      -f              : don't build dependencies with mulle-bootstrap
-                        Embedded_repositories will be fetched though.
-      -m <executable> : specify make program to use
-      -p <prefix>     : install prefix (default: ${DEFAULT_INSTALL})
-      -s <scm>        : specify an SCM other than git (e.g. svn)
-
-   Arguments:
-      url             : URL to clone, build and install.
-                        If no URL is specified, mulle-install will use "local
-                        mode". The current directory is assumed to be the
-                        project directory.
-                        "Local mode" is limited to cmake projects.
-EOF
-   exit 1
 }
 
 
@@ -249,6 +289,7 @@ main()
    local executable
 
    BOOTSTRAP_FLAGS=
+   BUILDDIR="${BUILDDIR:-build}"
 
    executable=`basename "$0"`
 
@@ -270,6 +311,10 @@ main()
    while [ $# -ne 0 ]
    do
       case "$1" in
+         -a|-y)
+            BOOTSTRAP_FLAGS="${BOOTSTRAP_FLAGS} $1"
+         ;;
+
          -b|--tag|--branch)
             shift
             [ $# -eq 0 ] && usage
@@ -287,6 +332,11 @@ main()
 
          -ni|--no-install)
             DONT_INSTALL="YES"
+         ;;
+
+         -l|--optimistic|--lucky)
+            BOOTSTRAP_FLAGS="${BOOTSTRAP_FLAGS} $1"
+            OPTIMISITIC="YES"
          ;;
 
          -f|--fetch|--brew)  # brew is historic :)
@@ -372,26 +422,42 @@ main()
    URL="$1"
    [ $# -ne 0 ] && shift
 
-   if [ -z "${URL}" ]
-   then
-      setup_make_environment
+   case "${URL}" in
+      "")
+         setup_make_environment
 
-      [ -z "${TAG}" ]        || fail "-t option is not compatible with local mode"
-      [ -z "${SCM}" ]        || fail "-s option is not compatible with local mode"
+         [ -z "${TAG}" ]        || fail "-t option is not compatible with local mode"
+         [ -z "${SCM}" ]        || fail "-s option is not compatible with local mode"
 
-      do_fetch
-      [ ! -f CMakeLists.txt ] && fail "Can only build cmake based projects, in local mode"
-      do_build "$@"
-      if [ -z "${DONT_INSTALL}" ]
-      then
+         do_dependencies
+         [ ! -f CMakeLists.txt ] && fail "Can only build cmake based projects, in local mode"
+         do_build "$@"
          do_install
-      fi
-   else
-      [ -z "${FETCH_ONLY}" ] || fail "-f option is not compatible with URL install"
-      [ -z "${MAKE}" ]       || fail "-m option is not compatible with URL install"
+      ;;
 
-      do_clone_magic "${URL}" "${TAG}" "${SCM}" "${CMAKE_INSTALL_PREFIX}" "${DEBUG}" "$@"
-   fi
+      clean)
+         local cleandefault
+
+         if [ $# -eq 0 ]
+         then
+            if [ -z "${DONT_INSTALL}" ]
+            then
+               cleandefault=dist    # mulle-install clean
+            else
+               cleandefault=output  # mulle-build clean
+            fi
+         fi
+
+         mulle-bootstrap clean "$@" ${cleandefault}
+      ;;
+
+      *)
+         [ -z "${FETCH_ONLY}" ] || fail "-f option is not compatible with URL install"
+         [ -z "${MAKE}" ]       || fail "-m option is not compatible with URL install"
+
+         do_clone_magic "${URL}" "${TAG}" "${SCM}" "${CMAKE_INSTALL_PREFIX}" "${DEBUG}" "$@"
+      ;;
+   esac
 }
 
 main "$@"
