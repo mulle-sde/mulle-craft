@@ -57,7 +57,7 @@ usage:
    Arguments:
       clean           : clean project
       url             : URL to clone, build and install.
-                        If no URL is specified, mulle-install will use "local
+                        If no URL is specified, ${executable} will use "local
                         mode". The current directory is assumed to be the
                         project directory.
                         "Local mode" is limited to cmake projects.
@@ -110,6 +110,8 @@ do_clone_magic()
       debugoptions="--configuration Debug"
    fi
 
+   local command
+
    random=`exekutor mktemp -d -t "mulle-install.XXXX"`
 
    (
@@ -117,6 +119,7 @@ do_clone_magic()
       exekutor mulle-bootstrap init -n ;
       exekutor echo "$url;;$tag;$scm" > .bootstrap/repositories
       exekutor mulle-bootstrap  ${BOOTSTRAP_FLAGS} -a bootstrap ${debugoptions} "$@" || exit 1
+
       if [ -z "${DONT_INSTALL}" ]
       then
          if [ -z "${prefix}" ]
@@ -343,7 +346,7 @@ main()
    BUILDDIR="${BUILDDIR:-build}"
    OPTIMISTIC="${OPTIMISITIC:-YES}"
 
-   if [ "`basename "$executable"`" = "mulle-build" ]
+   if [ "${executable}" = "mulle-build" ]
    then
       DONT_INSTALL="YES"
    fi

@@ -56,9 +56,9 @@ then
    mkdir -p "${bin}" || fail "could not create ${bin}"
 fi
 
-install -m "${mode}" mulle-install "${bin}" || fail "failed install into ${bin}"
-printf "install: ${C_MAGENTA}${C_BOLD}mulle-install${C_RESET}\n" "${bin}/mulle-install" >&2
+install -m "${mode}" mulle-build "${bin}" || fail "failed install into ${bin}"
+printf "install: ${C_MAGENTA}${C_BOLD}mulle-build${C_RESET}\n" >&2
 
-ln -sf mulle-install "${bin}/mulle-build" || fail "failed install into ${bin}"
-printf "install: ${C_MAGENTA}${C_BOLD}mulle-build${C_RESET}\n" "${bin}/mulle-build" >&2
+ln -sf mulle-build "${bin}/mulle-install" || fail "failed install into ${bin}"
+printf "install: ${C_MAGENTA}${C_BOLD}mulle-install${C_RESET}\n" >&2
 
