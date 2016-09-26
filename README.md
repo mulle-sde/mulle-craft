@@ -9,7 +9,7 @@ based projects conveniently on multiple platforms (OSX, Linux, Windows)
 **mulle-bootstrap** solves the dependency problems of your project during
 development. But **mulle-install** is a tool to facilitate installation of your
 project with a package manager like [homebrew](//brew.sh). It can also be used
-standalone.
+standalone to just build your project.
 
 ## Installing mulle-install
 

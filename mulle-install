@@ -32,6 +32,10 @@
 
 MULLE_INSTALL_VERSION="0.3"
 
+MULLE_BOOTSTRAP_MIN_MAJOR="2"
+MULLE_BOOTSTRAP_MIN_MINOR="1"
+
+
 PATH="`pwd -P`/addictions/bin:$HOME/.linuxbrew/bin:/usr/local/bin:${HOME}/bin:${PATH}"
 
 
@@ -60,7 +64,6 @@ usage:
 EOF
    exit 1
 }
-
 
 
 do_clone_magic()
@@ -141,11 +144,16 @@ do_dependencies()
       return
    fi
 
+   if [ -d dependencies -a "${OPTIMISTIC}" = "YES" ]
+   then
+      return
+   fi
+
    #
    # assume .bootstrap.auto is setup correctly
    # in OPTIMISTIC mode, that means we don't refresh or fetch
    #
-   if [ -d .bootstrap.auto -a ! -z "${OPTIMISTIC}" ]
+   if [ "${OPTIMISTIC}" = "YES" -a -d .bootstrap.auto ]
    then
       if [ "${FETCH_ONLY}" = "YES" ]
       then
@@ -207,6 +215,11 @@ do_build()
 {
    local debugoptions
 
+   if [ "${OPTIMISTIC}" = "YES" -a -d "${BUILDDIR}/CMakeFiles"  ]
+   then
+      return
+   fi
+
    if [ ! -z "${debug}" ]
    then
       debugoptions="-DCMAKE_BUILD_TYPE=Debug"
@@ -263,6 +276,33 @@ do_install()
    )
 }
 
+check_mulle_bootstrap_version()
+{
+   local version
+   local major
+   local minor
+
+   version="`mulle-bootstrap version | head -1`"
+   [ -z "${version}" ] && fail "mulle-bootstrap did not provide a version"
+
+   major="`echo "${version}" | cut -s -d. -f1`"
+   if [ "${major}" -gt "${MULLE_BOOTSTRAP_MIN_MAJOR}" ]
+   then
+      return 1
+   fi
+
+   if [ "${major}" -eq "${MULLE_BOOTSTRAP_MIN_MAJOR}" ]
+   then
+      minor="`echo "${version}" | cut -s -d. -f2`"
+      if [ "${minor}" -lt "${MULLE_BOOTSTRAP_MIN_MINOR}" ]
+      then
+         return 1
+      fi
+   fi
+
+   return 0
+}
+
 
 setup_bootstrap_environment()
 {
@@ -279,19 +319,29 @@ setup_bootstrap_environment()
 
    . mulle-bootstrap-logging.sh
    . mulle-bootstrap-functions.sh
+
+
+   if check_mulle_bootstrap_version
+   then
+      return
+   fi
+
+   fail "$executable: mulle-bootstrap needs to be updated."
 }
 
 
 main()
 {
+   local executable
+
+   executable=`basename "$0"`
+
    setup_bootstrap_environment
 
-   local executable
 
    BOOTSTRAP_FLAGS=
    BUILDDIR="${BUILDDIR:-build}"
-
-   executable=`basename "$0"`
+   OPTIMISTIC="${OPTIMISITIC:-YES}"
 
    if [ "`basename "$executable"`" = "mulle-build" ]
    then
@@ -334,9 +384,8 @@ main()
             DONT_INSTALL="YES"
          ;;
 
-         -l|--optimistic|--lucky)
-            BOOTSTRAP_FLAGS="${BOOTSTRAP_FLAGS} $1"
-            OPTIMISITIC="YES"
+         -u|--pessimistic|--unlucky)
+            OPTIMISTIC="NO"
          ;;
 
          -f|--fetch|--brew)  # brew is historic :)
@@ -419,6 +468,11 @@ main()
    done
 
 
+   if [ "${OPTIMISTIC}" = "YES" ]
+   then
+      BOOTSTRAP_FLAGS="${BOOTSTRAP_FLAGS} -l"
+   fi
+
    URL="$1"
    [ $# -ne 0 ] && shift
 
@@ -426,11 +480,11 @@ main()
       "")
          setup_make_environment
 
-         [ -z "${TAG}" ]        || fail "-t option is not compatible with local mode"
-         [ -z "${SCM}" ]        || fail "-s option is not compatible with local mode"
+         [ -z "${TAG}" ]        || fail "$executable: -t option is not compatible with local mode."
+         [ -z "${SCM}" ]        || fail "$executable: -s option is not compatible with local mode."
 
          do_dependencies
-         [ ! -f CMakeLists.txt ] && fail "Can only build cmake based projects, in local mode"
+         [ ! -f CMakeLists.txt ] && fail "$executable: Can only build cmake based projects, in local mode."
          do_build "$@"
          do_install
       ;;
@@ -452,8 +506,8 @@ main()
       ;;
 
       *)
-         [ -z "${FETCH_ONLY}" ] || fail "-f option is not compatible with URL install"
-         [ -z "${MAKE}" ]       || fail "-m option is not compatible with URL install"
+         [ -z "${FETCH_ONLY}" ] || fail "$executable: -f option is not compatible with URL install."
+         [ -z "${MAKE}" ]       || fail "$executable: -m option is not compatible with URL install."
 
          do_clone_magic "${URL}" "${TAG}" "${SCM}" "${CMAKE_INSTALL_PREFIX}" "${DEBUG}" "$@"
       ;;
