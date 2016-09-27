@@ -66,6 +66,11 @@ EOF
 }
 
 
+
+#
+# URL Mode
+#
+
 do_clone_magic()
 {
    local url
@@ -140,38 +145,18 @@ do_clone_magic()
 }
 
 
-do_dependencies()
+#
+# Local Mode
+#
+do_fetch_dependencies()
 {
-   if [ ! -d .bootstrap ]
+   if [ "${OPTIMISTIC}" = "YES" -a -e .repos/.fetch_done ]
    then
       return
    fi
 
-   if [ -d dependencies -a "${OPTIMISTIC}" = "YES" ]
-   then
-      return
-   fi
-
-   #
-   # assume .bootstrap.auto is setup correctly
-   # in OPTIMISTIC mode, that means we don't refresh or fetch
-   #
-   if [ "${OPTIMISTIC}" = "YES" -a -d .bootstrap.auto ]
-   then
-      if [ "${FETCH_ONLY}" = "YES" ]
-      then
-         return
-      fi
-      BOOTSTRAP_FLAGS="${BOOTSTRAP_FLAGS} --skip-refresh"
-   fi
-
-   if [ "${FETCH_ONLY}" = "YES" ]
-   then
-      # only fetch, but don't build
-      exekutor mulle-bootstrap ${BOOTSTRAP_FLAGS} fetch || exit 1 # --embedded-only
-   else
-      exekutor mulle-bootstrap ${BOOTSTRAP_FLAGS} || exit 1
-   fi
+   # only fetch, but don't build
+   exekutor mulle-bootstrap ${BOOTSTRAP_FLAGS} fetch || exit 1 # --embedded-only
 
    #
    # after the first fetch don't warn about scripts again
@@ -184,34 +169,33 @@ do_dependencies()
 }
 
 
-setup_make_environment()
+do_build_dependencies()
 {
-   if [ -z "${MAKE}" ]
+   if [ "${OPTIMISTIC}" = "YES" -a -e .repos/.build_done ]
    then
-      case "`uname`" in
-         MINGW*)
-            MAKE="nmake"
-         ;;
-
-         *)
-            MAKE="make"
-         ;;
-      esac
+      return
    fi
 
-   if [ -z "${CMAKE_GENERATOR}" ]
+   if [ -z "${FETCH_ONLY}" ]
    then
-      case "${MAKE}" in
-         nmake*)
-            CMAKE_GENERATOR="NMake Makefiles"
-         ;;
-
-         *)
-            CMAKE_GENERATOR="Unix Makefiles"
-         ;;
-      esac
+      exekutor mulle-bootstrap ${BOOTSTRAP_FLAGS} build || exit 1
    fi
 }
+
+
+do_install_dependencies()
+{
+   if [ "${OPTIMISTIC}" = "YES" ]
+   then
+      return
+   fi
+
+   if [ -z "${DONT_INSTALL}" -a -z "${FETCH_ONLY}" ]
+   then
+      exekutor mulle-bootstrap install "${CMAKE_INSTALL_PREFIX}" || exit 1
+   fi
+}
+
 
 
 do_build()
@@ -239,6 +223,25 @@ do_build()
          relative=".."
       ;;
    esac
+
+   #
+   # Figure out C/CXX compiler (only for current) project
+   #
+   local  cc
+
+   cc="`cat .CC`"
+   if [ ! -z "${cc}" ]
+   then
+      CMAKE_FLAGS="${CMAKE_FLAGS} -DCMAKE_C_COMPILER=${cc}"
+   fi
+
+   local  cxx
+
+   cxx="`cat .CXX`"
+   if [ ! -z "${cxx}" ]
+   then
+      CMAKE_FLAGS="${CMAKE_FLAGS} -DCMAKE_CXX_COMPILER=${cxx}"
+   fi
 
    mkdir "${BUILDDIR}" 2> /dev/null
    (
@@ -270,14 +273,43 @@ do_install()
    (
       exekutor cd build ;
       exekutor "${MAKE}" ${MAKE_FLAGS} ${command} || exit 1 ;
-
-
-      if [ -d .bootstrap -a -z "${FETCH_ONLY}" -a -z "${DONT_INSTALL}" ]
-      then
-         exekutor mulle-bootstrap install "${CMAKE_INSTALL_PREFIX}" || exit 1
-      fi
    )
 }
+
+
+#
+#
+#
+
+setup_make_environment()
+{
+   if [ -z "${MAKE}" ]
+   then
+      case "`uname`" in
+         MINGW*)
+            MAKE="nmake"
+         ;;
+
+         *)
+            MAKE="make"
+         ;;
+      esac
+   fi
+
+   if [ -z "${CMAKE_GENERATOR}" ]
+   then
+      case "${MAKE}" in
+         nmake*)
+            CMAKE_GENERATOR="NMake Makefiles"
+         ;;
+
+         *)
+            CMAKE_GENERATOR="Unix Makefiles"
+         ;;
+      esac
+   fi
+}
+
 
 check_mulle_bootstrap_version()
 {
@@ -377,6 +409,10 @@ main()
 
          -d|--debug)
             DEBUG="YES"
+         ;;
+
+         -f|--force)
+            BOOTSTRAP_FLAGS="${BOOTSTRAP_FLAGS} $1"
          ;;
 
          -nr|--no-remove)
@@ -486,9 +522,23 @@ main()
          [ -z "${TAG}" ]        || fail "$executable: -t option is not compatible with local mode."
          [ -z "${SCM}" ]        || fail "$executable: -s option is not compatible with local mode."
 
-         do_dependencies
+         if [ -d .bootstrap ]
+         then
+            do_fetch_dependencies
+            if [ -z "${FETCH_ONLY}" ]
+            then
+               do_build_dependencies
+            fi
+         fi
+
          [ ! -f CMakeLists.txt ] && fail "$executable: Can only build cmake based projects, in local mode."
          do_build "$@"
+
+         if [ -d .bootstrap ]
+         then
+            do_install_dependencies
+         fi
+
          do_install
       ;;
 
