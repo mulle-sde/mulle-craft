@@ -6,7 +6,8 @@ multiple platforms (OSX, Linux, Windows)
 
 **mulle-bootstrap** solves the dependency problems of your project during
 development. **mulle-build** facilitates building your project
-with cmake and your dependencies with **mulle-bootstrap**.
+with **cmake** and your dependencies with **mulle-bootstrap**. It generally
+simplifies the use of **mulle-bootstrap**.
 
 With it's companion **mulle-build** it can be used to build a
 project with a package manager like [homebrew](//brew.sh). It can also be used
@@ -101,7 +102,7 @@ of the project **and** the built dependencies are installed.
 
 Option            | Description                                   |
 ------------------|-----------------------------------------------|
--f                | Do not build dependencies via mulle-bootstrap. mulle-bootstrap will fetch only embedded repositories. This is useful if the dependencies are installed by brew or some other package manager. |
+-nb               | Do not build dependencies via mulle-bootstrap. mulle-bootstrap will fetch only embedded repositories. This is useful if the dependencies are installed by brew or some other package manager.  |
 -m &lt;exe&gt;    | Specify the make program to use               |
 -p &lt;prefix&gt; | Installation prefix                           |
 
@@ -119,7 +120,7 @@ class MyFormula < Formula
   depends_on 'mulle-build' => :build
 
   def install
-     system "mulle-install", "-f", "-p", "#{prefix}"
+     system "mulle-install", "-nb", "-p", "#{prefix}"
   end
   ...
 end

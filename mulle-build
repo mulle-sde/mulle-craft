@@ -66,11 +66,9 @@ EOF
 }
 
 
-
 #
 # URL Mode
 #
-
 do_clone_magic()
 {
    local url
@@ -197,15 +195,56 @@ do_install_dependencies()
 }
 
 
+cmake_clean()
+{
+   log_verbose "Deleting build/CMakeFiles"
+   exekutor rm -rf build/CMakeFiles 2> /dev/null
 
-do_build()
+   log_verbose "Deleting build/CMakeCache.txt"
+   exekutor rm build/CMakeCache.txt 2> /dev/null
+}
+
+
+need_cmake_clean()
+{
+   if [ ! -f "${BUILDDIR}/CMakeFiles" ]
+   then
+      return 0
+   fi
+
+   if [ .CC -nt "${BUILDDIR}/CMakeFiles" ]
+   then
+      return 0
+   fi
+
+   if [ .CXX -nt "${BUILDDIR}/CMakeFiles" ]
+   then
+      return 0
+   fi
+
+   return 1
+}
+
+
+need_cmake_build()
+{
+   if [ ! -f "${BUILDDIR}/CMakeFiles" ]
+   then
+      return 0
+   fi
+
+   if [ CMakeFiles.txt -nt "${BUILDDIR}/CMakeFiles.txt" ]
+   then
+      return 0
+   fi
+
+   return 1
+}
+
+
+_do_build()
 {
    local debugoptions
-
-   if [ "${OPTIMISTIC}" = "YES" -a -d "${BUILDDIR}/CMakeFiles"  ]
-   then
-      return
-   fi
 
    if [ ! -z "${debug}" ]
    then
@@ -229,18 +268,20 @@ do_build()
    #
    local  cc
 
-   cc="`cat .CC`"
+   cc="`cat .CC 2> /dev/null`"
    if [ ! -z "${cc}" ]
    then
-      CMAKE_FLAGS="${CMAKE_FLAGS} -DCMAKE_C_COMPILER=${cc}"
+      log_verbose "Compiler ${C_RESET_BOLD}CC${C_VERBOSE} set to ${C_MAGENTA}${C_BOLD}${cc}${C_VERBOSE} found in \".CC\""
+      CMAKE_FLAGS="`concat "${CMAKE_FLAGS}" "-DCMAKE_C_COMPILER=${cc}"`"
    fi
 
    local  cxx
 
-   cxx="`cat .CXX`"
+   cxx="`cat .CXX 2> /dev/null`"
    if [ ! -z "${cxx}" ]
    then
-      CMAKE_FLAGS="${CMAKE_FLAGS} -DCMAKE_CXX_COMPILER=${cxx}"
+      log_verbose "Compiler ${C_RESET_BOLD}CXX${C_VERBOSE} set to ${C_MAGENTA}${C_BOLD}${cxx}${C_VERBOSE} found in \".CXX\""
+      CMAKE_FLAGS="`concat "${CMAKE_FLAGS}" "-DCMAKE_CXX_COMPILER=${cxx}"`"
    fi
 
    mkdir "${BUILDDIR}" 2> /dev/null
@@ -254,6 +295,26 @@ do_build()
                      "$@" \
                      "${relative}" || exit 1
    )
+}
+
+
+do_build()
+{
+   local skip_build
+
+   skip_build="${OPTIMISTIC}"
+
+   if need_cmake_clean
+   then
+      cmake_clean
+      skip_build="NO"
+   fi
+
+
+   if [ skip_build = "NO" ] || need_cmake_build
+   then
+      _do_build "$@"
+   fi
 }
 
 
@@ -280,7 +341,6 @@ do_install()
 #
 #
 #
-
 setup_make_environment()
 {
    if [ -z "${MAKE}" ]
@@ -355,7 +415,6 @@ setup_bootstrap_environment()
    . mulle-bootstrap-logging.sh
    . mulle-bootstrap-functions.sh
 
-
    if check_mulle_bootstrap_version
    then
       return
@@ -372,7 +431,6 @@ main()
    executable=`basename "$0"`
 
    setup_bootstrap_environment
-
 
    BOOTSTRAP_FLAGS=
    BUILDDIR="${BUILDDIR:-build}"
@@ -396,10 +454,6 @@ main()
    while [ $# -ne 0 ]
    do
       case "$1" in
-         -a|-y)
-            BOOTSTRAP_FLAGS="${BOOTSTRAP_FLAGS} $1"
-         ;;
-
          -b|--tag|--branch)
             shift
             [ $# -eq 0 ] && usage
@@ -411,24 +465,22 @@ main()
             DEBUG="YES"
          ;;
 
-         -f|--force)
-            BOOTSTRAP_FLAGS="${BOOTSTRAP_FLAGS} $1"
+         -ni|--no-install)
+            DONT_INSTALL="YES"
+         ;;
+
+         -nb|--no-build|--brew)  # brew is historic :)
+            # enable &usr/local/include check
+            BOOTSTRAP_FLAGS="`concat "${BOOTSTRAP_FLAGS}" "-c"`"
+            FETCH_ONLY="YES"
          ;;
 
          -nr|--no-remove)
             DONT_REMOVE="YES"
          ;;
 
-         -ni|--no-install)
-            DONT_INSTALL="YES"
-         ;;
-
          -u|--pessimistic|--unlucky)
             OPTIMISTIC="NO"
-         ;;
-
-         -f|--fetch|--brew)  # brew is historic :)
-            FETCH_ONLY="YES"
          ;;
 
          -m|--make)
@@ -453,33 +505,34 @@ main()
          ;;
 
          -n|--dry-run)
+            BOOTSTRAP_FLAGS="`concat "${BOOTSTRAP_FLAGS}" "$1"`"
             MULLE_EXECUTOR_DRY_RUN="YES"
          ;;
 
          -te|--trace-execution)
-            BOOTSTRAP_FLAGS="${BOOTSTRAP_FLAGS} $1"
+            BOOTSTRAP_FLAGS="`concat "${BOOTSTRAP_FLAGS}" "$1"`"
             MULLE_EXECUTOR_TRACE="YES"
          ;;
 
          -t|--trace)
-            BOOTSTRAP_FLAGS="${BOOTSTRAP_FLAGS} $1"
+            BOOTSTRAP_FLAGS="`concat "${BOOTSTRAP_FLAGS}" "$1"`"
             set -x
          ;;
 
          -v|--verbose)
-            BOOTSTRAP_FLAGS="${BOOTSTRAP_FLAGS} $1"
+            BOOTSTRAP_FLAGS="`concat "${BOOTSTRAP_FLAGS}" "$1"`"
             MULLE_BOOTSTRAP_FLUFF="NO"
             MULLE_BOOTSTRAP_VERBOSE="YES"
          ;;
 
          -vv|--very-verbose)
-            BOOTSTRAP_FLAGS="${BOOTSTRAP_FLAGS} $1"
+            BOOTSTRAP_FLAGS="`concat "${BOOTSTRAP_FLAGS}" "$1"`"
             MULLE_BOOTSTRAP_FLUFF="YES"
             MULLE_BOOTSTRAP_VERBOSE="YES"
          ;;
 
          -vvv|--very-verbose-with-settings)
-            BOOTSTRAP_FLAGS="${BOOTSTRAP_FLAGS} $1"
+            BOOTSTRAP_FLAGS="`concat "${BOOTSTRAP_FLAGS}" "$1"`"
             MULLE_BOOTSTRAP_FLUFF="YES"
             MULLE_BOOTSTRAP_VERBOSE="YES"
             MULLE_EXECUTOR_TRACE="YES"
@@ -495,7 +548,7 @@ main()
          ;;
 
          -*)
-            fail "unknown option \"$1\""
+            BOOTSTRAP_FLAGS="`concat "${BOOTSTRAP_FLAGS}" "$1"`"
          ;;
 
          *)
@@ -509,7 +562,7 @@ main()
 
    if [ "${OPTIMISTIC}" = "YES" ]
    then
-      BOOTSTRAP_FLAGS="${BOOTSTRAP_FLAGS} -l"
+      BOOTSTRAP_FLAGS="`concat "${BOOTSTRAP_FLAGS}" "-l"`"
    fi
 
    URL="$1"
@@ -519,7 +572,7 @@ main()
       "")
          setup_make_environment
 
-         [ -z "${TAG}" ]        || fail "$executable: -t option is not compatible with local mode."
+         [ -z "${TAG}" ]        || fail "$executable: -b option is not compatible with local mode."
          [ -z "${SCM}" ]        || fail "$executable: -s option is not compatible with local mode."
 
          if [ -d .bootstrap ]
@@ -542,6 +595,11 @@ main()
          do_install
       ;;
 
+      tag)
+         mulle-bootstrap ${BOOTSTRAP_FLAGS} tag "$@" || exit 1
+         git tag "$@" || exit 1
+      ;;
+
       clean)
          local cleandefault
 
@@ -553,17 +611,31 @@ main()
             else
                cleandefault=output  # mulle-build clean
             fi
+         else
+            case "$1" in
+               cmake)
+                  cmake_clean
+                  return
+               ;;
+            esac
          fi
 
-         mulle-bootstrap clean "$@" ${cleandefault}
+         mulle-bootstrap ${BOOTSTRAP_FLAGS} clean "$@" ${cleandefault}
       ;;
 
-      *)
-         [ -z "${FETCH_ONLY}" ] || fail "$executable: -f option is not compatible with URL install."
+      # catches all paths and URLS, abolute, relative
+      */*|*:*)
+         [ -z "${FETCH_ONLY}" ] || fail "$executable: -nb option is not compatible with URL install."
          [ -z "${MAKE}" ]       || fail "$executable: -m option is not compatible with URL install."
 
          do_clone_magic "${URL}" "${TAG}" "${SCM}" "${CMAKE_INSTALL_PREFIX}" "${DEBUG}" "$@"
       ;;
+
+      # other commands forward to mulle-bootstrap
+      *)
+         mulle-bootstrap ${BOOTSTRAP_FLAGS} "${URL}" "$@" || exit 1
+      ;;
+
    esac
 }
 
