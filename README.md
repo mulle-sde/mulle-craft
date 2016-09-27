@@ -13,6 +13,28 @@ With it's companion **mulle-build** it can be used to build a
 project with a package manager like [homebrew](//brew.sh). It can also be used
 standalone to just build your project.
 
+
+## What it does
+
+If you are familiar with **cmake**, you know the standard way to build is
+
+```
+mkdir build
+cd build
+cmake ..
+make
+```
+
+mulle-build does pretty much this, with an additional dependency setup step
+ahead:
+
+```
+mulle-bootstrap
+```
+
+So it's conceptually fairly simple. But then there are options :)
+
+
 ## Installing mulle-build
 
 ```
@@ -31,7 +53,26 @@ cd mulle-build
 ./install.sh
 ```
 
+
 ## mulle-build and mulle-install usage
+
+You should configure your project in the `CMakeLists.txt` file and **mulle-build**
+can't help you with this. ([mulle-sde](//www.mulle-kybernetik.com/repositories/mulle-sde)
+can be helpful there). Since it's generally not useful to specify the compiler
+inside the `CMakeLists.txt` file, you can use
+
+```
+echo "gcc" > .CC
+echo "clang" > .CXX
+```
+
+to specify the C and CXX compiler. For Objective-C it's platform depenendt which
+compiler is used to compile `.m`files.
+
+Interestingly these settings are also picked up as defaults by **mulle-bootstrap**
+if your project becomes a dependency to another project.
+
+
 
 #### Common Options
 
