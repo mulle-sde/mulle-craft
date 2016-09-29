@@ -148,35 +148,34 @@ do_clone_magic()
 #
 do_fetch_dependencies()
 {
-   if [ "${OPTIMISTIC}" = "YES" -a -e .repos/.fetch_done ]
+   if refresh_needed
    then
-      return
+      exekutor mulle-bootstrap refresh || exit 1
    fi
 
-   # only fetch, but don't build
-   exekutor mulle-bootstrap ${BOOTSTRAP_FLAGS} fetch || exit 1 # --embedded-only
-
-   #
-   # after the first fetch don't warn about scripts again
-   #
-   if [ "`basename "$executable"`" = "mulle-build" ]
+   if fetch_needed
    then
-      log_verbose "Don't warn about scripts next build"
-      mulle-bootstrap config --on dont_warn_scripts
+      exekutor mulle-bootstrap -fr ${BOOTSTRAP_FLAGS} fetch || exit 1 # --embedded-only
+      #
+      # after the first fetch don't warn about scripts again
+      #
+      if [ "`basename "$executable"`" = "mulle-build" ]
+      then
+         log_verbose "Don't warn about scripts next build"
+         mulle-bootstrap config --on dont_warn_scripts
+      fi
    fi
 }
 
 
 do_build_dependencies()
 {
-   if [ "${OPTIMISTIC}" = "YES" -a -e .repos/.build_done ]
+   if build_needed
    then
-      return
-   fi
-
-   if [ -z "${FETCH_ONLY}" ]
-   then
-      exekutor mulle-bootstrap ${BOOTSTRAP_FLAGS} build || exit 1
+      if [ -z "${FETCH_ONLY}" ]
+      then
+         exekutor mulle-bootstrap ${BOOTSTRAP_FLAGS} build || exit 1
+      fi
    fi
 }
 
@@ -414,6 +413,7 @@ setup_bootstrap_environment()
 
    . mulle-bootstrap-logging.sh
    . mulle-bootstrap-functions.sh
+   . mulle-bootstrap-local-environment.sh
 
    if check_mulle_bootstrap_version
    then
@@ -424,11 +424,107 @@ setup_bootstrap_environment()
 }
 
 
+git_pull()
+{
+   local branch
+   local origin
+
+   log_fluff ":.:pull:.:"
+
+   branch="`git rev-parse --abbrev-ref HEAD`"
+   if [ -d ".git/refs/remotes/origin" ]
+   then
+      origin="${ORIGIN:-origin}"
+   else
+      origin="`git remote | head -1`"
+   fi
+
+   if [ ! -z "${origin}" ]
+   then
+      git pull "${origin}" "${branch}"  # or what ?
+   fi
+}
+
+
+local_clean()
+{
+   log_fluff ":.:clean:.:"
+
+   local cleandefault
+
+   if [ $# -eq 0 ]
+   then
+      if [ -z "${DONT_INSTALL}" ]
+      then
+         cleandefault=dist    # mulle-install clean
+      else
+         cleandefault=output  # mulle-build clean
+      fi
+   else
+      case "$1" in
+         cmake)
+            cmake_clean
+            return
+         ;;
+      esac
+   fi
+}
+
+
+local_mode()
+{
+   log_fluff ":.:local mode:.:"
+
+   setup_make_environment
+
+   [ -z "${TAG}" ]        || fail "$executable: -b option is not compatible with local mode."
+   [ -z "${SCM}" ]        || fail "$executable: -s option is not compatible with local mode."
+
+   if [ -d .bootstrap ]
+   then
+      do_fetch_dependencies
+      if [ -z "${FETCH_ONLY}" ]
+      then
+         do_build_dependencies
+      fi
+   else
+      log_fluff "No .bootstrap found, so not bootstrapping"
+   fi
+
+   [ ! -f CMakeLists.txt ] && fail "$executable: Can only build cmake based projects, in local mode."
+   do_build "$@"
+
+   if [ -d .bootstrap ]
+   then
+      do_install_dependencies
+   fi
+
+   do_install
+}
+
+
+url_mode()
+{
+   log_fluff ":.:URL mode:.:"
+
+   [ -z "${FETCH_ONLY}" ] || fail "$executable: -nb option is not compatible with URL install."
+   [ -z "${MAKE}" ]       || fail "$executable: -m option is not compatible with URL install."
+
+   do_clone_magic "${URL}" "${TAG}" "${SCM}" "${CMAKE_INSTALL_PREFIX}" "${DEBUG}" "$@"
+}
+
+
 main()
 {
    local executable
+   local command
 
+   #
+   # allow variations, mulle-build, mulle-install mulle-clean
+   # mulle-tag etc
+   #
    executable=`basename "$0"`
+   command="`echo "${executable}" | cut -d- -f2`"
 
    setup_bootstrap_environment
 
@@ -565,78 +661,76 @@ main()
       BOOTSTRAP_FLAGS="`concat "${BOOTSTRAP_FLAGS}" "-l"`"
    fi
 
-   URL="$1"
-   [ $# -ne 0 ] && shift
+   #
+   # allow mulle-build clean and others..
+   #
+   if [ "${command}" = "build" ]
+   then
+      case "$1" in
+         test|install|build|update|pull|tag|clean|refresh|setup-xcode|xcode|library-path|init|fetch|dist|config|bootstrap|nomagic)
+            command="$1"
+            shift
+         ;;
+      esac
+   fi
 
-   case "${URL}" in
-      "")
-         setup_make_environment
+   case "${command}" in
+      install|build)
+         URL="$1"
 
-         [ -z "${TAG}" ]        || fail "$executable: -b option is not compatible with local mode."
-         [ -z "${SCM}" ]        || fail "$executable: -s option is not compatible with local mode."
+         case "${URL}" in
+            "")
+               local_mode "$@"
+            ;;
 
-         if [ -d .bootstrap ]
+            */*|*:*)
+               url_mode "$@"
+            ;;
+         esac
+      ;;
+
+      update|pull)
+         mulle-bootstrap ${BOOTSTRAP_FLAGS} "${command}" "$@" || exit 1
+         if [ -d .git ]
          then
-            do_fetch_dependencies
-            if [ -z "${FETCH_ONLY}" ]
-            then
-               do_build_dependencies
-            fi
+            git_pull
          fi
-
-         [ ! -f CMakeLists.txt ] && fail "$executable: Can only build cmake based projects, in local mode."
-         do_build "$@"
-
-         if [ -d .bootstrap ]
-         then
-            do_install_dependencies
-         fi
-
-         do_install
       ;;
 
       tag)
-         mulle-bootstrap ${BOOTSTRAP_FLAGS} tag "$@" || exit 1
+         mulle-bootstrap ${BOOTSTRAP_FLAGS} "${command}" "$@" || exit 1
          git tag "$@" || exit 1
       ;;
 
       clean)
-         local cleandefault
+         mulle-bootstrap ${BOOTSTRAP_FLAGS} clean "$@" ${cleandefault}
+         local_clean "$@"
+      ;;
 
-         if [ $# -eq 0 ]
+      test)
+         testdir="${TESTS:-tests}"
+         if [ -x "${testdir}/build-test.sh" ]
          then
-            if [ -z "${DONT_INSTALL}" ]
-            then
-               cleandefault=dist    # mulle-install clean
-            else
-               cleandefault=output  # mulle-build clean
-            fi
-         else
-            case "$1" in
-               cmake)
-                  cmake_clean
-                  return
-               ;;
-            esac
+             ( exekutor cd "${testdir}" ; exekutor "./build-test.sh" "$@" ) || exit 1
          fi
 
-         mulle-bootstrap ${BOOTSTRAP_FLAGS} clean "$@" ${cleandefault}
+         if [ -x "${testdir}/run-test.sh" ]
+         then
+            ( exekutor cd "${testdir}" ; exekutor "./run-test.sh" "$@" ) || exit 1
+         else
+            fail "Don't know how to run tests (${testdir}/run-test.sh is missing)"
+         fi
       ;;
 
       # catches all paths and URLS, abolute, relative
-      */*|*:*)
-         [ -z "${FETCH_ONLY}" ] || fail "$executable: -nb option is not compatible with URL install."
-         [ -z "${MAKE}" ]       || fail "$executable: -m option is not compatible with URL install."
-
-         do_clone_magic "${URL}" "${TAG}" "${SCM}" "${CMAKE_INSTALL_PREFIX}" "${DEBUG}" "$@"
-      ;;
 
       # other commands forward to mulle-bootstrap
       *)
-         mulle-bootstrap ${BOOTSTRAP_FLAGS} "${URL}" "$@" || exit 1
+         mulle-bootstrap ${BOOTSTRAP_FLAGS} "${command}" "$@" || exit 1
       ;;
 
    esac
 }
+
 
 main "$@"

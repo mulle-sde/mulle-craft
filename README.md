@@ -54,7 +54,7 @@ cd mulle-build
 ```
 
 
-## mulle-build and mulle-install usage
+## mulle-build usage
 
 You should configure your project in the `CMakeLists.txt` file and **mulle-build**
 can't help you with this. ([mulle-sde](//www.mulle-kybernetik.com/repositories/mulle-sde)
