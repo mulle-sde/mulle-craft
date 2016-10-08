@@ -698,7 +698,7 @@ main()
       ;;
 
       git)
-         log_info "### $i:"
+         log_info "### `basename ${PWD}`:"
          git "$@" || exit 1
 
          mulle-bootstrap ${BOOTSTRAP_FLAGS} "${command}" "$@" || exit 1

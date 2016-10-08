@@ -59,7 +59,7 @@ fi
 install -m "${mode}" mulle-build "${bin}" || fail "failed install into ${bin}"
 printf "install: ${C_MAGENTA}${C_BOLD}mulle-build${C_RESET}\n" >&2
 
-for i in install tag clean update
+for i in install tag clean update test git
 do
    ln -sf mulle-build "${bin}/mulle-${i}" || fail "failed install into ${bin}"
    printf "install: ${C_MAGENTA}${C_BOLD}mulle-${i}${C_RESET}\n" >&2
