@@ -667,7 +667,7 @@ main()
    if [ "${command}" = "build" ]
    then
       case "$1" in
-         test|install|build|update|pull|tag|clean|refresh|setup-xcode|xcode|library-path|init|fetch|dist|config|bootstrap|nomagic)
+         test|install|git|build|update|pull|tag|clean|refresh|setup-xcode|xcode|library-path|init|fetch|dist|config|bootstrap|nomagic)
             command="$1"
             shift
          ;;
@@ -690,21 +690,28 @@ main()
       ;;
 
       update|pull)
-         mulle-bootstrap ${BOOTSTRAP_FLAGS} "${command}" "$@" || exit 1
          if [ -d .git ]
          then
             git_pull
          fi
+         mulle-bootstrap ${BOOTSTRAP_FLAGS} "${command}" "$@" || exit 1
+      ;;
+
+      git)
+         log_info "### $i:"
+         git "$@" || exit 1
+
+         mulle-bootstrap ${BOOTSTRAP_FLAGS} "${command}" "$@" || exit 1
       ;;
 
       tag)
-         mulle-bootstrap ${BOOTSTRAP_FLAGS} "${command}" "$@" || exit 1
          git tag "$@" || exit 1
+         mulle-bootstrap ${BOOTSTRAP_FLAGS} "${command}" "$@" || exit 1
       ;;
 
       clean)
-         mulle-bootstrap ${BOOTSTRAP_FLAGS} clean "$@" ${cleandefault}
          local_clean "$@"
+         mulle-bootstrap ${BOOTSTRAP_FLAGS} clean "$@" ${cleandefault}
       ;;
 
       test)
