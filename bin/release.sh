@@ -48,7 +48,7 @@ set -e
 git_must_be_clean
 
 branch="`git rev-parse --abbrev-ref HEAD`"
-if [ "${branch}" -ne "release" ]
+if [ "${branch}" != "release" ]
 then
    echo "Not on release branch, OK ?"
    read x

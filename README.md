@@ -30,7 +30,12 @@ cmake ..
 make
 ```
 
-So it's conceptually fairly simple. But then there are options :)
+So it's conceptually fairly simple. But then there are options :) Check the
+[examples](examples) folder for two simple mulle-build projects.
+
+
+## Commands
+
 **mulle-build** comes in several guises as:
 
 
@@ -70,4 +75,3 @@ Then:
 git clone -b release https://www.mulle-kybernetik.com/repositories/mulle-build
 ( cd mulle-build ;  ./install.sh )
 ```
-

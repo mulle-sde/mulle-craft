@@ -133,17 +133,17 @@ url_mode()
 
    (
       exekutor cd "${random}"|| exit 1 ;
-      exekutor mulle-bootstrap init -n ;
+      exekutor mulle-bootstrap ${BOOTSTRAP_FLAGS} init -n ;
       exekutor echo "${URL};;${TAG};${SCM}" > .bootstrap/repositories
-      exekutor mulle-bootstrap  ${BOOTSTRAP_FLAGS} -a bootstrap ${debugoptions} "$@" || exit 1
+      exekutor mulle-bootstrap ${BOOTSTRAP_FLAGS} -a bootstrap ${debugoptions} "$@" || exit 1
 
       if [ -z "${DONT_INSTALL}" ]
       then
          if [ -z "${CMAKE_INSTALL_PREFIX}" ]
          then
-            exekutor mulle-bootstrap install || exit 1
+            exekutor mulle-bootstrap ${BOOTSTRAP_FLAGS} install || exit 1
          else
-            exekutor mulle-bootstrap install "${CMAKE_INSTALL_PREFIX}" || exit 1
+            exekutor mulle-bootstrap ${BOOTSTRAP_FLAGS} install "${CMAKE_INSTALL_PREFIX}" || exit 1
          fi
       fi
    )
@@ -176,7 +176,7 @@ do_fetch_dependencies()
       if [ "`basename "$executable"`" = "mulle-build" ]
       then
          log_verbose "Don't warn about scripts next build"
-         mulle-bootstrap config --on dont_warn_scripts
+         mulle-bootstrap ${BOOTSTRAP_FLAGS} config --on dont_warn_scripts
       fi
    fi
 }
@@ -196,11 +196,6 @@ do_build_dependencies()
 
 do_install_dependencies()
 {
-   if [ "${OPTIMISTIC}" = "YES" ]
-   then
-      return
-   fi
-
    if [ -z "${DONT_INSTALL}" -a -z "${FETCH_ONLY}" ]
    then
       exekutor mulle-bootstrap install "${CMAKE_INSTALL_PREFIX}" || exit 1
@@ -255,7 +250,7 @@ need_cmake_build()
 }
 
 
-_do_build()
+_do_cmake()
 {
    local cmakeflags
 
@@ -313,7 +308,7 @@ _do_build()
 }
 
 
-do_build()
+do_cmake()
 {
    local skip_build
 
@@ -328,7 +323,7 @@ do_build()
 
    if [ skip_build = "NO" ] || need_cmake_build
    then
-      _do_build "$@"
+      _do_cmake "$@"
    fi
 }
 
@@ -337,7 +332,7 @@ do_build()
 # if we are using brew the dependencies are also installed via
 # brew, otherwise install dependencies too
 #
-do_install()
+do_make()
 {
    local command
 
@@ -348,7 +343,7 @@ do_install()
 
    (
       exekutor cd build ;
-      exekutor "${MAKE}" ${MAKE_FLAGS} ${command} || exit 1 ;
+      exekutor "${MAKE}" ${MAKE_FLAGS} ${command}  || exit 1 ;
    )
 }
 
@@ -466,24 +461,19 @@ local_clean()
 {
    log_fluff ":.:clean:.:"
 
-   if [ $# -eq 0 ]
-   then
-      if [ -z "${DONT_INSTALL}" ]
-      then
-         echo "dist"    # mulle-install clean
-      else
-         echo "output"  # mulle-build clean
-      fi
-   fi
-
    case "$1" in
       cmake)
          cmake_clean >&2
          return
       ;;
 
-      *)
-         rm -rf build
+
+      ""|*)
+         if [ -d "build" ]
+         then
+            log_info "Deleting build"
+            exekutor rm -rf build
+         fi
       ;;
    esac
 }
@@ -510,16 +500,15 @@ local_mode()
    fi
 
    [ ! -f CMakeLists.txt ] && fail "$executable: Can only build cmake based projects, in local mode."
-   do_build "$@"
+   do_cmake "$@"
 
    if [ -d .bootstrap ]
    then
       do_install_dependencies
    fi
 
-   do_install
+   do_make "$@"
 }
-
 
 
 main()
@@ -613,7 +602,7 @@ main()
             MULLE_EXECUTOR_DRY_RUN="YES"
          ;;
 
-         -te|--trace-execution|-V)
+         -te|--trace-execution)
             BOOTSTRAP_FLAGS="`concat "${BOOTSTRAP_FLAGS}" "$1"`"
             MULLE_EXECUTOR_TRACE="YES"
          ;;
@@ -640,6 +629,11 @@ main()
             MULLE_BOOTSTRAP_FLUFF="YES"
             MULLE_BOOTSTRAP_VERBOSE="YES"
             MULLE_EXECUTOR_TRACE="YES"
+         ;;
+
+         -V|--verbose-build)
+            BOOTSTRAP_FLAGS="`concat "${BOOTSTRAP_FLAGS}" "$1"`"
+            MAKE_FLAGS="${MAKE_FLAGS} VERBOSE=1"
          ;;
 
          --version)
@@ -670,12 +664,13 @@ main()
    fi
 
    #
-   # allow mulle-build clean and others..
+   # allow mulle-build clean, mulle-install clean and some other
+   # obscure commands
    #
-   if [ "${command}" = "build" ]
+   if [ "${command}" = "build" -o "${command}" = "install" ]
    then
       case "$1" in
-         test|install|git|build|update|pull|tag|clean|refresh|setup-xcode|xcode|library-path|init|fetch|dist|config|bootstrap|nomagic)
+         clean|refresh|setup-xcode|xcode|library-path|init|fetch|dist|config|bootstrap|nomagic)
             command="$1"
             shift
          ;;
@@ -687,17 +682,17 @@ main()
          URL="$1"
 
          case "${URL}" in
-            "")
-               local_mode "$@"
-            ;;
-
             */*|*:*)
                url_mode "$@"
+            ;;
+
+            ""|*)
+               local_mode "$@"
             ;;
          esac
       ;;
 
-      update|pull)
+      update)
          if [ -d .git ]
          then
             git_pull
@@ -720,7 +715,19 @@ main()
       clean)
          local cleandefault
 
-         cleandefault="`local_clean "$@"`"
+         if [ $# -eq 0 ]
+         then
+            if [ "${executable}" = "mulle-install" ]
+            then
+               cleandefault="dist"     # mulle-install clean
+            fi
+            if [ "${executable}" = "mulle-build" ]
+            then
+               cleandefault="output"   # mulle-build clean
+            fi
+         fi
+
+         local_clean "$@"
          mulle-bootstrap ${BOOTSTRAP_FLAGS} clean "$@" ${cleandefault}
       ;;
 
