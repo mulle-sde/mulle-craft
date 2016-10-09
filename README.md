@@ -1,76 +1,106 @@
 # mulle-build
 
-Build [mulle-bootstrap](//www.mulle-kybernetik.com/software/git/mulle-bootstrap)
-and [cmake](//gitlab.kitware.com/cmake/cmake) based projects conveniently on
-multiple platforms (OSX, Linux, Windows)
+... simplifies the use of mulle-bootstrap and cmake.
 
-**mulle-bootstrap** solves the dependency problems of your project during
-development. **mulle-build** facilitates building your project
-with **cmake** and your dependencies with **mulle-bootstrap**. It generally
-simplifies the use of **mulle-bootstrap**.
+Use it to build [mulle-bootstrap](//www.mulle-kybernetik.com/software/git/mulle-bootstrap) and [cmake](//gitlab.kitware.com/cmake/cmake) based
+projects conveniently on multiple platforms (OSX, Linux, Windows)
 
-With it's companion **mulle-build** it can be used to build a
-project with a package manager like [homebrew](//brew.sh). It can also be used
-standalone to just build your project.
+Where **mulle-bootstrap** solves the dependency problems of your project.
+**mulle-build** combines it with cmake to build your complete project.
 
 
-## What it does
+### What mulle-build does in a nutshell
 
-If you are familiar with **cmake**, you know the standard way to build is
+
+Essentially, `mulle-build` is a shortcut for typing:
+
 
 ```
+# fetch and build dependencies
+mulle-bootstrap
+# standard cmake build
 mkdir build
 cd build
 cmake ..
 make
 ```
 
-mulle-build does pretty much this, with an additional dependency setup step
-ahead:
-
-```
-mulle-bootstrap
-```
-
 So it's conceptually fairly simple. But then there are options :)
+**mulle-build** comes in several guises as:
+
+
+Command       | Description
+--------------|-------------------
+mulle-clean   | run clean on project and dependencies
+mulle-git     | run git operation on project and dependencies (e.g. `mulle-git status`)
+mulle-install | install libraries and binaries somewhere
+mulle-tag     | (git) tag project and dependencies
+mulle-test    | run tests (see below)
+mulle-update  | pull changes on project and dependencies
+
 
 
 ## Installing mulle-build
+
+On OS X and Linux you can install using [homebrew](//brew.sh) respectively [linuxbrew](//linuxbrew.sh)
 
 ```
 brew tap mulle-kybernetik/software
 brew install mulle-build
 ```
 
-or manually:
+On other platforms you need to do this manually:
 
-Install [mulle-bootstrap](//www.mulle-kybernetik.com/repositories/mulle-bootstrap)  first.
+Install [mulle-bootstrap](//www.mulle-kybernetik.com/repositories/mulle-bootstrap)
+first.
+
+```
+git clone -b release https://www.mulle-kybernetik.com/repositories/mulle-bootstrap
+( cd mulle-bootstrap ;  ./install.sh )
+```
+
 Then:
 
 ```
-git clone -b release https:://www.mulle-kybernetik.com/repositories/mulle-build
-cd mulle-build
-./install.sh
+git clone -b release https://www.mulle-kybernetik.com/repositories/mulle-build
+( cd mulle-build ;  ./install.sh )
 ```
 
 
 ## mulle-build usage
 
-You should configure your project in the `CMakeLists.txt` file and **mulle-build**
-can't help you with this. ([mulle-sde](//www.mulle-kybernetik.com/repositories/mulle-sde)
-can be helpful there). Since it's generally not useful to specify the compiler
-inside the `CMakeLists.txt` file, you can use
+You should configure your project with a `CMakeLists.txt` file. Check out the [cmake Tutorial](https://cmake.org/cmake-tutorial/) if you are unfamiliar with cmake.
+> Also [mulle-sde](//www.mulle-kybernetik.com/repositories/mulle-sde) can be
+> helpful there. But as of 11/16 it's still very much experimental.
+
+
+Since it's generally not useful to specify the compiler inside the `CMakeLists.txt` file, you can use
 
 ```
 echo "gcc" > .CC
 echo "clang" > .CXX
 ```
 
-to specify the C and CXX compiler. For Objective-C it's platform depenendt which
-compiler is used to compile `.m`files.
+to specify the C and CXX compiler. For Objective-C it is platform dependent, which compiler is used to compile `.m`files.
 
-Interestingly these settings are also picked up as defaults by **mulle-bootstrap**
-if your project becomes a dependency to another project.
+> Interestingly these settings are also picked up as defaults by
+> **mulle-bootstrap** if your project becomes a dependency to another
+> project.
+
+
+## mulle-test usage
+
+It is assumed that you have a folder `tests` in your project directory.
+Inside this directory it is expected to find two scripts:
+
+* `build-test.sh` to build the test libraries or executables
+* `run-test.sh` to actually build and run the individual tests.
+
+
+[mulle-tests](//www.mulle-kybernetik.com/repositories/mulle-tests) has
+some ready made shell script code to write cross-platform tests.
+Also [mulle-sde](//www.mulle-kybernetik.com/repositories/mulle-sde) will
+provide some support to set this up for your project automatically.
 
 
 

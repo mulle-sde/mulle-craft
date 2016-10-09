@@ -7,6 +7,7 @@
 * rename project from mulle-install to mulle-build
 * do local command first, mulle-bootstrap later (f.e. for tagging). That way
 more numerous local failures don't dirty dependencies.
+* this version needs to be pushed out now, because I need it in travis.yml
 
 0.2
 ===

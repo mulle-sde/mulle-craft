@@ -41,27 +41,49 @@ PATH="`pwd -P`/addictions/bin:$HOME/.linuxbrew/bin:/usr/local/bin:${HOME}/bin:${
 
 usage()
 {
-   cat <<EOF >&2
+      cat <<EOF >&2
 usage:
-   ${executable} [options] [url|clean]
+   ${executable} [options] [url]
 
    Options:
+EOF
+
+   case "$1" in
+      build|install)
+         cat <<EOF >&2
       -b <tag|branch> : specify tag or branch to fetch from URL
       -d              : build debug
       -f              : don't build dependencies with mulle-bootstrap
                         Embedded_repositories will be fetched though.
       -m <executable> : specify make program to use
+EOF
+         if [ "$1" = "install" ]
+         then
+
+            cat <<EOF >&2
       -p <prefix>     : install prefix (default: ${DEFAULT_INSTALL})
+EOF
+         fi
+
+         cat <<EOF >&2
       -s <scm>        : specify an SCM other than git (e.g. svn)
 
    Arguments:
-      clean           : clean project
       url             : URL to clone, build and install.
                         If no URL is specified, ${executable} will use "local
                         mode". The current directory is assumed to be the
                         project directory.
                         "Local mode" is limited to cmake projects.
 EOF
+      ;;
+
+      clean)
+         cat <<EOF >&2
+      -m <executable> : specify make program to use
+EOF
+      ;;
+   esac
+
    exit 1
 }
 
@@ -69,25 +91,17 @@ EOF
 #
 # URL Mode
 #
-do_clone_magic()
+
+url_mode()
 {
+   log_fluff ":.:URL mode:.:"
+
+   [ -z "${FETCH_ONLY}" ] || fail "$executable: -nb option is not compatible with URL install."
+   [ -z "${MAKE}" ]       || fail "$executable: -m option is not compatible with URL install."
+
    local url
-   local scm
-   local tag
-   local prefix
 
-   url="$1"
-   [ $# -ne 0 ] && shift
-   tag="$1"
-   [ $# -ne 0 ] && shift
-   scm="$1"
-   [ $# -ne 0 ] && shift
-   prefix="$1"
-   [ $# -ne 0 ] && shift
-   debug="$1"
-   [ $# -ne 0 ] && shift
-
-
+   url="$URL"
    [ -z "${url}" ] && fail "URL is empty"
 
    #
@@ -108,7 +122,7 @@ do_clone_magic()
    local random
    local debugoptions
 
-   if [ ! -z "${debug}" ]
+   if [ ! -z "${DEBUG}" ]
    then
       debugoptions="--configuration Debug"
    fi
@@ -120,16 +134,16 @@ do_clone_magic()
    (
       exekutor cd "${random}"|| exit 1 ;
       exekutor mulle-bootstrap init -n ;
-      exekutor echo "$url;;$tag;$scm" > .bootstrap/repositories
+      exekutor echo "${URL};;${TAG};${SCM}" > .bootstrap/repositories
       exekutor mulle-bootstrap  ${BOOTSTRAP_FLAGS} -a bootstrap ${debugoptions} "$@" || exit 1
 
       if [ -z "${DONT_INSTALL}" ]
       then
-         if [ -z "${prefix}" ]
+         if [ -z "${CMAKE_INSTALL_PREFIX}" ]
          then
             exekutor mulle-bootstrap install || exit 1
          else
-            exekutor mulle-bootstrap install "${prefix}" || exit 1
+            exekutor mulle-bootstrap install "${CMAKE_INSTALL_PREFIX}" || exit 1
          fi
       fi
    )
@@ -243,11 +257,13 @@ need_cmake_build()
 
 _do_build()
 {
-   local debugoptions
+   local cmakeflags
 
-   if [ ! -z "${debug}" ]
+   if [ -z "${DEBUG}" ]
    then
-      debugoptions="-DCMAKE_BUILD_TYPE=Debug"
+      cmakeflags="-DCMAKE_BUILD_TYPE=Release"
+   else
+      cmakeflags="-DCMAKE_BUILD_TYPE=Debug"
    fi
 
    local relative
@@ -289,7 +305,7 @@ _do_build()
       exekutor cd "${BUILDDIR}" ;
       exekutor cmake -DCMAKE_INSTALL_PREFIX="${CMAKE_INSTALL_PREFIX}" \
                      -G "${CMAKE_GENERATOR}" \
-                     ${debugoptions} \
+                     ${cmakeflags} \
                      ${CMAKE_FLAGS} \
                      "$@" \
                      "${relative}" || exit 1
@@ -503,16 +519,6 @@ local_mode()
 }
 
 
-url_mode()
-{
-   log_fluff ":.:URL mode:.:"
-
-   [ -z "${FETCH_ONLY}" ] || fail "$executable: -nb option is not compatible with URL install."
-   [ -z "${MAKE}" ]       || fail "$executable: -m option is not compatible with URL install."
-
-   do_clone_magic "${URL}" "${TAG}" "${SCM}" "${CMAKE_INSTALL_PREFIX}" "${DEBUG}" "$@"
-}
-
 
 main()
 {
@@ -552,7 +558,7 @@ main()
       case "$1" in
          -b|--tag|--branch)
             shift
-            [ $# -eq 0 ] && usage
+            [ $# -eq 0 ] && usage "${command}"
 
             TAG="$1"
          ;;
@@ -581,21 +587,21 @@ main()
 
          -m|--make)
             shift
-            [ $# -eq 0 ] && usage
+            [ $# -eq 0 ] && usage "${command}"
 
             MAKE="$1"
          ;;
 
          -p|--prefix)
             shift
-            [ $# -eq 0 ] && usage
+            [ $# -eq 0 ] && usage "${command}"
 
             CMAKE_INSTALL_PREFIX="$1"
          ;;
 
          -s|--scm)
             shift
-            [ $# -eq 0 ] && usage
+            [ $# -eq 0 ] && usage "${command}"
 
             SCM="$1"
          ;;
@@ -605,7 +611,7 @@ main()
             MULLE_EXECUTOR_DRY_RUN="YES"
          ;;
 
-         -te|--trace-execution)
+         -te|--trace-execution|-V)
             BOOTSTRAP_FLAGS="`concat "${BOOTSTRAP_FLAGS}" "$1"`"
             MULLE_EXECUTOR_TRACE="YES"
          ;;
@@ -640,7 +646,7 @@ main()
          ;;
 
          -h|--help)
-            usage
+            usage "${command}"
          ;;
 
          -*)
