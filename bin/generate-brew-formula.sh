@@ -2,9 +2,9 @@
 #
 # Generate a formula for mulle-c11
 #
-PROJECT=MulleInstall  # ruby requires camel-case
-TARGET=mulle-install
-DESC="Cross-platform installer using mulle-bootstrap or cmake"
+PROJECT=MulleBuild  # ruby requires camel-case
+TARGET=mulle-build
+DESC="Cross-platform builder using cmake and mulle-bootstrap"
 
 #
 # Should be possible to leave unchanged

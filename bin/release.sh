@@ -1,8 +1,8 @@
 #! /bin/sh
 
-NAME="mulle-install"
+NAME="mulle-build"
 ORIGIN=public
-VERSION="`./mulle-install --version | head -1`"
+VERSION="`./mulle-build --version | head -1`"
 
 #
 #
