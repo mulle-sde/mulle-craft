@@ -1,3 +1,9 @@
+0.4
+===
+
+* Much improved documentation
+* Fix mulle-clean a bit
+
 0.3
 ===
 

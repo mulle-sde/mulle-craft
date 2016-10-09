@@ -30,7 +30,7 @@
 #   ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
 #   POSSIBILITY OF SUCH DAMAGE.
 
-MULLE_INSTALL_VERSION="0.3"
+MULLE_INSTALL_VERSION="0.4"
 
 MULLE_BOOTSTRAP_MIN_MAJOR="2"
 MULLE_BOOTSTRAP_MIN_MINOR="1"
@@ -466,24 +466,26 @@ local_clean()
 {
    log_fluff ":.:clean:.:"
 
-   local cleandefault
-
    if [ $# -eq 0 ]
    then
       if [ -z "${DONT_INSTALL}" ]
       then
-         cleandefault=dist    # mulle-install clean
+         echo "dist"    # mulle-install clean
       else
-         cleandefault=output  # mulle-build clean
+         echo "output"  # mulle-build clean
       fi
-   else
-      case "$1" in
-         cmake)
-            cmake_clean
-            return
-         ;;
-      esac
    fi
+
+   case "$1" in
+      cmake)
+         cmake_clean >&2
+         return
+      ;;
+
+      *)
+         rm -rf build
+      ;;
+   esac
 }
 
 
@@ -716,7 +718,9 @@ main()
       ;;
 
       clean)
-         local_clean "$@"
+         local cleandefault
+
+         cleandefault="`local_clean "$@"`"
          mulle-bootstrap ${BOOTSTRAP_FLAGS} clean "$@" ${cleandefault}
       ;;
 

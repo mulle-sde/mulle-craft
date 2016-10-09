@@ -48,6 +48,11 @@ set -e
 git_must_be_clean
 
 branch="`git rev-parse --abbrev-ref HEAD`"
+if [ "${branch}" -ne "release" ]
+then
+   echo "Not on release branch, OK ?"
+   read x
+fi
 
 git push "${ORIGIN}" "${branch}"
 
@@ -59,10 +64,10 @@ git push "${ORIGIN}" "${branch}" --tags
 
 ./bin/generate-brew-formula.sh "${VERSION}" > "${HOMEBREWTAP}/${RBFILE}"
 (
-	cd "${HOMEBREWTAP}" ;
+   cd "${HOMEBREWTAP}" ;
    git add "${RBFILE}" ;
- 	git commit -m "${TAG} release of ${NAME}" "${RBFILE}" ;
- 	git push origin master
+   git commit -m "${TAG} release of ${NAME}" "${RBFILE}" ;
+   git push origin master
 )
 
 git checkout "${branch}"
