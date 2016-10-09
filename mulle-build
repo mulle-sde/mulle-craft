@@ -30,7 +30,7 @@
 #   ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
 #   POSSIBILITY OF SUCH DAMAGE.
 
-MULLE_INSTALL_VERSION="0.4"
+MULLE_INSTALL_VERSION="0.4.1"
 
 MULLE_BOOTSTRAP_MIN_MAJOR="2"
 MULLE_BOOTSTRAP_MIN_MINOR="1"
@@ -67,14 +67,18 @@ EOF
 
          cat <<EOF >&2
       -s <scm>        : specify an SCM other than git (e.g. svn)
+EOF
 
+         if [ "$1" = "install" ]
+         then
+            cat <<EOF >&2
    Arguments:
-      url             : URL to clone, build and install.
-                        If no URL is specified, ${executable} will use "local
+      url             : If no URL is specified, install will use "local
                         mode". The current directory is assumed to be the
                         project directory.
                         "Local mode" is limited to cmake projects.
 EOF
+         fi
       ;;
 
       clean)
@@ -120,11 +124,13 @@ url_mode()
    esac
 
    local random
-   local debugoptions
+   local bootstrapoptions
 
-   if [ ! -z "${DEBUG}" ]
+   if [ -z "${DEBUG}" ]
    then
-      debugoptions="--configuration Debug"
+      bootstrapoptions="--configuration Release"
+   else
+      bootstrapoptions="--configuration Debug"
    fi
 
    local command
@@ -134,8 +140,8 @@ url_mode()
    (
       exekutor cd "${random}"|| exit 1 ;
       exekutor mulle-bootstrap ${BOOTSTRAP_FLAGS} init -n ;
-      exekutor echo "${URL};;${TAG};${SCM}" > .bootstrap/repositories
-      exekutor mulle-bootstrap ${BOOTSTRAP_FLAGS} -a bootstrap ${debugoptions} "$@" || exit 1
+      redirect_exekutor .bootstrap/repositories echo "${URL};;${TAG};${SCM}"
+      exekutor mulle-bootstrap ${BOOTSTRAP_FLAGS} -a bootstrap ${bootstrapoptions}  || exit 1
 
       if [ -z "${DONT_INSTALL}" ]
       then
@@ -736,6 +742,8 @@ main()
          if [ -x "${testdir}/build-test.sh" ]
          then
              ( exekutor cd "${testdir}" ; exekutor "./build-test.sh" "$@" ) || exit 1
+         else
+            local_mode "$@" || exit 1
          fi
 
          if [ -x "${testdir}/run-test.sh" ]
