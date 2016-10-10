@@ -1,3 +1,10 @@
+0.5
+===
+
+Mostly changes how flags are interpreted and passed to mulle-bootstrap.
+
+* change -nb flag to -nbd
+
 0.4
 ===
 

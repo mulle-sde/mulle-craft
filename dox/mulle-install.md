@@ -1,5 +1,7 @@
 ### mulle-install
 
+`usage: mulle-build [flags] [url] [mulle-bootstrap options]`
+
 
 If mulle-build is like `make` then **mulle-install** is like `make install`.
 
