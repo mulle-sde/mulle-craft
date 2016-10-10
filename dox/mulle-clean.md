@@ -1,15 +1,24 @@
 ## mulle-clean usage
 
+`usage: mulle-clean [flags] [command] [mulle bootstrap options]`
+
 Clean your project and it's dependencies
 
 ```
 mulle-clean
 ```
 
+#### Command
 
-#### Options
+Flag        | Description                                   |
+------------|-----------------------------------------------|
+output      | Remove compiler created files                 |
+dist        | Remove everything created by mulle-build      |
 
-Option      | Description                                   |
+
+#### Flags
+
+Flag        | Description                                   |
 ------------|-----------------------------------------------|
 -n          | Dry run, don't actually execute               |
 -v          | Verbose                                       |

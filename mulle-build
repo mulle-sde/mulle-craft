@@ -30,7 +30,7 @@
 #   ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
 #   POSSIBILITY OF SUCH DAMAGE.
 
-MULLE_INSTALL_VERSION="0.4.1"
+MULLE_INSTALL_VERSION="0.5"
 
 MULLE_BOOTSTRAP_MIN_MAJOR="2"
 MULLE_BOOTSTRAP_MIN_MINOR="1"
@@ -92,76 +92,6 @@ EOF
 }
 
 
-#
-# URL Mode
-#
-
-url_mode()
-{
-   log_fluff ":.:URL mode:.:"
-
-   [ -z "${FETCH_ONLY}" ] || fail "$executable: -nb option is not compatible with URL install."
-   [ -z "${MAKE}" ]       || fail "$executable: -m option is not compatible with URL install."
-
-   local url
-
-   url="$URL"
-   [ -z "${url}" ] && fail "URL is empty"
-
-   #
-   # if url is local directory, make relative absolute
-   #
-   case "${url}" in
-      /*|*:/*)
-      ;;
-
-      *)
-         if [ -d "${url}" ]
-         then
-            url="`pwd -P`/${url}"
-         fi
-      ;;
-   esac
-
-   local random
-   local bootstrapoptions
-
-   if [ -z "${DEBUG}" ]
-   then
-      bootstrapoptions="--configuration Release"
-   else
-      bootstrapoptions="--configuration Debug"
-   fi
-
-   local command
-
-   random=`exekutor mktemp -d -t "mulle-install.XXXX"`
-
-   (
-      exekutor cd "${random}"|| exit 1 ;
-      exekutor mulle-bootstrap ${BOOTSTRAP_FLAGS} init -n ;
-      redirect_exekutor .bootstrap/repositories echo "${URL};;${TAG};${SCM}"
-      exekutor mulle-bootstrap ${BOOTSTRAP_FLAGS} -a bootstrap ${bootstrapoptions}  || exit 1
-
-      if [ -z "${DONT_INSTALL}" ]
-      then
-         if [ -z "${CMAKE_INSTALL_PREFIX}" ]
-         then
-            exekutor mulle-bootstrap ${BOOTSTRAP_FLAGS} install || exit 1
-         else
-            exekutor mulle-bootstrap ${BOOTSTRAP_FLAGS} install "${CMAKE_INSTALL_PREFIX}" || exit 1
-         fi
-      fi
-   )
-   if [ -z "${DONT_REMOVE}" ]
-   then
-      exekutor chmod -R ugo+w "${random}"
-      exekutor rm -rf "${random}"
-   else
-      log_info "Build in \"${random}\""
-   fi
-}
-
 
 #
 # Local Mode
@@ -175,14 +105,14 @@ do_fetch_dependencies()
 
    if fetch_needed
    then
-      exekutor mulle-bootstrap -fr ${BOOTSTRAP_FLAGS} fetch || exit 1 # --embedded-only
+      exekutor mulle-bootstrap -fr ${BOOTSTRAP_FLAGS} fetch ${BOOTSTRAP_OPTIONS} || exit 1 # --embedded-only
       #
       # after the first fetch don't warn about scripts again
       #
       if [ "`basename "$executable"`" = "mulle-build" ]
       then
          log_verbose "Don't warn about scripts next build"
-         mulle-bootstrap ${BOOTSTRAP_FLAGS} config --on dont_warn_scripts
+         mulle-bootstrap config --on dont_warn_scripts
       fi
    fi
 }
@@ -192,20 +122,14 @@ do_build_dependencies()
 {
    if build_needed
    then
-      if [ -z "${FETCH_ONLY}" ]
-      then
-         exekutor mulle-bootstrap ${BOOTSTRAP_FLAGS} build || exit 1
-      fi
+      exekutor mulle-bootstrap ${BOOTSTRAP_FLAGS} build ${BOOTSTRAP_OPTIONS} || exit 1
    fi
 }
 
 
 do_install_dependencies()
 {
-   if [ -z "${DONT_INSTALL}" -a -z "${FETCH_ONLY}" ]
-   then
-      exekutor mulle-bootstrap install "${CMAKE_INSTALL_PREFIX}" || exit 1
-   fi
+   exekutor mulle-bootstrap install ${BOOTSTRAP_OPTIONS} "${CMAKE_INSTALL_PREFIX}" || exit 1
 }
 
 
@@ -342,10 +266,8 @@ do_make()
 {
    local command
 
-   if [ -z "${DONT_INSTALL}" ]
-   then
-      command="install"
-   fi
+   command="$1"
+   shift
 
    (
       exekutor cd build ;
@@ -491,13 +413,13 @@ local_mode()
 
    setup_make_environment
 
-   [ -z "${TAG}" ]        || fail "$executable: -b option is not compatible with local mode."
-   [ -z "${SCM}" ]        || fail "$executable: -s option is not compatible with local mode."
+   [ -z "${TAG}" ] || fail "$executable: -b option is not compatible with local mode."
+   [ -z "${SCM}" ] || fail "$executable: -s option is not compatible with local mode."
 
    if [ -d .bootstrap ]
    then
       do_fetch_dependencies
-      if [ -z "${FETCH_ONLY}" ]
+      if [ -z "${DONT_BUILD_DEPENDENCIES}" ]
       then
          do_build_dependencies
       fi
@@ -505,16 +427,96 @@ local_mode()
       log_fluff "No .bootstrap found, so not bootstrapping"
    fi
 
-   [ ! -f CMakeLists.txt ] && fail "$executable: Can only build cmake based projects, in local mode."
-   do_cmake "$@"
-
-   if [ -d .bootstrap ]
+   if [ -z "${DONT_BUILD}" ]
    then
-      do_install_dependencies
+      [ ! -f CMakeLists.txt ] && fail "$executable: Can only build cmake based projects, in local mode."
+      do_cmake "$@"
+
+      if [ -z "${DONT_INSTALL}"  ]
+      then
+         if [ -z "${DONT_INSTALL_DEPENDENCIES}" -a -d .bootstrap ]
+         then
+            do_install_dependencies
+         fi
+         do_make "install" "$@"
+      else
+         do_make "" "$@"
+      fi
+   fi
+}
+
+
+#
+# URL Mode
+#
+
+url_mode()
+{
+   log_fluff ":.:URL mode:.:"
+
+   [ -z "${DONT_BUILD}" ] || fail "$executable: -nb option is not compatible with URL install."
+   [ -z "${MAKE}" ]       || fail "$executable: -m option is not compatible with URL install."
+
+   local url
+
+   url="$URL"
+   [ -z "${url}" ] && fail "URL is empty"
+
+   #
+   # if url is local directory, make relative absolute
+   #
+   case "${url}" in
+      /*|*:/*)
+      ;;
+
+      *)
+         if [ -d "${url}" ]
+         then
+            url="`pwd -P`/${url}"
+         fi
+      ;;
+   esac
+
+   local random
+   local bootstrapoptions
+
+   if [ -z "${DEBUG}" ]
+   then
+      bootstrapoptions="--configuration Release"
+   else
+      bootstrapoptions="--configuration Debug"
    fi
 
-   do_make "$@"
+   local command
+
+   random=`exekutor mktemp -d -t "mulle-install.XXXX"`
+
+   (
+      exekutor cd "${random}"|| exit 1 ;
+      exekutor mulle-bootstrap ${BOOTSTRAP_FLAGS} init -n ;
+      redirect_exekutor .bootstrap/repositories echo "${URL};;${TAG};${SCM}"
+      exekutor mulle-bootstrap ${BOOTSTRAP_FLAGS} -a bootstrap ${BOOTSTRAP_OPTIONS} ${bootstrapoptions}  || exit 1
+
+      if [ -z "${DONT_INSTALL_DEPENDENCIES}"]
+      then
+         if [ -z "${CMAKE_INSTALL_PREFIX}" ]
+         then
+            exekutor mulle-bootstrap ${BOOTSTRAP_FLAGS} install ${BOOTSTRAP_OPTIONS} || exit 1
+         else
+            exekutor mulle-bootstrap ${BOOTSTRAP_FLAGS} install ${BOOTSTRAP_OPTIONS} "${CMAKE_INSTALL_PREFIX}" || exit 1
+         fi
+      fi
+   )
+
+   if [ -z "${DONT_REMOVE}" ]
+   then
+      exekutor chmod -R ugo+w "${random}"
+      exekutor rm -rf "${random}"
+   else
+      log_info "Build in \"${random}\""
+   fi
 }
+
 
 
 main()
@@ -532,6 +534,7 @@ main()
    setup_bootstrap_environment
 
    BOOTSTRAP_FLAGS=
+   BOOTSTRAP_OPTIONS=
    BUILDDIR="${BUILDDIR:-build}"
    OPTIMISTIC="${OPTIMISITIC:-YES}"
 
@@ -552,6 +555,7 @@ main()
 
    while [ $# -ne 0 ]
    do
+      touch /tmp/$1
       case "$1" in
          -b|--tag|--branch)
             shift
@@ -560,26 +564,22 @@ main()
             TAG="$1"
          ;;
 
+         -cs|--check-usr-local-include)
+            BOOTSTRAP_OPTIONS="`concat "${BOOTSTRAP_OPTIONS}" "-cs"`"
+         ;;
+
          -d|--debug)
             DEBUG="YES"
          ;;
 
-         -ni|--no-install)
-            DONT_INSTALL="YES"
+         -e|--embedded-only)
+            BOOTSTRAP_OPTIONS="`concat "${BOOTSTRAP_OPTIONS}" "-e"`"
+            DONT_BUILD_DEPENDENCIES="YES"
+            DONT_INSTALL_DEPENDENCIES="YES"
          ;;
 
-         -nb|--no-build|--brew)  # brew is historic :)
-            # enable &usr/local/include check
-            BOOTSTRAP_FLAGS="`concat "${BOOTSTRAP_FLAGS}" "-c"`"
-            FETCH_ONLY="YES"
-         ;;
-
-         -nr|--no-remove)
-            DONT_REMOVE="YES"
-         ;;
-
-         -u|--pessimistic|--unlucky)
-            OPTIMISTIC="NO"
+         -h|--help)
+            usage "${command}"
          ;;
 
          -m|--make)
@@ -587,6 +587,35 @@ main()
             [ $# -eq 0 ] && usage "${command}"
 
             MAKE="$1"
+         ;;
+
+         -n|--dry-run)
+            BOOTSTRAP_FLAGS="`concat "${BOOTSTRAP_FLAGS}" "$1"`"
+            MULLE_EXECUTOR_DRY_RUN="YES"
+         ;;
+
+         -nb|--no-build)
+            DONT_BUILD="YES"
+            DONT_BUILD_DEPENDENCIES="YES"
+            DONT_INSTALL_DEPENDENCIES="YES"
+         ;;
+
+         -nbd|--no-build-dependencies)
+            DONT_BUILD_DEPENDENCIES="YES"
+            DONT_INSTALL_DEPENDENCIES="YES"
+         ;;
+
+         -ni|--no-install)
+            DONT_INSTALL="YES"
+            DONT_INSTALL_DEPENDENCIES="YES"
+         ;;
+
+         -nid|--no-install-dependencies)
+            DONT_INSTALL_DEPENDENCIES="YES"
+         ;;
+
+         -nr|--no-remove)
+            DONT_REMOVE="YES"
          ;;
 
          -p|--prefix)
@@ -603,19 +632,19 @@ main()
             SCM="$1"
          ;;
 
-         -n|--dry-run)
-            BOOTSTRAP_FLAGS="`concat "${BOOTSTRAP_FLAGS}" "$1"`"
-            MULLE_EXECUTOR_DRY_RUN="YES"
-         ;;
-
-         -te|--trace-execution)
-            BOOTSTRAP_FLAGS="`concat "${BOOTSTRAP_FLAGS}" "$1"`"
-            MULLE_EXECUTOR_TRACE="YES"
+         -u|--pessimistic|--unlucky)
+            OPTIMISTIC="NO"
          ;;
 
          -t|--trace)
             BOOTSTRAP_FLAGS="`concat "${BOOTSTRAP_FLAGS}" "$1"`"
             set -x
+         ;;
+
+         -te|--trace-execution)
+            touch /tmp/te
+            BOOTSTRAP_FLAGS="`concat "${BOOTSTRAP_FLAGS}" "$1"`"
+            MULLE_EXECUTOR_TRACE="YES"
          ;;
 
          -v|--verbose)
@@ -647,15 +676,13 @@ main()
             exit 0
          ;;
 
-         -h|--help)
-            usage "${command}"
-         ;;
-
          -*)
+            touch /tmp/def
             BOOTSTRAP_FLAGS="`concat "${BOOTSTRAP_FLAGS}" "$1"`"
          ;;
 
          *)
+            touch /tmp/all
             break
          ;;
       esac
@@ -703,19 +730,19 @@ main()
          then
             git_pull
          fi
-         mulle-bootstrap ${BOOTSTRAP_FLAGS} "${command}" "$@" || exit 1
+         mulle-bootstrap ${BOOTSTRAP_FLAGS} "${command}" ${BOOTSTRAP_OPTIONS} "$@" || exit 1
       ;;
 
       git)
          log_info "### `basename ${PWD}`:"
          git "$@" || exit 1
 
-         mulle-bootstrap ${BOOTSTRAP_FLAGS} "${command}" "$@" || exit 1
+         mulle-bootstrap ${BOOTSTRAP_FLAGS} "${command}" ${BOOTSTRAP_OPTIONS} "$@" || exit 1
       ;;
 
       tag)
          git tag "$@" || exit 1
-         mulle-bootstrap ${BOOTSTRAP_FLAGS} "${command}" "$@" || exit 1
+         mulle-bootstrap ${BOOTSTRAP_FLAGS} "${command}" ${BOOTSTRAP_OPTIONS} "$@" || exit 1
       ;;
 
       clean)
@@ -734,7 +761,7 @@ main()
          fi
 
          local_clean "$@"
-         mulle-bootstrap ${BOOTSTRAP_FLAGS} clean "$@" ${cleandefault}
+         mulle-bootstrap ${BOOTSTRAP_FLAGS} clean ${BOOTSTRAP_OPTIONS} "$@" ${cleandefault}
       ;;
 
       test)
@@ -758,7 +785,7 @@ main()
 
       # other commands forward to mulle-bootstrap
       *)
-         mulle-bootstrap ${BOOTSTRAP_FLAGS} "${command}" "$@" || exit 1
+         mulle-bootstrap ${BOOTSTRAP_FLAGS} "${command}" ${BOOTSTRAP_OPTIONS} "$@" || exit 1
       ;;
 
    esac

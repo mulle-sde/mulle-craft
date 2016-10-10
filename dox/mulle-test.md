@@ -1,5 +1,8 @@
 ## mulle-test usage
 
+`usage: mulle-test [flags] [test options]`
+
+
 It is assumed that you have a folder `tests` in your project directory.
 Inside this directory **mulle-test** expects to find two scripts:
 
@@ -18,9 +21,9 @@ Also [mulle-sde](//www.mulle-kybernetik.com/repositories/mulle-sde) will
 provide some support to set this up for your project automatically.
 
 
-#### Options
+#### Flags
 
-Option      | Description                                   |
+Flag        | Description                                   |
 ------------|-----------------------------------------------|
 -n          | Dry run, don't actually execute               |
 -v          | Verbose                                       |

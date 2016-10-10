@@ -1,5 +1,7 @@
 ## mulle-tag usage
 
+`usage: mulle-clean [flags] <tag> [mulle bootstrap options]`
+
 Tag your project and it's dependencies with a common tag
 
 ```
@@ -7,9 +9,9 @@ mulle-tag v2.1
 ```
 
 
-#### Options
+#### Flags
 
-Option      | Description                                   |
+Flag        | Description                                   |
 ------------|-----------------------------------------------|
 -n          | Dry run, don't actually execute               |
 -v          | Verbose                                       |

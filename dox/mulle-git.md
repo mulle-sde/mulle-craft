@@ -1,5 +1,7 @@
 ## mulle-git usage
 
+`usage: mulle-git [flags] <git options>`
+
 Run git operations on the project and it's dependencies
 
 ```
@@ -7,9 +9,9 @@ mulle-git status -s
 ```
 
 
-#### Options
+#### Flags
 
-Option      | Description                                   |
+Flag        | Description                                   |
 ------------|-----------------------------------------------|
 -n          | Dry run, don't actually execute               |
 -v          | Verbose                                       |

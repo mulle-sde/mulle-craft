@@ -27,13 +27,18 @@ dependencies are installed.
 
 
 
-#### Common Options
+#### Common Flags
 
-Option      | Description                                   |
+Flag        | Description                                   |
 ------------|-----------------------------------------------|
+-c          | Check for dependency presence in /usr/local   |
 -d          | Build debug                                   |
+-e          | Only fetch embedded repositories. Assume other
+dependencies are provided by the system.                    |
 -n          | Dry run, don't actually execute               |
--ni         | Do not install                                |
+-ni         | Do not install (includes -nid)                |
+-nbd        | Do not build dependencies.                    |
+-nid        | Do not install dependencies                   |
 -v          | Verbose                                       |
 -vv         | Very verbose                                  |
 -vvv        | Extremely verbose                             |
@@ -41,19 +46,18 @@ Option      | Description                                   |
 
 
 
-#### Options in Local Mode
+#### Flags in Local Mode
 
-Option            | Description                                   |
+Flag              | Description                                   |
 ------------------|-----------------------------------------------|
--nb               | Do not build dependencies via mulle-bootstrap. mulle-bootstrap will fetch only embedded repositories. This is useful if the dependencies are installed by brew or some other package manager.  |
 -m &lt;exe&gt;    | Specify the make program to use               |
 -p &lt;prefix&gt; | Installation prefix                           |
 
 
 
-#### Options in URL Mode
+#### Flags in URL Mode
 
-Option            |  Description                                  |
+Flag              |  Description                                  |
 ------------------|-----------------------------------------------|
 -b &lt;branch&gt; | Tag/branch to fetch                           |
 -nr               | Do not remove temporary files (keep download) |
@@ -62,11 +66,10 @@ Option            |  Description                                  |
 
 
 
-
 ## mulle-install with package manager "homebrew"
 
 You want to create a "homebrew" formula. Your dependencies are also managed
-my homebrew. So you don't build the dependencies (-f), but you do need the
+my homebrew. So you don't build the dependencies (-e), but you do want the
 embedded repositories:
 
 ```
@@ -76,7 +79,7 @@ class MyFormula < Formula
   depends_on 'mulle-build' => :build
 
   def install
-     system "mulle-install", "-nb", "-p", "#{prefix}"
+     system "mulle-install", "-e", "-p", "#{prefix}"
   end
   ...
 end
@@ -87,13 +90,7 @@ end
 **mulle-install** will do it all for you in URL mode:
 
 ```
-mulle-install --prefix /opt --branch release https://github.com/my-name/my-repo.git
-```
-
-**mulle-install** in local mode:
-
-```
-mulle-install --prefix /opt
+mulle-install -p /opt -b release https://github.com/my-name/my-repo.git
 ```
 
 

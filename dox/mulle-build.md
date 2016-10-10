@@ -1,5 +1,8 @@
 ## mulle-build usage
 
+`usage: mulle-build [flags] [mulle-bootstrap options]`
+
+
 You should configure your project with a `CMakeLists.txt` file. Check out the [cmake Tutorial](https://cmake.org/cmake-tutorial/) if you are unfamiliar with cmake.
 > Also [mulle-sde](//www.mulle-kybernetik.com/repositories/mulle-sde) can be
 > helpful there. But as of 11/16 it's still very much experimental.
@@ -21,18 +24,18 @@ to specify the C and CXX compiler. For Objective-C it is platform dependent, whi
 
 
 
-#### Options
+#### Flags
 
-Option            | Description                                   |
+Flag              | Description                                   |
 ------------------|-----------------------------------------------|
+-c                | Check for dependencies presence in /usr/local before fetching |
 -d                | Build debug                                   |
 -n                | Dry run, don't actually execute               |
--ni               | Do not install                                |
 -v                | Verbose                                       |
 -vv               | Very verbose                                  |
 -vvv              | Extremely verbose                             |
 -t                | Trace shell script                            |
--nb               | Do not build dependencies via mulle-bootstrap. mulle-bootstrap will fetch only embedded repositories. This is useful if the dependencies are installed by brew or some other package manager.  |
+-nbd              | Do not build dependencies via mulle-bootstrap. mulle-bootstrap will fetch only embedded repositories. This is useful if the dependencies are installed by brew or some other package manager.  |
 -m &lt;exe&gt;    | Specify the make program to use               |
 -p &lt;prefix&gt; | Installation prefix                           |
 
