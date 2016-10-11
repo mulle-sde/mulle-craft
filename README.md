@@ -48,35 +48,60 @@ mulle-tag     | (git) tag project and dependencies            | [mulle-tag](dox/
 mulle-test    | run tests (see below)                         | [mulle-test](dox/mulle-test.md)
 mulle-update  | pull changes on project and dependencies      | [mulle-update](dox/mulle-update.md)
 
+## Install mulle-build
 
-## Installing mulle-build
+### Windows: Install "Git for Windows" bash
 
-On OS X and Linux you can install using [homebrew](//brew.sh) respectively [linuxbrew](//linuxbrew.sh)
+On Windows you need to install some more prerequisites first.
+
+* Install [Visual Studio 2015 Community Edition](//beta.visualstudio.com/downloads/)
+or better (free). Make sure that you install Windows C++ support. Also add git support.
+* [Git for Windows](//git-scm.com/download/win) is included in VS 2015, make sure it's there
+* [Python 2 for Windows](//www.python.org/downloads/windows/). Make sure that python is installed in **PATH**, which is not the default.
+* [CMake for Windows](//cmake.org/download/). CMake should also add itself to **PATH**.
+
+Reboot, so that Windows picks up the **PATH** changes (Voodoo).
+
+Now the tricky part is to get the "Git For Windows" **bash** shell running with
+the proper VisualStudio environment.  Assuming you kept the default settings
+during install the "Git for Windows" bash should be located at
+`C:\Program Files\Git\git-bash.exe`. Open the
+"Developer Command Prompt for VS 2015" from the **Start** menu and execute
+the bash from there. A second window with the bash should open.
+
+Check that you have the proper environment for VisualStudio compilation with
+`env`.
+
+
+### OSX: Install mulle-build using homebrew
+
+Install the [homebrew](//brew.sh/) package manager, then
 
 ```
 brew tap mulle-kybernetik/software
 brew install mulle-build
 ```
 
-On other platforms you need to do this manually:
+### Linux: Install mulle-build using linuxbrew
 
-Install [mulle-bootstrap](//www.mulle-kybernetik.com/repositories/mulle-bootstrap)
-first.
-
-```
-git clone -b release https://www.mulle-kybernetik.com/repositories/mulle-bootstrap
-( cd mulle-bootstrap ;  ./install.sh )
-```
-
-Then:
+Install the [linuxbrew](//linuxbrew.sh/) package manager, then
 
 ```
-git clone -b release https://www.mulle-kybernetik.com/repositories/mulle-build
-( cd mulle-build ;  ./install.sh )
+brew tap mulle-kybernetik/software
+brew install mulle-build
+```
+
+### All Platforms: Install mulle-build using git
+
+```
+git clone https://www.mulle-kybernetik.com/repositories/mulle-bootstrap
+( cd mulle-bootstrap ; ./install.sh )
+git clone https://www.mulle-kybernetik.com/repositories/mulle-build
+( cd mulle-build ; ./install.sh )
 ```
 
 
-## Example Travis-CI
+## Example Travis-CI integration using mulle-build
 
 Travis CI integration simplifies to a uniform `.travis.yml` file that one
 can use unchanged in all `mulle-build` aware C projects. The main effort is
@@ -108,7 +133,7 @@ script:
    - mulle-test
 ```
 
-## Example Homebrew / Linuxbrew
+## Example Homebrew / Linuxbrew integreation using mulle-build
 
 Homebrew integration has to be customized to your project. Instead of using
 **mulle-build** to resolve the dependencies, you want **brew** to install them
@@ -136,9 +161,3 @@ class MyFormula < Formula
   end
 end
 ```
-
-
-
-
-
-
