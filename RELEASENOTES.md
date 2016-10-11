@@ -2,6 +2,7 @@
 =====
 
 * fix use of CMAKE_INSTALL_PREFIX
+* remove some unnecesary refresh calls to make things go faster
 
 0.5
 ===

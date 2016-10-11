@@ -92,27 +92,23 @@ EOF
 }
 
 
-
 #
 # Local Mode
 #
 do_fetch_dependencies()
 {
-   if refresh_needed
-   then
-      exekutor mulle-bootstrap refresh || exit 1
-   fi
-
    if fetch_needed
    then
-      exekutor mulle-bootstrap -fr ${BOOTSTRAP_FLAGS} fetch ${BOOTSTRAP_OPTIONS} || exit 1 # --embedded-only
+      exekutor mulle-bootstrap ${BOOTSTRAP_FLAGS} fetch ${BOOTSTRAP_OPTIONS} || exit 1 # --embedded-only
+      log_fluff "FINISHED: mulle-bootstrap fetch"
+
       #
       # after the first fetch don't warn about scripts again
       #
       if [ "`basename "$executable"`" = "mulle-build" ]
       then
          log_verbose "Don't warn about scripts next build"
-         mulle-bootstrap config --on dont_warn_scripts
+         exekutor mulle-bootstrap config --on dont_warn_scripts
       fi
    fi
 }
@@ -123,6 +119,7 @@ do_build_dependencies()
    if build_needed
    then
       exekutor mulle-bootstrap ${BOOTSTRAP_FLAGS} build ${BOOTSTRAP_OPTIONS} || exit 1
+      log_fluff "FINISHED: mulle-bootstrap build"
    fi
 }
 
@@ -135,6 +132,7 @@ do_install_dependencies()
    else
       exekutor mulle-bootstrap install ${BOOTSTRAP_OPTIONS} "${CMAKE_INSTALL_PREFIX}" || exit 1
    fi
+   log_fluff "FINISHED: mulle-bootstrap install"
 }
 
 
@@ -675,6 +673,7 @@ main()
             BOOTSTRAP_FLAGS="`concat "${BOOTSTRAP_FLAGS}" "$1"`"
             MULLE_BOOTSTRAP_FLUFF="YES"
             MULLE_BOOTSTRAP_VERBOSE="YES"
+            MULLE_EXECUTOR_TRACE="YES"
          ;;
 
          -vvv|--very-verbose-with-settings)
