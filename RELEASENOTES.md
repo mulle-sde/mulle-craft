@@ -1,3 +1,8 @@
+0.5.1
+=====
+
+* fix use of CMAKE_INSTALL_PREFIX
+
 0.5
 ===
 

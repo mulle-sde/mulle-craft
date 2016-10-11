@@ -16,7 +16,6 @@ integration services like [Travis CI](//travis-ci.org/).
 
 ### What mulle-build does in a nutshell
 
-
 Essentially, `mulle-build` is a shortcut for typing:
 
 
@@ -75,3 +74,71 @@ Then:
 git clone -b release https://www.mulle-kybernetik.com/repositories/mulle-build
 ( cd mulle-build ;  ./install.sh )
 ```
+
+
+## Example Travis-CI
+
+Travis CI integration simplifies to a uniform `.travis.yml` file that one
+can use unchanged in all `mulle-build` aware C projects. The main effort is
+getting a recent `cmake` installed:
+
+
+```
+language: c
+
+dist: precise
+
+addons:
+  apt:
+    sources:
+      - george-edison55-precise-backports # cmake 3.2.3 / doxygen 1.8.3
+    packages:
+      - cmake
+      - cmake-data
+
+before_install:
+   - git clone https://github.com/Linuxbrew/brew.git ~/.linuxbrew
+   - PATH="$HOME/.linuxbrew/bin:$PATH"
+   - brew update
+   - brew tap mulle-kybernetik/software
+   - brew install mulle-build
+
+script:
+   - mulle-build
+   - mulle-test
+```
+
+## Example Homebrew / Linuxbrew
+
+Homebrew integration has to be customized to your project. Instead of using
+**mulle-build** to resolve the dependencies, you want **brew** to install them
+for you. Installing and testing is provided by mulle-build. This works on OS X
+and Linux!
+
+
+```
+class MyFormula < Formula
+  homepage <url>
+  desc <desc>
+  url <url>
+  version <version>
+  sha256 "1bb445dad8be6e8f05a5ef955adeee9d53953722df056e676369847fea730396"
+
+  depends_on <dependencies>
+  depends_on 'mulle-build' => :build
+
+  def install
+     system "mulle-install", "-e", "--prefix", "#{prefix}"
+  end
+
+  test do
+     system "mulle-test"
+  end
+end
+```
+
+
+
+
+
+

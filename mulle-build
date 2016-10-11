@@ -30,7 +30,7 @@
 #   ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
 #   POSSIBILITY OF SUCH DAMAGE.
 
-MULLE_INSTALL_VERSION="0.5"
+MULLE_INSTALL_VERSION="0.5.1"
 
 MULLE_BOOTSTRAP_MIN_MAJOR="2"
 MULLE_BOOTSTRAP_MIN_MINOR="1"
@@ -129,7 +129,12 @@ do_build_dependencies()
 
 do_install_dependencies()
 {
-   exekutor mulle-bootstrap install ${BOOTSTRAP_OPTIONS} "${CMAKE_INSTALL_PREFIX}" || exit 1
+   if [ -z "${CMAKE_INSTALL_PREFIX}" ]
+   then
+      exekutor mulle-bootstrap install ${BOOTSTRAP_OPTIONS}  || exit 1
+   else
+      exekutor mulle-bootstrap install ${BOOTSTRAP_OPTIONS} "${CMAKE_INSTALL_PREFIX}" || exit 1
+   fi
 }
 
 
@@ -184,6 +189,8 @@ _do_cmake()
 {
    local cmakeflags
 
+   [ -z "${CMAKE_GENERATOR}" ] && fail "empty CMAKE_GENERATOR"
+
    if [ -z "${DEBUG}" ]
    then
       cmakeflags="-DCMAKE_BUILD_TYPE=Release"
@@ -228,12 +235,23 @@ _do_cmake()
    (
       # CMAKE_FLAGS same as in mulle-bootstrap
       exekutor cd "${BUILDDIR}" ;
-      exekutor cmake -DCMAKE_INSTALL_PREFIX="${CMAKE_INSTALL_PREFIX}" \
-                     -G "${CMAKE_GENERATOR}" \
-                     ${cmakeflags} \
-                     ${CMAKE_FLAGS} \
-                     "$@" \
-                     "${relative}" || exit 1
+
+      # lameness, but want to allow spaces in prefix
+      if [ -z "${CMAKE_INSTALL_PREFIX}" ]
+      then
+         exekutor cmake -G "${CMAKE_GENERATOR}" \
+                        ${cmakeflags} \
+                        ${CMAKE_FLAGS} \
+                        "$@" \
+                        "${relative}" || exit 1
+      else
+         exekutor cmake -DCMAKE_INSTALL_PREFIX="${CMAKE_INSTALL_PREFIX}" \
+                        -G "${CMAKE_GENERATOR}" \
+                        ${cmakeflags} \
+                        ${CMAKE_FLAGS} \
+                        "$@" \
+                        "${relative}" || exit 1
+      fi
    )
 }
 
@@ -754,6 +772,7 @@ main()
             then
                cleandefault="dist"     # mulle-install clean
             fi
+
             if [ "${executable}" = "mulle-build" ]
             then
                cleandefault="output"   # mulle-build clean
@@ -765,20 +784,21 @@ main()
       ;;
 
       test)
+         # check this first
          testdir="${TESTS:-tests}"
+         if [ ! -x "${testdir}/run-test.sh" ]
+         then
+            fail "Don't know how to run tests (${testdir}/run-test.sh is missing)"
+         fi
+
          if [ -x "${testdir}/build-test.sh" ]
          then
              ( exekutor cd "${testdir}" ; exekutor "./build-test.sh" "$@" ) || exit 1
          else
-            local_mode "$@" || exit 1
+            DONT_INSTALL=YES local_mode "$@" || exit 1
          fi
 
-         if [ -x "${testdir}/run-test.sh" ]
-         then
-            ( exekutor cd "${testdir}" ; exekutor "./run-test.sh" "$@" ) || exit 1
-         else
-            fail "Don't know how to run tests (${testdir}/run-test.sh is missing)"
-         fi
+         ( exekutor cd "${testdir}" ; exekutor "./run-test.sh" "$@" ) || exit 1
       ;;
 
       # catches all paths and URLS, abolute, relative
