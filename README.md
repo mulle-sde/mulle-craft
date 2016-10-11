@@ -48,6 +48,7 @@ mulle-tag     | (git) tag project and dependencies            | [mulle-tag](dox/
 mulle-test    | run tests (see below)                         | [mulle-test](dox/mulle-test.md)
 mulle-update  | pull changes on project and dependencies      | [mulle-update](dox/mulle-update.md)
 
+
 ## Install mulle-build
 
 ### Windows: Install "Git for Windows" bash
@@ -135,7 +136,7 @@ script:
 
 ## Example Homebrew / Linuxbrew integreation using mulle-build
 
-Homebrew integration has to be customized to your project. Instead of using
+Homebrew integration has to be customized by project. Instead of using
 **mulle-build** to resolve the dependencies, you want **brew** to install them
 for you. Installing and testing is provided by mulle-build. This works on OS X
 and Linux!
@@ -147,7 +148,7 @@ class MyFormula < Formula
   desc <desc>
   url <url>
   version <version>
-  sha256 "1bb445dad8be6e8f05a5ef955adeee9d53953722df056e676369847fea730396"
+  sha256 <sha256>
 
   depends_on <dependencies>
   depends_on 'mulle-build' => :build
