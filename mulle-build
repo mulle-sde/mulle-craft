@@ -741,23 +741,24 @@ main()
       update)
          if [ -d .git ]
          then
-            log_info "Updating \"`basename -- "${PWD}"`\""
+            log_info "Updating ${C_MAGENTA}${C_BOLD}`basename -- "${PWD}"`${C_INFO}"
             git_pull
          fi
          mulle-bootstrap ${BOOTSTRAP_FLAGS} "${command}" ${BOOTSTRAP_OPTIONS} "$@" || exit 1
       ;;
 
       git)
+         mulle-bootstrap ${BOOTSTRAP_FLAGS} "${command}" ${BOOTSTRAP_OPTIONS} "$@" || exit 1
+
          log_info "### `basename ${PWD}`:"
          git "$@" || exit 1
-
-         mulle-bootstrap ${BOOTSTRAP_FLAGS} "${command}" ${BOOTSTRAP_OPTIONS} "$@" || exit 1
       ;;
 
       tag)
-         log_info "Tagging \"`basename -- "${PWD}"`\" with \"${1}\""
-         git tag "$@" || exit 1
          mulle-bootstrap ${BOOTSTRAP_FLAGS} "${command}" ${BOOTSTRAP_OPTIONS} "$@" || exit 1
+         # tag it after succesfully tagging dependencies
+         log_info "Tagging ${C_MAGENTA}${C_BOLD}`basename -- "${PWD}"`${C_INFO} with ${C_RESET_BOLD}${1}${C_INFO}"
+         git tag "$@" || exit 1
       ;;
 
       clean)
