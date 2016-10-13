@@ -95,9 +95,9 @@ brew install mulle-build
 ### All Platforms: Install mulle-build using git
 
 ```
-git clone https://www.mulle-kybernetik.com/repositories/mulle-bootstrap
+git clone --branch release https://www.mulle-kybernetik.com/repositories/mulle-bootstrap
 ( cd mulle-bootstrap ; ./install.sh )
-git clone https://www.mulle-kybernetik.com/repositories/mulle-build
+git clone --branch release https://www.mulle-kybernetik.com/repositories/mulle-build
 ( cd mulle-build ; ./install.sh )
 ```
 

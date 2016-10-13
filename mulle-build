@@ -30,7 +30,7 @@
 #   ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
 #   POSSIBILITY OF SUCH DAMAGE.
 
-MULLE_INSTALL_VERSION="0.5.2"
+MULLE_INSTALL_VERSION="0.5.3"
 
 MULLE_BOOTSTRAP_MIN_MAJOR="2"
 MULLE_BOOTSTRAP_MIN_MINOR="1"
@@ -387,7 +387,7 @@ git_pull()
    log_fluff ":.:pull:.:"
 
    branch="`git rev-parse --abbrev-ref HEAD`"
-   if [ -d ".git/refs/remotes/origin" ]
+   if [ -d ".git/refs/remotes/origin/${branch}" ]
    then
       origin="${ORIGIN:-origin}"
    else
@@ -571,7 +571,6 @@ main()
 
    while [ $# -ne 0 ]
    do
-      touch /tmp/$1
       case "$1" in
          -b|--tag|--branch)
             shift
@@ -658,7 +657,6 @@ main()
          ;;
 
          -te|--trace-execution)
-            touch /tmp/te
             BOOTSTRAP_FLAGS="`concat "${BOOTSTRAP_FLAGS}" "$1"`"
             MULLE_EXECUTOR_TRACE="YES"
          ;;
@@ -694,12 +692,10 @@ main()
          ;;
 
          -*)
-            touch /tmp/def
             BOOTSTRAP_FLAGS="`concat "${BOOTSTRAP_FLAGS}" "$1"`"
          ;;
 
          *)
-            touch /tmp/all
             break
          ;;
       esac
@@ -745,6 +741,7 @@ main()
       update)
          if [ -d .git ]
          then
+            log_info "Updating \"`basename -- "${PWD}"`\""
             git_pull
          fi
          mulle-bootstrap ${BOOTSTRAP_FLAGS} "${command}" ${BOOTSTRAP_OPTIONS} "$@" || exit 1
@@ -758,6 +755,7 @@ main()
       ;;
 
       tag)
+         log_info "Tagging \"`basename -- "${PWD}"`\" with \"${1}\""
          git tag "$@" || exit 1
          mulle-bootstrap ${BOOTSTRAP_FLAGS} "${command}" ${BOOTSTRAP_OPTIONS} "$@" || exit 1
       ;;

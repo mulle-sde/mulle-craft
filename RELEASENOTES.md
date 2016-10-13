@@ -1,3 +1,14 @@
+0.5.3
+=====
+
+* mulle-update is more verbose and better at detecting remotes, who are not
+named "origin"
+
+0.5.2
+=====
+
+* be more verbose when tagging
+
 0.5.1
 =====
 
