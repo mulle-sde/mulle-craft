@@ -551,6 +551,7 @@ main()
 
    BOOTSTRAP_FLAGS=
    BOOTSTRAP_OPTIONS=
+   TEST_OPTIONS=
    BUILDDIR="${BUILDDIR:-build}"
    OPTIMISTIC="${OPTIMISITIC:-YES}"
 
@@ -653,23 +654,26 @@ main()
          ;;
 
          -t|--trace)
+            TEST_OPTIONS="`concat "${TEST_OPTIONS}" "$1"`"
             BOOTSTRAP_FLAGS="`concat "${BOOTSTRAP_FLAGS}" "$1"`"
             set -x
          ;;
 
          -te|--trace-execution)
-            touch /tmp/te
+            TEST_OPTIONS="`concat "${TEST_OPTIONS}" "$1"`"
             BOOTSTRAP_FLAGS="`concat "${BOOTSTRAP_FLAGS}" "$1"`"
             MULLE_EXECUTOR_TRACE="YES"
          ;;
 
          -v|--verbose)
+            TEST_OPTIONS="`concat "${TEST_OPTIONS}" "$1"`"
             BOOTSTRAP_FLAGS="`concat "${BOOTSTRAP_FLAGS}" "$1"`"
             MULLE_BOOTSTRAP_FLUFF="NO"
             MULLE_BOOTSTRAP_VERBOSE="YES"
          ;;
 
          -vv|--very-verbose)
+            TEST_OPTIONS="`concat "${TEST_OPTIONS}" "$1"`"
             BOOTSTRAP_FLAGS="`concat "${BOOTSTRAP_FLAGS}" "$1"`"
             MULLE_BOOTSTRAP_FLUFF="YES"
             MULLE_BOOTSTRAP_VERBOSE="YES"
@@ -677,6 +681,7 @@ main()
          ;;
 
          -vvv|--very-verbose-with-settings)
+            TEST_OPTIONS="`concat "${TEST_OPTIONS}" "$1"`"
             BOOTSTRAP_FLAGS="`concat "${BOOTSTRAP_FLAGS}" "$1"`"
             MULLE_BOOTSTRAP_FLUFF="YES"
             MULLE_BOOTSTRAP_VERBOSE="YES"
@@ -684,6 +689,7 @@ main()
          ;;
 
          -V|--verbose-build)
+            TEST_OPTIONS="`concat "${TEST_OPTIONS}" "$1"`"
             BOOTSTRAP_FLAGS="`concat "${BOOTSTRAP_FLAGS}" "$1"`"
             MAKE_FLAGS="${MAKE_FLAGS} VERBOSE=1"
          ;;
@@ -694,12 +700,11 @@ main()
          ;;
 
          -*)
-            touch /tmp/def
             BOOTSTRAP_FLAGS="`concat "${BOOTSTRAP_FLAGS}" "$1"`"
+            TEST_OPTIONS="`concat "${TEST_OPTIONS}" "$1"`"
          ;;
 
          *)
-            touch /tmp/all
             break
          ;;
       esac
@@ -797,7 +802,7 @@ main()
             DONT_INSTALL=YES local_mode "$@" || exit 1
          fi
 
-         ( exekutor cd "${testdir}" ; exekutor "./run-test.sh" "$@" ) || exit 1
+         ( exekutor cd "${testdir}" ; exekutor "./run-test.sh" ${TEST_OPTIONS} "$@" ) || exit 1
       ;;
 
       # catches all paths and URLS, abolute, relative
