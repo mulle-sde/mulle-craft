@@ -1,3 +1,8 @@
+0.6
+=====
+
+* added mulle-status, because I use it so often
+
 0.5.3
 =====
 

@@ -30,7 +30,7 @@
 #   ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
 #   POSSIBILITY OF SUCH DAMAGE.
 
-MULLE_INSTALL_VERSION="0.5.3"
+MULLE_INSTALL_VERSION="0.6"
 
 MULLE_BOOTSTRAP_MIN_MAJOR="2"
 MULLE_BOOTSTRAP_MIN_MINOR="1"
@@ -99,7 +99,7 @@ do_fetch_dependencies()
 {
    if fetch_needed
    then
-      exekutor mulle-bootstrap ${BOOTSTRAP_FLAGS} fetch ${BOOTSTRAP_OPTIONS} || exit 1 # --embedded-only
+      exekutor mulle-bootstrap ${BOOTSTRAP_FLAGS} fetch ${BOOTSTRAP_FETCH_OPTIONS} ${BOOTSTRAP_OPTIONS} || exit 1 # --embedded-only
       log_fluff "FINISHED: mulle-bootstrap fetch"
 
       #
@@ -642,13 +642,22 @@ main()
          ;;
 
          -s|--scm)
-            shift
-            [ $# -eq 0 ] && usage "${command}"
+            case "${command}" in
+               status)
+                  STATUS_OPTIONS="`concat "${STATUS_OPTIONS}" "$1"`"
+               ;;
 
-            SCM="$1"
+               *)
+                  shift
+                  [ $# -eq 0 ] && usage "${command}"
+
+                  SCM="$1"
+               ;;
+            esac
          ;;
 
          -u|--pessimistic|--unlucky)
+            STATUS_OPTIONS="`concat "${STATUS_OPTIONS}" "$1"`"
             OPTIMISTIC="NO"
          ;;
 
@@ -666,6 +675,7 @@ main()
 
          -v|--verbose)
             TEST_OPTIONS="`concat "${TEST_OPTIONS}" "$1"`"
+            STATUS_OPTIONS="`concat "${STATUS_OPTIONS}" "$1"`"
             BOOTSTRAP_FLAGS="`concat "${BOOTSTRAP_FLAGS}" "$1"`"
             MULLE_BOOTSTRAP_FLUFF="NO"
             MULLE_BOOTSTRAP_VERBOSE="YES"
@@ -673,6 +683,7 @@ main()
 
          -vv|--very-verbose)
             TEST_OPTIONS="`concat "${TEST_OPTIONS}" "$1"`"
+            STATUS_OPTIONS="`concat "${STATUS_OPTIONS}" "$1"`"
             BOOTSTRAP_FLAGS="`concat "${BOOTSTRAP_FLAGS}" "$1"`"
             MULLE_BOOTSTRAP_FLUFF="YES"
             MULLE_BOOTSTRAP_VERBOSE="YES"
@@ -698,9 +709,16 @@ main()
             exit 0
          ;;
 
+         -i|--ignore-branch|-nr|--no-recursion|-cs|--check-usr-local-include|-e|--embedded-only|-u|--update-symlinks|-K|--clean|-k|--no-clean)
+            BOOTSTRAP_OPTIONS="`concat "${BOOTSTRAP_OPTIONS}" "$1"`"
+            TEST_OPTIONS="`concat "${TEST_OPTIONS}" "$1"`"
+            STATUS_OPTIONS="`concat "${STATUS_OPTIONS}" "$1"`"
+         ;;
+
          -*)
             BOOTSTRAP_FLAGS="`concat "${BOOTSTRAP_FLAGS}" "$1"`"
             TEST_OPTIONS="`concat "${TEST_OPTIONS}" "$1"`"
+            STATUS_OPTIONS="`concat "${STATUS_OPTIONS}" "$1"`"
          ;;
 
          *)
@@ -752,7 +770,7 @@ main()
             log_info "Updating ${C_MAGENTA}${C_BOLD}`basename -- "${PWD}"`${C_INFO}"
             git_pull
          fi
-         mulle-bootstrap ${BOOTSTRAP_FLAGS} "${command}" ${BOOTSTRAP_OPTIONS} "$@" || exit 1
+         mulle-bootstrap ${BOOTSTRAP_FLAGS} "${command}" ${BOOTSTRAP_FETCH_OPTIONS} ${BOOTSTRAP_OPTIONS} "$@" || exit 1
       ;;
 
       git)
@@ -768,6 +786,14 @@ main()
          log_info "Tagging ${C_MAGENTA}${C_BOLD}`basename -- "${PWD}"`${C_INFO} with ${C_RESET_BOLD}${1}${C_INFO}"
          git tag "$@" || exit 1
       ;;
+
+      status)
+         mulle-bootstrap ${BOOTSTRAP_FLAGS} "git" ${BOOTSTRAP_OPTIONS} "${command}" ${STATUS_OPTIONS} "$@" || exit 1
+
+         log_info "### `basename ${PWD}`:"
+         git "${command}" ${STATUS_OPTIONS} "$@" || exit 1
+      ;;
+
 
       clean)
          local cleandefault
