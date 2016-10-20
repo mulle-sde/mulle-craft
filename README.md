@@ -113,6 +113,7 @@ getting a recent `cmake` installed:
 language: c
 
 dist: precise
+sudo: required
 
 addons:
   apt:
@@ -123,11 +124,16 @@ addons:
       - cmake-data
 
 before_install:
+   - sudo mkdir -p /home/linuxbrew
+   - sudo chown "$USER" /home/linuxbrew
+   - cd /home/linuxbrew
+   - HOME=/home/linuxbrew
    - git clone https://github.com/Linuxbrew/brew.git ~/.linuxbrew
    - PATH="$HOME/.linuxbrew/bin:$PATH"
    - brew update
    - brew tap mulle-kybernetik/software
    - brew install mulle-build
+
 
 script:
    - mulle-build

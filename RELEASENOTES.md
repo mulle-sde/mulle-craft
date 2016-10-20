@@ -1,3 +1,10 @@
+0.6
+=====
+
+* added mulle-status, because I use it so often
+* adapt to changes in mulle-build
+
+
 0.5.3
 =====
 
