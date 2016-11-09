@@ -1,3 +1,14 @@
+0.7.0
+=====
+
+* adapt to mulle-bootstrap 2.4.0
+
+
+0.6.1
+=====
+
+* pass --debug to ./build-test.sh
+
 0.6
 =====
 
