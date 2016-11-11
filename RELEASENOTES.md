@@ -1,3 +1,8 @@
+0.8.1
+=====
+
+* pass all flags -D*|-W* to cmake
+
 0.8.0
 =====
 
