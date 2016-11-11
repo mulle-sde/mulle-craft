@@ -30,7 +30,7 @@
 #   ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
 #   POSSIBILITY OF SUCH DAMAGE.
 
-MULLE_BUILD_VERSION="0.8.1"
+MULLE_BUILD_VERSION="0.8.2"
 
 MULLE_BOOTSTRAP_MIN_MAJOR="2"
 MULLE_BOOTSTRAP_MIN_MINOR="4"
@@ -45,9 +45,6 @@ if [ ! -x "${MULLE_BOOTSTRAP_EXE}" ]
 then
    MULLE_BOOTSTRAP_EXE=mulle-bootstrap
 fi
-
-
-PATH="`pwd -P`/addictions/bin:$HOME/.linuxbrew/bin:/usr/local/bin:${HOME}/bin:${PATH}"
 
 
 usage()
@@ -377,6 +374,7 @@ check_mulle_bootstrap_version()
 }
 
 
+
 setup_bootstrap_environment()
 {
    local libexec
@@ -388,7 +386,7 @@ setup_bootstrap_environment()
       exit 1
    fi
 
-   PATH="${libexec}:$PATH"
+   PATH="${libexec}:${PATH}"
 
    . mulle-bootstrap-logging.sh
    . mulle-bootstrap-functions.sh
@@ -399,7 +397,7 @@ setup_bootstrap_environment()
       return
    fi
 
-   fail "$executable: mulle-bootstrap needs to be updated."
+   fail "mulle-bootstrap needs to be updated."
 }
 
 
@@ -453,8 +451,8 @@ local_mode()
 
    setup_make_environment
 
-   [ -z "${TAG}" ] || fail "$executable: -b option is not compatible with local mode."
-   [ -z "${SCM}" ] || fail "$executable: -s option is not compatible with local mode."
+   [ -z "${TAG}" ] || fail "-b option is not compatible with local mode."
+   [ -z "${SCM}" ] || fail "-s option is not compatible with local mode."
 
    if [ -d .bootstrap ]
    then
@@ -469,7 +467,7 @@ local_mode()
 
    if [ -z "${DONT_BUILD}" ]
    then
-      [ ! -f CMakeLists.txt ] && fail "$executable: Can only build cmake based projects, in local mode."
+      [ ! -f CMakeLists.txt ] && fail "Can only build cmake based projects, in local mode."
       do_cmake "$@"
 
       if [ -z "${DONT_INSTALL}"  ]
@@ -494,8 +492,8 @@ url_mode()
 {
    log_fluff ":.:URL mode:.:"
 
-   [ -z "${DONT_BUILD}" ] || fail "$executable: -nb option is not compatible with URL install."
-   [ -z "${MAKE}" ]       || fail "$executable: -m option is not compatible with URL install."
+   [ -z "${DONT_BUILD}" ] || fail "-nb option is not compatible with URL install."
+   [ -z "${MAKE}" ]       || fail "-m option is not compatible with URL install."
 
    local url
 
@@ -572,6 +570,8 @@ main()
    command="`echo "${executable}" | cut -d- -f2`"
 
    setup_bootstrap_environment
+
+   MULLE_BOOTSTRAP_FAIL_PREFIX="mulle-build"
 
    BOOTSTRAP_FLAGS=
    BOOTSTRAP_OPTIONS=
@@ -762,6 +762,8 @@ main()
       shift
    done
 
+   PATH="`make_executable_search_path "${PATH}"`"
+   log_fluff "PATH set to: $PATH"
 
    if [ "${OPTIMISTIC}" = "YES" ]
    then

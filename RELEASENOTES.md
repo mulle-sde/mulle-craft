@@ -1,3 +1,10 @@
+0.8.2
+=====
+
+* protect homebrew shims from PATH shenanigans
+* improve fail output
+
+
 0.8.1
 =====
 
