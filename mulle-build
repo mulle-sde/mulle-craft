@@ -30,10 +30,21 @@
 #   ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
 #   POSSIBILITY OF SUCH DAMAGE.
 
-MULLE_BUILD_VERSION="0.7.0"
+MULLE_BUILD_VERSION="0.8.0"
 
 MULLE_BOOTSTRAP_MIN_MAJOR="2"
 MULLE_BOOTSTRAP_MIN_MINOR="4"
+
+
+# look for mulle-bootstrap in the place where mulle-build is, they
+# belong together
+
+EXEDIR="`dirname -- "$0"`"
+MULLE_BOOTSTRAP_EXE="${EXEDIR}/mulle-bootstrap"
+if [ ! -x "${MULLE_BOOTSTRAP_EXE}" ]
+then
+   MULLE_BOOTSTRAP_EXE=mulle-bootstrap
+fi
 
 
 PATH="`pwd -P`/addictions/bin:$HOME/.linuxbrew/bin:/usr/local/bin:${HOME}/bin:${PATH}"
@@ -99,7 +110,7 @@ do_fetch_dependencies()
 {
    if fetch_needed
    then
-      exekutor mulle-bootstrap ${BOOTSTRAP_FLAGS} fetch ${BOOTSTRAP_FETCH_OPTIONS} ${BOOTSTRAP_OPTIONS} || exit 1 # --embedded-only
+      exekutor "${MULLE_BOOTSTRAP_EXE}" ${BOOTSTRAP_FLAGS} fetch ${BOOTSTRAP_FETCH_OPTIONS} ${BOOTSTRAP_OPTIONS} || exit 1 # --embedded-only
       log_fluff "FINISHED: mulle-bootstrap fetch"
 
       #
@@ -108,7 +119,7 @@ do_fetch_dependencies()
       if [ "`basename "$executable"`" = "mulle-build" ]
       then
          log_verbose "Don't warn about scripts next build"
-         exekutor mulle-bootstrap config --on dont_warn_scripts
+         exekutor "${MULLE_BOOTSTRAP_EXE}" config --on dont_warn_scripts
       fi
    fi
 }
@@ -118,7 +129,7 @@ do_build_dependencies()
 {
    if build_needed
    then
-      exekutor mulle-bootstrap ${BOOTSTRAP_FLAGS} build ${BOOTSTRAP_OPTIONS} || exit 1
+      exekutor "${MULLE_BOOTSTRAP_EXE}" ${BOOTSTRAP_FLAGS} build ${BOOTSTRAP_OPTIONS} || exit 1
       log_fluff "FINISHED: mulle-bootstrap build"
    fi
 }
@@ -128,9 +139,9 @@ do_install_dependencies()
 {
    if [ -z "${CMAKE_INSTALL_PREFIX}" ]
    then
-      exekutor mulle-bootstrap install ${BOOTSTRAP_OPTIONS}  || exit 1
+      exekutor "${MULLE_BOOTSTRAP_EXE}" install ${BOOTSTRAP_OPTIONS}  || exit 1
    else
-      exekutor mulle-bootstrap install ${BOOTSTRAP_OPTIONS} "${CMAKE_INSTALL_PREFIX}" || exit 1
+      exekutor "${MULLE_BOOTSTRAP_EXE}" install ${BOOTSTRAP_OPTIONS} "${CMAKE_INSTALL_PREFIX}" || exit 1
    fi
    log_fluff "FINISHED: mulle-bootstrap install"
 }
@@ -234,6 +245,12 @@ _do_cmake()
       # CMAKE_FLAGS same as in mulle-bootstrap
       exekutor cd "${BUILDDIR}" ;
 
+      if [ "${DUMP_ENVIRONMENT}" = "YES" ]
+      then
+         log_verbose "Environment:"
+         env >&2
+      fi
+
       # lameness, but want to allow spaces in prefix
       if [ -z "${CMAKE_INSTALL_PREFIX}" ]
       then
@@ -287,6 +304,13 @@ do_make()
 
    (
       exekutor cd build ;
+
+      if [ "${DUMP_ENVIRONMENT}" = "YES" ]
+      then
+         log_verbose "Environment:"
+         env >&2
+      fi
+
       exekutor "${MAKE}" ${MAKE_FLAGS} ${command}  || exit 1 ;
    )
 }
@@ -331,7 +355,7 @@ check_mulle_bootstrap_version()
    local major
    local minor
 
-   version="`mulle-bootstrap version | head -1`"
+   version="`"${MULLE_BOOTSTRAP_EXE}" version | head -1`"
    [ -z "${version}" ] && fail "mulle-bootstrap did not provide a version"
 
    major="`echo "${version}" | cut -s -d. -f1`"
@@ -357,7 +381,7 @@ setup_bootstrap_environment()
 {
    local libexec
 
-   libexec="`mulle-bootstrap library-path 2> /dev/null | head -1`"
+   libexec="`"${MULLE_BOOTSTRAP_EXE}" library-path 2> /dev/null | head -1`"
    if [ -z "${libexec}" ]
    then
       echo "mulle-bootstrap not installed or not in PATH" >&2
@@ -509,17 +533,17 @@ url_mode()
 
    (
       exekutor cd "${random}"|| exit 1 ;
-      exekutor mulle-bootstrap ${BOOTSTRAP_FLAGS} init -n ;
+      exekutor "${MULLE_BOOTSTRAP_EXE}" ${BOOTSTRAP_FLAGS} init -n ;
       redirect_exekutor .bootstrap/repositories echo "${URL};;${TAG};${SCM}"
-      exekutor mulle-bootstrap ${BOOTSTRAP_FLAGS} -a bootstrap ${BOOTSTRAP_OPTIONS} ${bootstrapoptions}  || exit 1
+      exekutor "${MULLE_BOOTSTRAP_EXE}" ${BOOTSTRAP_FLAGS} -a bootstrap ${BOOTSTRAP_OPTIONS} ${bootstrapoptions}  || exit 1
 
-      if [ -z "${DONT_INSTALL_DEPENDENCIES}"]
+      if [ -z "${DONT_INSTALL_DEPENDENCIES}" ]
       then
          if [ -z "${CMAKE_INSTALL_PREFIX}" ]
          then
-            exekutor mulle-bootstrap ${BOOTSTRAP_FLAGS} install ${BOOTSTRAP_OPTIONS} || exit 1
+            exekutor "${MULLE_BOOTSTRAP_EXE}" ${BOOTSTRAP_FLAGS} install ${BOOTSTRAP_OPTIONS} || exit 1
          else
-            exekutor mulle-bootstrap ${BOOTSTRAP_FLAGS} install ${BOOTSTRAP_OPTIONS} "${CMAKE_INSTALL_PREFIX}" || exit 1
+            exekutor "${MULLE_BOOTSTRAP_EXE}" ${BOOTSTRAP_FLAGS} install ${BOOTSTRAP_OPTIONS} "${CMAKE_INSTALL_PREFIX}" || exit 1
          fi
       fi
    )
@@ -584,9 +608,17 @@ main()
             BOOTSTRAP_OPTIONS="`concat "${BOOTSTRAP_OPTIONS}" "-cs"`"
          ;;
 
+         -DCMAKE*)
+            CMAKE_FLAGS="`concat "${CMAKE_FLAGS}" "$1"`"
+         ;;
+
          -d|--debug)
             DEBUG="YES"
             BUILD_TEST_OPTIONS="--debug"
+         ;;
+
+         --dump-environment)
+            DUMP_ENVIRONMENT="YES"
          ;;
 
          -e|--embedded-only)
@@ -771,25 +803,25 @@ main()
             log_info "Updating ${C_MAGENTA}${C_BOLD}`basename -- "${PWD}"`${C_INFO}"
             git_pull
          fi
-         mulle-bootstrap ${BOOTSTRAP_FLAGS} "${command}" ${BOOTSTRAP_FETCH_OPTIONS} ${BOOTSTRAP_OPTIONS} "$@" || exit 1
+         "${MULLE_BOOTSTRAP_EXE}" ${BOOTSTRAP_FLAGS} "${command}" ${BOOTSTRAP_FETCH_OPTIONS} ${BOOTSTRAP_OPTIONS} "$@" || exit 1
       ;;
 
       git)
-         mulle-bootstrap ${BOOTSTRAP_FLAGS} "${command}" ${BOOTSTRAP_OPTIONS} "$@" || exit 1
+         "${MULLE_BOOTSTRAP_EXE}" ${BOOTSTRAP_FLAGS} "${command}" ${BOOTSTRAP_OPTIONS} "$@" || exit 1
 
          log_info "### `basename ${PWD}`:"
          git "$@" || exit 1
       ;;
 
       tag)
-         mulle-bootstrap ${BOOTSTRAP_FLAGS} "${command}" ${BOOTSTRAP_OPTIONS} "$@" || exit 1
+         "${MULLE_BOOTSTRAP_EXE}" ${BOOTSTRAP_FLAGS} "${command}" ${BOOTSTRAP_OPTIONS} "$@" || exit 1
          # tag it after succesfully tagging dependencies
          log_info "Tagging ${C_MAGENTA}${C_BOLD}`basename -- "${PWD}"`${C_INFO} with ${C_RESET_BOLD}${1}${C_INFO}"
          git tag "$@" || exit 1
       ;;
 
       status)
-         mulle-bootstrap ${BOOTSTRAP_FLAGS} "git" ${BOOTSTRAP_OPTIONS} "${command}" ${STATUS_OPTIONS} "$@" || exit 1
+         "${MULLE_BOOTSTRAP_EXE}" ${BOOTSTRAP_FLAGS} "git" ${BOOTSTRAP_OPTIONS} "${command}" ${STATUS_OPTIONS} "$@" || exit 1
 
          log_info "### `basename ${PWD}`:"
          git "${command}" ${STATUS_OPTIONS} "$@" || exit 1
@@ -813,7 +845,7 @@ main()
          fi
 
          local_clean "$@"
-         mulle-bootstrap ${BOOTSTRAP_FLAGS} clean ${BOOTSTRAP_OPTIONS} "$@" ${cleandefault}
+         "${MULLE_BOOTSTRAP_EXE}" ${BOOTSTRAP_FLAGS} clean ${BOOTSTRAP_OPTIONS} "$@" ${cleandefault}
       ;;
 
       test)
@@ -838,7 +870,7 @@ main()
 
       # other commands forward to mulle-bootstrap
       *)
-         mulle-bootstrap ${BOOTSTRAP_FLAGS} "${command}" ${BOOTSTRAP_OPTIONS} "$@" || exit 1
+         "${MULLE_BOOTSTRAP_EXE}" ${BOOTSTRAP_FLAGS} "${command}" ${BOOTSTRAP_OPTIONS} "$@" || exit 1
       ;;
 
    esac

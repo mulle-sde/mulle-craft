@@ -1,8 +1,16 @@
+0.8.0
+=====
+
+* mulle-build assumes mulle-bootstrap is installed besides it, if it is, that
+becomes its preferential path for it
+* allow to specify cmake commandline flags with -DCMAKE (will not get passed
+to mulle_bootstrap)
+* add --dump-environment as a debug option
+
 0.7.0
 =====
 
 * adapt to mulle-bootstrap 2.4.0
-
 
 0.6.1
 =====
