@@ -30,7 +30,7 @@
 #   ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
 #   POSSIBILITY OF SUCH DAMAGE.
 
-MULLE_BUILD_VERSION="0.8.2"
+MULLE_BUILD_VERSION="0.9.0"
 
 MULLE_BOOTSTRAP_MIN_MAJOR="2"
 MULLE_BOOTSTRAP_MIN_MINOR="4"
@@ -199,9 +199,9 @@ _do_cmake()
 
    if [ -z "${DEBUG}" ]
    then
-      cmakeflags="-DCMAKE_BUILD_TYPE=Release"
+      cmakeflags="'-DCMAKE_BUILD_TYPE=Release'"
    else
-      cmakeflags="-DCMAKE_BUILD_TYPE=Debug"
+      cmakeflags="'-DCMAKE_BUILD_TYPE=Debug'"
    fi
 
    local relative
@@ -225,7 +225,7 @@ _do_cmake()
    if [ ! -z "${cc}" ]
    then
       log_verbose "Compiler ${C_RESET_BOLD}CC${C_VERBOSE} set to ${C_MAGENTA}${C_BOLD}${cc}${C_VERBOSE} found in \".CC\""
-      CMAKE_FLAGS="`concat "${CMAKE_FLAGS}" "-DCMAKE_C_COMPILER=${cc}"`"
+      CMAKE_FLAGS="`concat "${CMAKE_FLAGS}" "'-DCMAKE_C_COMPILER=${cc}'"`"
    fi
 
    local  cxx
@@ -234,7 +234,7 @@ _do_cmake()
    if [ ! -z "${cxx}" ]
    then
       log_verbose "Compiler ${C_RESET_BOLD}CXX${C_VERBOSE} set to ${C_MAGENTA}${C_BOLD}${cxx}${C_VERBOSE} found in \".CXX\""
-      CMAKE_FLAGS="`concat "${CMAKE_FLAGS}" "-DCMAKE_CXX_COMPILER=${cxx}"`"
+      CMAKE_FLAGS="`concat "${CMAKE_FLAGS}" "'-DCMAKE_CXX_COMPILER=${cxx}'"`"
    fi
 
    mkdir "${BUILDDIR}" 2> /dev/null
@@ -242,28 +242,23 @@ _do_cmake()
       # CMAKE_FLAGS same as in mulle-bootstrap
       exekutor cd "${BUILDDIR}" ;
 
-      if [ "${DUMP_ENVIRONMENT}" = "YES" ]
+      if [ "${MULLE_EXECUTOR_TRACE}" = "YES" -o "${DUMP_ENVIRONMENT}" = "YES" ]
       then
          log_verbose "Environment:"
-         env >&2
+         env | sort >&2
       fi
 
       # lameness, but want to allow spaces in prefix
-      if [ -z "${CMAKE_INSTALL_PREFIX}" ]
+      if [ ! -z "${CMAKE_INSTALL_PREFIX}" ]
       then
-         exekutor cmake -G "${CMAKE_GENERATOR}" \
-                        ${cmakeflags} \
-                        ${CMAKE_FLAGS} \
-                        "$@" \
-                        "${relative}" || exit 1
-      else
-         exekutor cmake -DCMAKE_INSTALL_PREFIX="${CMAKE_INSTALL_PREFIX}" \
-                        -G "${CMAKE_GENERATOR}" \
-                        ${cmakeflags} \
-                        ${CMAKE_FLAGS} \
-                        "$@" \
-                        "${relative}" || exit 1
+         CMAKE_FLAGS="`concat "$CMAKE_FLAGS" "'-DCMAKE_INSTALL_PREFIX=${CMAKE_INSTALL_PREFIX}'"`"
       fi
+
+      eval_exekutor cmake "-G" "'${CMAKE_GENERATOR}'" \
+                     "${cmakeflags}" \
+                     "${CMAKE_FLAGS}" \
+                     "$@" \
+                     "${relative}" || exit 1
    )
 }
 
@@ -302,13 +297,13 @@ do_make()
    (
       exekutor cd build ;
 
-      if [ "${DUMP_ENVIRONMENT}" = "YES" ]
+      if [ "${MULLE_EXECUTOR_TRACE}" = "YES" -o "${DUMP_ENVIRONMENT}" = "YES" ]
       then
          log_verbose "Environment:"
-         env >&2
+         env | sort >&2
       fi
 
-      exekutor "${MAKE}" ${MAKE_FLAGS} ${command}  || exit 1 ;
+      eval_exekutor "${MAKE}" "${MAKE_FLAGS}" "${command}" || exit 1 ;
    )
 }
 
@@ -374,7 +369,6 @@ check_mulle_bootstrap_version()
 }
 
 
-
 setup_bootstrap_environment()
 {
    local libexec
@@ -382,7 +376,7 @@ setup_bootstrap_environment()
    libexec="`"${MULLE_BOOTSTRAP_EXE}" library-path 2> /dev/null | head -1`"
    if [ -z "${libexec}" ]
    then
-      echo "mulle-bootstrap not installed or not in PATH" >&2
+      echo "mulle-bootstrap not installed or not in PATH: $PATH" >&2
       exit 1
    fi
 
@@ -420,6 +414,40 @@ git_pull()
    then
       git pull "${origin}" "${branch}"  # or what ?
    fi
+}
+
+
+#
+# do this manually because ... reasons
+#
+homebrew_cmake_flags()
+{
+   local oldifs
+
+   oldifs="$IFS"
+
+   local cflags
+   local ldflags
+   local i
+
+   cflags=""
+   ldflags=""
+   IFS=":"
+   for i in $HOMEBREW_ISYSTEM_PATHS
+   do
+      cflags="`concat "${cflags}" "-isystem ${i}"`"
+   done
+
+   for i in $HOMEBREW_LIBRARY_PATHS
+   do
+      ldflags="`concat "${ldflags}" "-L${i}"`"
+   done
+   IFS="${oldifs}"
+
+   CMAKE_FLAGS="`concat "${CMAKE_FLAGS}" "'-DCMAKE_FIND_FRAMEWORK=LAST'"`"
+   CMAKE_FLAGS="`concat "${CMAKE_FLAGS}" "'-DCMAKE_C_FLAGS_RELEASE=-DNDEBUG ${cflags}'"`"
+   CMAKE_FLAGS="`concat "${CMAKE_FLAGS}" "'-DCMAKE_SHARED_LINKER_FLAGS=${ldflags}'"`"
+   CMAKE_FLAGS="`concat "${CMAKE_FLAGS}" "'-DCMAKE_EXE_LINKER_FLAGS=${ldflags}'"`"
 }
 
 
@@ -487,7 +515,6 @@ local_mode()
 #
 # URL Mode
 #
-
 url_mode()
 {
    log_fluff ":.:URL mode:.:"
@@ -556,7 +583,6 @@ url_mode()
 }
 
 
-
 main()
 {
    local executable
@@ -609,7 +635,7 @@ main()
          ;;
 
          -D*|-W*)
-            CMAKE_FLAGS="`concat "${CMAKE_FLAGS}" "$1"`"
+            CMAKE_FLAGS="`concat "${CMAKE_FLAGS}" "'$1'"`"
          ;;
 
          -d|--debug)
@@ -622,6 +648,17 @@ main()
          ;;
 
          -e|--embedded-only)
+            BOOTSTRAP_OPTIONS="`concat "${BOOTSTRAP_OPTIONS}" "-e"`"
+            DONT_BUILD_DEPENDENCIES="YES"
+            DONT_INSTALL_DEPENDENCIES="YES"
+         ;;
+
+         --homebrew)
+            [ -z "${HOMEBREW_ISYSTEM_PATHS}" ] && fail "not called from homebrew"
+
+            homebrew_cmake_flags
+
+            ## embedded only
             BOOTSTRAP_OPTIONS="`concat "${BOOTSTRAP_OPTIONS}" "-e"`"
             DONT_BUILD_DEPENDENCIES="YES"
             DONT_INSTALL_DEPENDENCIES="YES"
@@ -763,6 +800,8 @@ main()
    done
 
    PATH="`make_executable_search_path "${PATH}"`"
+   export PATH
+
    log_fluff "PATH set to: $PATH"
 
    if [ "${OPTIMISTIC}" = "YES" ]

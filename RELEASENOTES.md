@@ -1,3 +1,10 @@
+0.9.0
+=====
+
+* use eval exekutor for cmake/make to protect parameters
+* add --homebrew switch to fix mulle-clang builds inside homebrew
+
+
 0.8.2
 =====
 
