@@ -1,3 +1,8 @@
+0.9.1
+=====
+
+* fix --homebrew flag for linux
+
 0.9.0
 =====
 

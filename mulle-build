@@ -30,7 +30,7 @@
 #   ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
 #   POSSIBILITY OF SUCH DAMAGE.
 
-MULLE_BUILD_VERSION="0.9.0"
+MULLE_BUILD_VERSION="0.9.1"
 
 MULLE_BOOTSTRAP_MIN_MAJOR="2"
 MULLE_BOOTSTRAP_MIN_MINOR="4"
@@ -432,17 +432,30 @@ homebrew_cmake_flags()
 
    cflags=""
    ldflags=""
-   IFS=":"
-   for i in $HOMEBREW_ISYSTEM_PATHS
-   do
-      cflags="`concat "${cflags}" "-isystem ${i}"`"
-   done
 
-   for i in $HOMEBREW_LIBRARY_PATHS
-   do
-      ldflags="`concat "${ldflags}" "-L${i}"`"
-   done
-   IFS="${oldifs}"
+   if [ ! -z "${HOMEBREW_ISYSTEM_PATHS}" ]
+   then
+      IFS=":"
+      for i in $HOMEBREW_ISYSTEM_PATHS
+      do
+         cflags="`concat "${cflags}" "-isystem ${i}"`"
+      done
+      IFS="${oldifs}"
+   else
+      cflags="`concat "${cflags}" "-isystem ${HOMEBREW_PREFIX}/include"`"
+   fi
+
+   if [ ! -z "${HOMEBREW_LIBRARY_PATHS}" ]
+   then
+      IFS=":"
+      for i in $HOMEBREW_LIBRARY_PATHS
+      do
+         ldflags="`concat "${ldflags}" "-L${i}"`"
+      done
+      IFS="${oldifs}"
+   else
+      ldflags="`concat "${ldflags}" "-L${HOMEBREW_PREFIX}/lib"`"
+   fi
 
    CMAKE_FLAGS="`concat "${CMAKE_FLAGS}" "'-DCMAKE_FIND_FRAMEWORK=LAST'"`"
    CMAKE_FLAGS="`concat "${CMAKE_FLAGS}" "'-DCMAKE_C_FLAGS_RELEASE=-DNDEBUG ${cflags}'"`"
@@ -654,7 +667,7 @@ main()
          ;;
 
          --homebrew)
-            [ -z "${HOMEBREW_ISYSTEM_PATHS}" ] && fail "not called from homebrew"
+            [ -z "${HOMEBREW_PREFIX}" ] && fail "not called from homebrew"
 
             homebrew_cmake_flags
 
