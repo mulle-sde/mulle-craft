@@ -704,7 +704,7 @@ main()
          ;;
 
          --homebrew)
-            [ -z "${HOMEBREW_PREFIX}" ] && fail "not called from homebrew"
+            [ -z "${HOMEBREW_ISYSTEM_PATHS}" ] && fail "not called from homebrew"
 
             homebrew_cmake_flags
 

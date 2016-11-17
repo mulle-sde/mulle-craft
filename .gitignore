@@ -1,0 +1,8 @@
+.DS_Store
+
+build/
+.repos/
+.bootstrap.local/
+.bootstrap.auto/
+
+mulle-build.sublime-workspace
