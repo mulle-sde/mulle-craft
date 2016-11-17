@@ -30,10 +30,10 @@
 #   ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
 #   POSSIBILITY OF SUCH DAMAGE.
 
-MULLE_BUILD_VERSION="0.9.1"
+MULLE_BUILD_VERSION="0.10.0"
 
 MULLE_BOOTSTRAP_MIN_MAJOR="2"
-MULLE_BOOTSTRAP_MIN_MINOR="4"
+MULLE_BOOTSTRAP_MIN_MINOR="5"
 
 
 # look for mulle-bootstrap in the place where mulle-build is, they
@@ -49,7 +49,7 @@ fi
 
 usage()
 {
-      cat <<EOF >&2
+   cat <<EOF >&2
 usage:
    ${executable} [options] [url]
 
@@ -107,7 +107,7 @@ do_fetch_dependencies()
 {
    if fetch_needed
    then
-      exekutor "${MULLE_BOOTSTRAP_EXE}" ${BOOTSTRAP_FLAGS} fetch ${BOOTSTRAP_FETCH_OPTIONS} ${BOOTSTRAP_OPTIONS} || exit 1 # --embedded-only
+      exekutor "${MULLE_BOOTSTRAP_EXE}" ${BOOTSTRAP_FLAGS} fetch ${BOOTSTRAP_FETCH_OPTIONS} ${BOOTSTRAP_OPTIONS} "$@" || exit 1 # --embedded-only
       log_fluff "FINISHED: mulle-bootstrap fetch"
 
       #
@@ -126,7 +126,7 @@ do_build_dependencies()
 {
    if build_needed
    then
-      exekutor "${MULLE_BOOTSTRAP_EXE}" ${BOOTSTRAP_FLAGS} build ${BOOTSTRAP_OPTIONS} || exit 1
+      exekutor "${MULLE_BOOTSTRAP_EXE}" ${BOOTSTRAP_FLAGS} build ${BOOTSTRAP_OPTIONS} "$@" || exit 1
       log_fluff "FINISHED: mulle-bootstrap build"
    fi
 }
@@ -134,11 +134,11 @@ do_build_dependencies()
 
 do_install_dependencies()
 {
-   if [ -z "${CMAKE_INSTALL_PREFIX}" ]
+   if [ -z "${INSTALL_PREFIX}" ]
    then
-      exekutor "${MULLE_BOOTSTRAP_EXE}" install ${BOOTSTRAP_OPTIONS}  || exit 1
+      exekutor "${MULLE_BOOTSTRAP_EXE}" install ${BOOTSTRAP_OPTIONS} "$@" || exit 1
    else
-      exekutor "${MULLE_BOOTSTRAP_EXE}" install ${BOOTSTRAP_OPTIONS} "${CMAKE_INSTALL_PREFIX}" || exit 1
+      exekutor "${MULLE_BOOTSTRAP_EXE}" install ${BOOTSTRAP_OPTIONS} "$@" "${INSTALL_PREFIX}" || exit 1
    fi
    log_fluff "FINISHED: mulle-bootstrap install"
 }
@@ -249,9 +249,9 @@ _do_cmake()
       fi
 
       # lameness, but want to allow spaces in prefix
-      if [ ! -z "${CMAKE_INSTALL_PREFIX}" ]
+      if [ ! -z "${INSTALL_PREFIX}" ]
       then
-         CMAKE_FLAGS="`concat "$CMAKE_FLAGS" "'-DCMAKE_INSTALL_PREFIX=${CMAKE_INSTALL_PREFIX}'"`"
+         CMAKE_FLAGS="`concat "${CMAKE_FLAGS}" "'-DCMAKE_INSTALL_PREFIX=${INSTALL_PREFIX}'"`"
       fi
 
       eval_exekutor cmake "-G" "'${CMAKE_GENERATOR}'" \
@@ -464,6 +464,21 @@ homebrew_cmake_flags()
 }
 
 
+prefix_cmake_flags()
+{
+   local cflags
+   local ldflags
+
+   cflags="-isystem ${INSTALL_PREFIX:-/usr/local}/include"
+   ldflags="-L${INSTALL_PREFIX:-/usr/local}/lib"
+
+   CMAKE_FLAGS="`concat "${CMAKE_FLAGS}" "'-DCMAKE_FIND_FRAMEWORK=LAST'"`"
+   CMAKE_FLAGS="`concat "${CMAKE_FLAGS}" "'-DCMAKE_C_FLAGS_RELEASE=-DNDEBUG ${cflags}'"`"
+   CMAKE_FLAGS="`concat "${CMAKE_FLAGS}" "'-DCMAKE_SHARED_LINKER_FLAGS=${ldflags}'"`"
+   CMAKE_FLAGS="`concat "${CMAKE_FLAGS}" "'-DCMAKE_EXE_LINKER_FLAGS=${ldflags}'"`"
+}
+
+
 local_clean()
 {
    log_fluff ":.:clean:.:"
@@ -495,12 +510,23 @@ local_mode()
    [ -z "${TAG}" ] || fail "-b option is not compatible with local mode."
    [ -z "${SCM}" ] || fail "-s option is not compatible with local mode."
 
+   if [ "${EMBEDDED_ONLY}" = "YES" ]
+   then
+      DONT_BUILD_DEPENDENCIES="${DONT_BUILD_DEPENDENCIES:-YES}"
+      DONT_INSTALL_DEPENDENCIES="YES"
+
+      prefix_cmake_flags
+   fi
+
    if [ -d .bootstrap ]
    then
-      do_fetch_dependencies
-      if [ -z "${DONT_BUILD_DEPENDENCIES}" ]
+      if [ "${DONT_BUILD_DEPENDENCIES}" = "YES" ]
       then
-         do_build_dependencies
+         do_fetch_dependencies "--embedded-only" || fail "failed to fetch dependencies"
+         log_fluff "Did not build dependencies as requested"
+      else
+         do_fetch_dependencies || fail "failed to fetch dependencies"
+         do_build_dependencies || fail "failed to build dependencies"
       fi
    else
       log_fluff "No .bootstrap found, so not bootstrapping"
@@ -513,13 +539,16 @@ local_mode()
 
       if [ -z "${DONT_INSTALL}"  ]
       then
-         if [ -z "${DONT_INSTALL_DEPENDENCIES}" -a -d .bootstrap ]
+         if [ "${DONT_INSTALL_DEPENDENCIES}" != "YES" -a -d .bootstrap ]
          then
-            do_install_dependencies
+            do_install_dependencies || fail "failed to install dependencies"
+         else
+            log_fluff "Did not install dependencies as requested"
          fi
-         do_make "install" "$@"
+
+         do_make "install" "$@" || fail "failed to install"
       else
-         do_make "" "$@"
+         do_make "" "$@" || fail "failed to make"
       fi
    fi
 }
@@ -558,11 +587,22 @@ url_mode()
    local random
    local bootstrapoptions
 
+   bootstrapoptions=
+
    if [ -z "${DEBUG}" ]
    then
-      bootstrapoptions="--configuration Release"
+      bootstrapoptions="`concat "${bootstrapoptions}" "--configuration Release"`"
    else
-      bootstrapoptions="--configuration Debug"
+      bootstrapoptions="`concat "${bootstrapoptions}" "--configuration Debug"`"
+   fi
+
+   if [ "${DONT_BUILD_DEPENDENCIES}" = "YES" ]
+   then
+      bootstrapoptions="`concat "${bootstrapoptions}" "--no-recursion"`"
+      if [ ! -z "${INSTALL_PREFIX}" ]
+      then
+         bootstrapoptions="`concat "${bootstrapoptions}" "--prefix ${INSTALL_PREFIX}"`"
+      fi
    fi
 
    local command
@@ -571,18 +611,20 @@ url_mode()
 
    (
       exekutor cd "${random}"|| exit 1 ;
-      exekutor "${MULLE_BOOTSTRAP_EXE}" ${BOOTSTRAP_FLAGS} init -n ;
+      exekutor "${MULLE_BOOTSTRAP_EXE}" ${BOOTSTRAP_FLAGS} init -d -n ;
       redirect_exekutor .bootstrap/repositories echo "${URL};;${TAG};${SCM}"
       exekutor "${MULLE_BOOTSTRAP_EXE}" ${BOOTSTRAP_FLAGS} -a bootstrap ${BOOTSTRAP_OPTIONS} ${bootstrapoptions}  || exit 1
 
       if [ -z "${DONT_INSTALL_DEPENDENCIES}" ]
       then
-         if [ -z "${CMAKE_INSTALL_PREFIX}" ]
+         if [ -z "${INSTALL_PREFIX}" ]
          then
-            exekutor "${MULLE_BOOTSTRAP_EXE}" ${BOOTSTRAP_FLAGS} install ${BOOTSTRAP_OPTIONS} || exit 1
+            exekutor "${MULLE_BOOTSTRAP_EXE}" ${BOOTSTRAP_FLAGS} install || exit 1
          else
-            exekutor "${MULLE_BOOTSTRAP_EXE}" ${BOOTSTRAP_FLAGS} install ${BOOTSTRAP_OPTIONS} "${CMAKE_INSTALL_PREFIX}" || exit 1
+            exekutor "${MULLE_BOOTSTRAP_EXE}" ${BOOTSTRAP_FLAGS} install "${INSTALL_PREFIX}" || exit 1
          fi
+      else
+         log_fluff "Did not install as requested"
       fi
    )
 
@@ -643,10 +685,6 @@ main()
             TAG="$1"
          ;;
 
-         -cs|--check-usr-local-include)
-            BOOTSTRAP_OPTIONS="`concat "${BOOTSTRAP_OPTIONS}" "-cs"`"
-         ;;
-
          -D*|-W*)
             CMAKE_FLAGS="`concat "${CMAKE_FLAGS}" "'$1'"`"
          ;;
@@ -661,9 +699,8 @@ main()
          ;;
 
          -e|--embedded-only)
-            BOOTSTRAP_OPTIONS="`concat "${BOOTSTRAP_OPTIONS}" "-e"`"
-            DONT_BUILD_DEPENDENCIES="YES"
-            DONT_INSTALL_DEPENDENCIES="YES"
+            EMBEDDED_ONLY="YES"
+            PREFIX_USED=YES
          ;;
 
          --homebrew)
@@ -672,7 +709,6 @@ main()
             homebrew_cmake_flags
 
             ## embedded only
-            BOOTSTRAP_OPTIONS="`concat "${BOOTSTRAP_OPTIONS}" "-e"`"
             DONT_BUILD_DEPENDENCIES="YES"
             DONT_INSTALL_DEPENDENCIES="YES"
          ;;
@@ -701,7 +737,6 @@ main()
 
          -nbd|--no-build-dependencies)
             DONT_BUILD_DEPENDENCIES="YES"
-            DONT_INSTALL_DEPENDENCIES="YES"
          ;;
 
          -ni|--no-install)
@@ -718,10 +753,12 @@ main()
          ;;
 
          -p|--prefix)
+            [ -z "${PREFIX_USED}" ] || fail "$1 specified too late"
+
             shift
             [ $# -eq 0 ] && usage "${command}"
 
-            CMAKE_INSTALL_PREFIX="$1"
+            INSTALL_PREFIX="$1"
          ;;
 
          -s|--scm)
@@ -792,7 +829,7 @@ main()
             exit 0
          ;;
 
-         -i|--ignore-branch|-nr|--no-recursion|-cs|--check-usr-local-include|-e|--embedded-only|-es|--embedded-symlink|-u|--update-symlinks|-K|--clean|-k|--no-clean)
+         -i|--ignore-branch|-nr|--no-recursion|--use-prefix-libraries|-cs|--check-usr-local-include|-e|--embedded-only|-es|--embedded-symlink|-u|--update-symlinks|-K|--clean|-k|--no-clean)
             BOOTSTRAP_OPTIONS="`concat "${BOOTSTRAP_OPTIONS}" "$1"`"
             TEST_OPTIONS="`concat "${TEST_OPTIONS}" "$1"`"
             STATUS_OPTIONS="`concat "${STATUS_OPTIONS}" "$1"`"

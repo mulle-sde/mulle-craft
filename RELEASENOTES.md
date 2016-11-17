@@ -1,3 +1,21 @@
+0.10.0
+=====
+
+Depends now on mulle-bootstrap 2.5 and incorporates internal changes to
+support it.
+mulle-install is now more efficient installing single libraries, that do
+not need to fetch the dependencies.
+
+--no-build-dependencies does not imply --no-install-dependencies anymore.
+
+
+0.9.2
+=====
+
+* the -e option now also adds the prefix/include and prefix/lib directories
+to the search path.
+
+
 0.9.1
 =====
 
