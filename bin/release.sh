@@ -13,8 +13,7 @@ HOMEBREWTAP="../homebrew-software"
 
 TAG="${1:-${VERSION}}"
 
-executable="`which mulle-bootstrap`"
-directory="`dirname -- "${executable}"`/../libexec/mulle-bootstrap"
+directory="`mulle-bootstrap library-path`"
 
 [ ! -d "${directory}" ] && echo "failed to locate mulle-bootstrap library" >&2 && exit 1
 

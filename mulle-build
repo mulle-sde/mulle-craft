@@ -30,11 +30,12 @@
 #   ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
 #   POSSIBILITY OF SUCH DAMAGE.
 
-MULLE_BUILD_VERSION="0.10.0"
+MULLE_BUILD_VERSION="0.10.1"
 
 MULLE_BOOTSTRAP_MIN_MAJOR="2"
 MULLE_BOOTSTRAP_MIN_MINOR="5"
 
+MULLE_BOOTSTRAP_FAIL_PREFIX="mulle-build"
 
 # look for mulle-bootstrap in the place where mulle-build is, they
 # belong together
@@ -341,7 +342,7 @@ setup_make_environment()
 }
 
 
-check_mulle_bootstrap_version()
+mulle_bootstrap_version_too_old()
 {
    local version
    local major
@@ -385,13 +386,6 @@ setup_bootstrap_environment()
    . mulle-bootstrap-logging.sh
    . mulle-bootstrap-functions.sh
    . mulle-bootstrap-local-environment.sh
-
-   if check_mulle_bootstrap_version
-   then
-      return
-   fi
-
-   fail "mulle-bootstrap needs to be updated."
 }
 
 
@@ -652,8 +646,6 @@ main()
 
    setup_bootstrap_environment
 
-   MULLE_BOOTSTRAP_FAIL_PREFIX="mulle-build"
-
    BOOTSTRAP_FLAGS=
    BOOTSTRAP_OPTIONS=
    TEST_OPTIONS=
@@ -705,6 +697,11 @@ main()
 
          --homebrew)
             [ -z "${HOMEBREW_ISYSTEM_PATHS}" ] && fail "not called from homebrew"
+            [ -z "${PREFIX}" ] && fail "prefix must be specified before --homebrew"
+            if [ -z "${HOMEBREW_PREFIX}" ]
+            then
+               HOMEBREW_PREFIX="${PREFIX}"
+            fi
 
             homebrew_cmake_flags
 
@@ -857,6 +854,11 @@ main()
    if [ "${OPTIMISTIC}" = "YES" ]
    then
       BOOTSTRAP_FLAGS="`concat "${BOOTSTRAP_FLAGS}" "-l"`"
+   fi
+
+   if mulle_bootstrap_version_too_old
+   then
+      fail "mulle-bootstrap needs to be updated."
    fi
 
    #

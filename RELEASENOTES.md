@@ -1,3 +1,10 @@
+0.10.1
+=====
+
+--homebrew option needs to be after --prefix for linuxbrew
+compatibility.
+
+
 0.10.0
 =====
 
