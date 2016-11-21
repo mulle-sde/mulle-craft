@@ -30,7 +30,7 @@
 #   ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
 #   POSSIBILITY OF SUCH DAMAGE.
 
-MULLE_BUILD_VERSION="0.10.2"
+MULLE_BUILD_VERSION="0.10.3"
 
 MULLE_BOOTSTRAP_MIN_MAJOR="2"
 MULLE_BOOTSTRAP_MIN_MINOR="5"
@@ -352,9 +352,9 @@ mulle_bootstrap_version_too_old()
    [ -z "${version}" ] && fail "mulle-bootstrap did not provide a version"
 
    major="`echo "${version}" | cut -s -d. -f1`"
-   if [ "${major}" -gt "${MULLE_BOOTSTRAP_MIN_MAJOR}" ]
+   if [ "${major}" -lt "${MULLE_BOOTSTRAP_MIN_MAJOR}" ]
    then
-      return 1
+      return 0
    fi
 
    if [ "${major}" -eq "${MULLE_BOOTSTRAP_MIN_MAJOR}" ]
@@ -362,11 +362,11 @@ mulle_bootstrap_version_too_old()
       minor="`echo "${version}" | cut -s -d. -f2`"
       if [ "${minor}" -lt "${MULLE_BOOTSTRAP_MIN_MINOR}" ]
       then
-         return 1
+         return 0
       fi
    fi
 
-   return 0
+   return 1
 }
 
 
