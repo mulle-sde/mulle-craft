@@ -1,3 +1,11 @@
+
+0.10.4
+=====
+
+Aimless dicking around with --prefix and --homebrew, because I am kind of
+on holiday and brain is turned off. Sorry.
+
+
 0.10.3
 =====
 
