@@ -1,3 +1,7 @@
+0.10.5
+=====
+
+More stupidity fixes..
 
 0.10.4
 =====

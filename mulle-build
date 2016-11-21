@@ -30,7 +30,7 @@
 #   ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
 #   POSSIBILITY OF SUCH DAMAGE.
 
-MULLE_BUILD_VERSION="0.10.4"
+MULLE_BUILD_VERSION="0.10.5"
 
 MULLE_BOOTSTRAP_MIN_MAJOR="2"
 MULLE_BOOTSTRAP_MIN_MINOR="5"
@@ -697,7 +697,7 @@ main()
 
          --homebrew)
             [ -z "${HOMEBREW_PREFIX}" ] && fail "not called from homebrew"
-            [ -z "${INSTALL_PREFIX}" ] || fail "$1 needs preceeding --prefix"
+            [ -z "${INSTALL_PREFIX}" ] && fail "$1 needs preceeding --prefix"
 
             homebrew_cmake_flags
 
