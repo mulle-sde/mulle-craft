@@ -1,3 +1,9 @@
+0.10.2
+=====
+
+--homebrew and --prefix are no mutually incompatible, which makes
+the most sense.
+
 0.10.1
 =====
 

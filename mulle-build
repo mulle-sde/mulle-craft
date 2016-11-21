@@ -30,7 +30,7 @@
 #   ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
 #   POSSIBILITY OF SUCH DAMAGE.
 
-MULLE_BUILD_VERSION="0.10.1"
+MULLE_BUILD_VERSION="0.10.2"
 
 MULLE_BOOTSTRAP_MIN_MAJOR="2"
 MULLE_BOOTSTRAP_MIN_MINOR="5"
@@ -696,12 +696,10 @@ main()
          ;;
 
          --homebrew)
-            [ -z "${HOMEBREW_ISYSTEM_PATHS}" ] && fail "not called from homebrew"
-            [ -z "${PREFIX}" ] && fail "prefix must be specified before --homebrew"
-            if [ -z "${HOMEBREW_PREFIX}" ]
-            then
-               HOMEBREW_PREFIX="${PREFIX}"
-            fi
+            [ -z "${HOMEBREW_PREFIX}" ] && fail "not called from homebrew"
+            [ -z "${INSTALL_PREFIX}" ] || fail "$1 is not compatible with --prefix"
+
+            INSTALL_PREFIX="${HOMEBREW_PREFIX}"
 
             homebrew_cmake_flags
 
@@ -750,6 +748,7 @@ main()
          ;;
 
          -p|--prefix)
+            [ -z "${HOMEBREW_PREFIX}" ] || fail "$1 can't be used with --homebrew"
             [ -z "${PREFIX_USED}" ] || fail "$1 specified too late"
 
             shift
