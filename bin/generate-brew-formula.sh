@@ -20,6 +20,7 @@ ARCHIVEURL="${1:-http://www.mulle-kybernetik.com/software/git/${TARGET}/tarball/
 [ $# -eq 0 ] || shift
 
 set -e
+set -x
 
 [ "$VERSION" = "" ] && exit 1
 [ "$ARCHIVEURL" = "" ] && exit 1
@@ -27,14 +28,19 @@ set -e
 
 TMPARCHIVE="/tmp/${TARGET}-${VERSION}-archive"
 
-if [ ! -f  "${TMPARCHIVE}" ]
+if [ ! -f "${TMPARCHIVE}" ]
 then
    curl -L -o "${TMPARCHIVE}" "${ARCHIVEURL}"
-   if [ $? -ne 0 -o ! -f "${TMPARCHIVE}" ]
+   if [ $? -ne 0 ]
    then
       echo "Download failed" >&2
       exit 1
    fi
+   if [ ! -f "${TMPARCHIVE}" ]
+   then
+      echo "Download did not download file" >&2
+      exit 1
+  fi
 else
    echo "Using cached file ${TMPARCHIVE} instead of downloading again" >&2
 fi
@@ -42,7 +48,7 @@ fi
 #
 # anything less than 17 KB is wrong
 #
-size="`du -k "${TMPARCHIVE}" | awk '{ print $ 1}'`"
+size="`du -k "${TMPARCHIVE}" | awk '{ print $1}'`"
 if [ $size -lt 17 ]
 then
    echo "Archive truncated or missing" >&2

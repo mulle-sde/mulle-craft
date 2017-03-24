@@ -70,7 +70,7 @@ git push github "${BRANCH}"  --tags       || exit 1
 (
    cd "${HOMEBREWTAP}" ;
    git add "${RBFILE}" ;
-   git commit -m "${TAG} "${BRANCH}" of ${NAME}" "${RBFILE}" ;
+   git commit -m "${TAG} ${BRANCH} of ${NAME}" "${RBFILE}" ;
    git push origin master
 )  || exit 1
 
