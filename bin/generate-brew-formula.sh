@@ -1,4 +1,4 @@
-#! /bin/sh
+#! /bin/sh -x
 #
 # Generate a formula for mulle-c11
 #
@@ -16,11 +16,10 @@ VERSION="$1"
 [ $# -eq 0 ] || shift
 TAP="${1:-software}"
 [ $# -eq 0 ] || shift
-ARCHIVEURL="${1:-http://www.mulle-kybernetik.com/software/git/${TARGET}/tarball/${VERSION}"
+ARCHIVEURL="${1:-http://www.mulle-kybernetik.com/software/git/${TARGET}/tarball/${VERSION}}"
 [ $# -eq 0 ] || shift
 
 set -e
-set -x
 
 [ "$VERSION" = "" ] && exit 1
 [ "$ARCHIVEURL" = "" ] && exit 1
