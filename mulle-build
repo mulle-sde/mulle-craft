@@ -1,7 +1,7 @@
 #! /bin/sh
 #
-#   Copyright (c) 2016 Nat! - Mulle kybernetiK
-#   Copyright (c) 2016 Nat! - Codeon GmbH
+#   Copyright (c) 2016-2017 Nat! - Mulle kybernetiK
+#   Copyright (c) 2016-2017 Nat! - Codeon GmbH
 #   All rights reserved.
 #
 #   Redistribution and use in source and binary forms, with or without
@@ -30,29 +30,17 @@
 #   ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
 #   POSSIBILITY OF SUCH DAMAGE.
 
-MULLE_BUILD_VERSION="0.10.5"
+MULLE_EXECUTABLE_VERSION="1.0.0" # mulle-build version
 
-MULLE_BOOTSTRAP_MIN_MAJOR="2"
-MULLE_BOOTSTRAP_MIN_MINOR="5"
-
-MULLE_BOOTSTRAP_FAIL_PREFIX="mulle-build"
-
-# look for mulle-bootstrap in the place where mulle-build is, they
-# belong together
-
-EXEDIR="`dirname -- "$0"`"
-MULLE_BOOTSTRAP_EXE="${EXEDIR}/mulle-bootstrap"
-if [ ! -x "${MULLE_BOOTSTRAP_EXE}" ]
-then
-   MULLE_BOOTSTRAP_EXE=mulle-bootstrap
-fi
+MULLE_BOOTSTRAP_MIN_MAJOR="3"
+MULLE_BOOTSTRAP_MIN_MINOR="0"
 
 
 usage()
 {
    cat <<EOF >&2
 usage:
-   ${executable} [options] [url]
+   ${MULLE_EXECUTABLE} [options] [url]
 
    Options:
 EOF
@@ -77,6 +65,8 @@ EOF
          cat <<EOF >&2
       -s <scm>        : specify an SCM other than git (e.g. svn)
 EOF
+
+   bootstrap_technical_option_usage
 
          if [ "$1" = "install" ]
          then
@@ -106,7 +96,13 @@ EOF
 #
 do_fetch_dependencies()
 {
-   if fetch_needed
+   local rval
+
+   exekutor "${MULLE_BOOTSTRAP_EXE}" -s status
+   rval="$?"
+
+   # 2, 3 means fetch needed
+   if [ $rval -ge 2 ]
    then
       exekutor "${MULLE_BOOTSTRAP_EXE}" ${BOOTSTRAP_FLAGS} fetch ${BOOTSTRAP_FETCH_OPTIONS} ${BOOTSTRAP_OPTIONS} "$@" || exit 1 # --embedded-only
       log_fluff "FINISHED: mulle-bootstrap fetch"
@@ -114,7 +110,7 @@ do_fetch_dependencies()
       #
       # after the first fetch don't warn about scripts again
       #
-      if [ "`basename "$executable"`" = "mulle-build" ]
+      if [ "${MULLE_EXECUTABLE}" = "mulle-build" ]
       then
          log_verbose "Don't warn about scripts next build"
          exekutor "${MULLE_BOOTSTRAP_EXE}" config --on dont_warn_scripts
@@ -125,7 +121,14 @@ do_fetch_dependencies()
 
 do_build_dependencies()
 {
-   if build_needed
+   local rval
+
+   exekutor "${MULLE_BOOTSTRAP_EXE}" -s status
+   rval="$?"
+
+   # 1 means build needed
+
+   if [ $rval -ge 1 ]
    then
       exekutor "${MULLE_BOOTSTRAP_EXE}" ${BOOTSTRAP_FLAGS} build ${BOOTSTRAP_OPTIONS} "$@" || exit 1
       log_fluff "FINISHED: mulle-bootstrap build"
@@ -147,27 +150,27 @@ do_install_dependencies()
 
 cmake_clean()
 {
-   log_verbose "Deleting build/CMakeFiles"
-   exekutor rm -rf build/CMakeFiles 2> /dev/null
+   log_verbose "Deleting ${BUILD_DIR}/CMakeFiles"
+   exekutor rm -rf "${BUILD_DIR}/CMakeFiles" 2> /dev/null
 
-   log_verbose "Deleting build/CMakeCache.txt"
-   exekutor rm build/CMakeCache.txt 2> /dev/null
+   log_verbose "Deleting ${BUILD_DIR}/CMakeCache.txt"
+   exekutor rm "${BUILD_DIR}/CMakeCache.txt" 2> /dev/null
 }
 
 
 need_cmake_clean()
 {
-   if [ ! -f "${BUILDDIR}/CMakeFiles" ]
+   if [ ! -f "${BUILD_DIR}/CMakeFiles" ]
    then
       return 0
    fi
 
-   if [ .CC -nt "${BUILDDIR}/CMakeFiles" ]
+   if [ .CC -nt "${BUILD_DIR}/CMakeFiles" ]
    then
       return 0
    fi
 
-   if [ .CXX -nt "${BUILDDIR}/CMakeFiles" ]
+   if [ .CXX -nt "${BUILD_DIR}/CMakeFiles" ]
    then
       return 0
    fi
@@ -178,12 +181,12 @@ need_cmake_clean()
 
 need_cmake_build()
 {
-   if [ ! -f "${BUILDDIR}/CMakeFiles" ]
+   if [ ! -f "${BUILD_DIR}/CMakeFiles" ]
    then
       return 0
    fi
 
-   if [ CMakeFiles.txt -nt "${BUILDDIR}/CMakeFiles.txt" ]
+   if [ CMakeFiles.txt -nt "${BUILD_DIR}/CMakeFiles.txt" ]
    then
       return 0
    fi
@@ -207,9 +210,9 @@ _do_cmake()
 
    local relative
 
-   case "${BUILDDIR}" in
+   case "${BUILD_DIR}" in
       */*)
-        relative="`perfect_relative_path_between "${PWD}" "${BUILDDIR}"`"
+        relative="`perfect_relative_path_between "${PWD}" "${BUILD_DIR}"`"
       ;;
 
       *)
@@ -238,12 +241,17 @@ _do_cmake()
       CMAKE_FLAGS="`concat "${CMAKE_FLAGS}" "'-DCMAKE_CXX_COMPILER=${cxx}'"`"
    fi
 
-   mkdir "${BUILDDIR}" 2> /dev/null
+   # local other
+
+   # other="`mulle-bootstrap flags -1 cmakeflags`"
+   # CMAKE_FLAGS="`concat "${CMAKE_FLAGS}" "${other}"`"
+
+   mkdir "${BUILD_DIR}" 2> /dev/null
    (
       # CMAKE_FLAGS same as in mulle-bootstrap
-      exekutor cd "${BUILDDIR}" ;
+      exekutor cd "${BUILD_DIR}"
 
-      if [ "${MULLE_EXECUTOR_TRACE}" = "YES" -o "${DUMP_ENVIRONMENT}" = "YES" ]
+      if [ "${MULLE_TRACE}" = "YES" -o "${DUMP_ENVIRONMENT}" = "YES" ]
       then
          log_verbose "Environment:"
          env | sort >&2
@@ -260,7 +268,7 @@ _do_cmake()
                      "${CMAKE_FLAGS}" \
                      "$@" \
                      "${relative}" || exit 1
-   )
+   ) || exit 1
 }
 
 
@@ -268,7 +276,7 @@ do_cmake()
 {
    local skip_build
 
-   skip_build="${OPTIMISTIC}"
+   skip_build="${OPTION_OPTIMISTIC}"
 
    if need_cmake_clean
    then
@@ -298,7 +306,7 @@ do_make()
    (
       exekutor cd build ;
 
-      if [ "${MULLE_EXECUTOR_TRACE}" = "YES" -o "${DUMP_ENVIRONMENT}" = "YES" ]
+      if [ "${MULLE_TRACE}" = "YES" -o "${DUMP_ENVIRONMENT}" = "YES" ]
       then
          log_verbose "Environment:"
          env | sort >&2
@@ -367,25 +375,6 @@ mulle_bootstrap_version_too_old()
    fi
 
    return 1
-}
-
-
-setup_bootstrap_environment()
-{
-   local libexec
-
-   libexec="`"${MULLE_BOOTSTRAP_EXE}" library-path 2> /dev/null | head -1`"
-   if [ -z "${libexec}" ]
-   then
-      echo "mulle-bootstrap not installed or not in PATH: $PATH" >&2
-      exit 1
-   fi
-
-   PATH="${libexec}:${PATH}"
-
-   . mulle-bootstrap-logging.sh
-   . mulle-bootstrap-functions.sh
-   . mulle-bootstrap-local-environment.sh
 }
 
 
@@ -506,15 +495,15 @@ local_mode()
 
    if [ "${EMBEDDED_ONLY}" = "YES" ]
    then
-      DONT_BUILD_DEPENDENCIES="${DONT_BUILD_DEPENDENCIES:-YES}"
-      DONT_INSTALL_DEPENDENCIES="YES"
+      OPTION_BUILD_DEPENDENCIES="${OPTION_BUILD_DEPENDENCIES:-NO}"
+      OPTION_INSTALL_DEPENDENCIES="NO"
 
       prefix_cmake_flags
    fi
 
    if [ -d .bootstrap ]
    then
-      if [ "${DONT_BUILD_DEPENDENCIES}" = "YES" ]
+      if [ "${OPTION_BUILD_DEPENDENCIES}" = "NO" ]
       then
          do_fetch_dependencies "--embedded-only" || fail "failed to fetch dependencies"
          log_fluff "Did not build dependencies as requested"
@@ -531,9 +520,9 @@ local_mode()
       [ ! -f CMakeLists.txt ] && fail "Can only build cmake based projects, in local mode."
       do_cmake "$@"
 
-      if [ -z "${DONT_INSTALL}"  ]
+      if [ "${OPTION_INSTALL}" = "YES" ]
       then
-         if [ "${DONT_INSTALL_DEPENDENCIES}" != "YES" -a -d .bootstrap ]
+         if [ "${OPTION_INSTALL_DEPENDENCIES}" = "YES" -a -d .bootstrap ]
          then
             do_install_dependencies || fail "failed to install dependencies"
          else
@@ -545,6 +534,41 @@ local_mode()
          do_make "" "$@" || fail "failed to make"
       fi
    fi
+}
+
+
+xcode_mode()
+{
+   (
+      BUILD_DIR="${XCODEBUILD_DIR}"
+      CMAKE_GENERATOR="Xcode"
+      do_cmake "$@" || exit 1
+      log_info "Generated xcodeproj in `pwd -P`"
+
+      #
+      # set mulle-clang if desired
+      #
+      local  cc
+
+      cc="`cat .CC 2> /dev/null`"
+
+      (
+         cd "${BUILD_DIR}"
+
+         case "${cc}" in
+            *mulle-clang*)
+                mulle-xcode-settings set GCC_VERSION de.codeon.compilers.mulle-clang *.xcodeproj
+            ;;
+         esac
+
+         if [ "${OPTION_OPEN_XCODE}" = "YES" ]
+         then
+            open *.xcodeproj
+         else
+            xcodebuild
+         fi
+      )
+   ) || exit 1
 }
 
 
@@ -590,7 +614,7 @@ url_mode()
       bootstrapoptions="`concat "${bootstrapoptions}" "--configuration Debug"`"
    fi
 
-   if [ "${DONT_BUILD_DEPENDENCIES}" = "YES" ]
+   if [ "${OPTION_BUILD_DEPENDENCIES}" = "NO" ]
    then
       bootstrapoptions="`concat "${bootstrapoptions}" "--no-recursion"`"
       if [ ! -z "${INSTALL_PREFIX}" ]
@@ -609,7 +633,7 @@ url_mode()
       redirect_exekutor .bootstrap/repositories echo "${URL};;${TAG};${SCM}"
       exekutor "${MULLE_BOOTSTRAP_EXE}" ${BOOTSTRAP_FLAGS} -a bootstrap ${BOOTSTRAP_OPTIONS} ${bootstrapoptions}  || exit 1
 
-      if [ -z "${DONT_INSTALL_DEPENDENCIES}" ]
+      if [ "${OPTION_INSTALL_DEPENDENCIES}" = "YES" ]
       then
          if [ -z "${INSTALL_PREFIX}" ]
          then
@@ -632,29 +656,94 @@ url_mode()
 }
 
 
+build_init()
+{
+   # look for mulle-bootstrap in the place where mulle-build is, they
+   # belong together
+
+   MULLE_BOOTSTRAP_EXE="`dirname -- "$0"`/mulle-bootstrap"
+   if [ ! -x "${MULLE_BOOTSTRAP_EXE}" ]
+   then
+      MULLE_BOOTSTRAP_EXE=mulle-bootstrap
+   fi
+
+   local libexecpath
+
+   libexecpath="`${MULLE_BOOTSTRAP_EXE} library-path`"
+   if [ -z "${libexecpath}" ]
+   then
+      echo "mulle-bootstrap not installed ? Can't continue" >&2
+      exit 1
+   fi
+
+   #
+   # shell export commands with minimal
+   # trap setup
+   #
+   case "${1}" in
+      version)
+         echo "${MULLE_BUILD_VERSION}"
+         exit 0
+      ;;
+   esac
+
+
+   PATH="${libexecpath}:$PATH"
+   export PATH
+
+   if [ ! -z "${MULLE_BOOTSTRAP_LIBEXEC_TRACE}" ]
+   then
+      echo "PATH=$PATH" >&2
+   fi
+
+   . mulle-bootstrap-logging.sh
+   . mulle-bootstrap-local-environment.sh || fail "not loaded"
+   . mulle-bootstrap-functions.sh
+}
+
+
 main()
 {
-   local executable
    local command
 
    #
    # allow variations, mulle-build, mulle-install mulle-clean
    # mulle-tag etc
    #
-   executable=`basename "$0"`
-   command="`echo "${executable}" | cut -d- -f2`"
+   command="`echo "${MULLE_EXECUTABLE}" | cut -d- -f2`"
 
-   setup_bootstrap_environment
+   # technical flags
+   local MULLE_FLAG_EXECUTOR_DRY_RUN="NO"
+   local MULLE_FLAG_LOG_CACHE="NO"
+   local MULLE_FLAG_LOG_DEBUG="NO"
+   local MULLE_FLAG_LOG_EXECUTOR="NO"
+   local MULLE_FLAG_LOG_EXECUTOR="NO"
+   local MULLE_FLAG_LOG_FLUFF="NO"
+   local MULLE_FLAG_LOG_SCRIPTS="NO"
+   local MULLE_FLAG_LOG_SETTINGS="NO"
+   local MULLE_FLAG_LOG_VERBOSE="NO"
+   local MULLE_FLAG_MERGE_LOG="NO"
+   local MULLE_TRACE_PATHS_FLIP_X="NO"
+   local MULLE_TRACE_POSTPONE="NO"
+   local MULLE_TRACE_RESOLVER_FLIP_X="NO"
+   local MULLE_TRACE_SETTINGS_FLIP_X="NO"
 
-   BOOTSTRAP_FLAGS=
-   BOOTSTRAP_OPTIONS=
-   TEST_OPTIONS=
-   BUILDDIR="${BUILDDIR:-build}"
-   OPTIMISTIC="${OPTIMISITIC:-YES}"
+   local BOOTSTRAP_FLAGS=
+   local BOOTSTRAP_OPTIONS=
+   local BUILD_DIR="${BUILD_DIR:-build}"
+   local TEST_OPTIONS=
+   local XCODEBUILD_DIR="${XCODEBUILD_DIR:-build-xcode.d}"
 
-   if [ "${executable}" = "mulle-build" ]
+   local OPTION_BUILD_DEPENDENCIES="YES"
+   local OPTION_INSTALL="YES"
+   local OPTION_INSTALL_DEPENDENCIES="YES"
+   local OPTION_OPEN_XCODE="NO"
+   local OPTION_OPTIMISTIC="YES"
+   local OPTION_XCODEPROJ="NO"
+
+   if [ "${MULLE_EXECUTABLE}" = "mulle-build" ]
    then
-      DONT_INSTALL="YES"
+      OPTION_INSTALL="NO"
    fi
 
    case "`uname`" in
@@ -667,8 +756,19 @@ main()
       ;;
    esac
 
+   #
+   #  option handling
+   #
    while [ $# -ne 0 ]
    do
+      if bootstrap_technical_flags "$1"
+      then
+         BOOTSTRAP_FLAGS="`concat "${BOOTSTRAP_FLAGS}" "$1"`"
+
+         shift
+         continue
+      fi
+
       case "$1" in
          -b|--tag|--branch)
             shift
@@ -702,8 +802,8 @@ main()
             homebrew_cmake_flags
 
             ## embedded only
-            DONT_BUILD_DEPENDENCIES="YES"
-            DONT_INSTALL_DEPENDENCIES="YES"
+            OPTION_BUILD_DEPENDENCIES="NO"
+            OPTION_INSTALL_DEPENDENCIES="NO"
          ;;
 
          -h|--help)
@@ -717,28 +817,23 @@ main()
             MAKE="$1"
          ;;
 
-         -n|--dry-run)
-            BOOTSTRAP_FLAGS="`concat "${BOOTSTRAP_FLAGS}" "$1"`"
-            MULLE_EXECUTOR_DRY_RUN="YES"
-         ;;
-
          -nb|--no-build)
             DONT_BUILD="YES"
-            DONT_BUILD_DEPENDENCIES="YES"
-            DONT_INSTALL_DEPENDENCIES="YES"
+            OPTION_BUILD_DEPENDENCIES="NO"
+            OPTION_INSTALL_DEPENDENCIES="NO"
          ;;
 
          -nbd|--no-build-dependencies)
-            DONT_BUILD_DEPENDENCIES="YES"
+            OPTION_BUILD_DEPENDENCIES="NO"
          ;;
 
          -ni|--no-install)
-            DONT_INSTALL="YES"
-            DONT_INSTALL_DEPENDENCIES="YES"
+            OPTION_INSTALL="NO"
+            OPTION_INSTALL_DEPENDENCIES="NO"
          ;;
 
          -nid|--no-install-dependencies)
-            DONT_INSTALL_DEPENDENCIES="YES"
+            OPTION_INSTALL_DEPENDENCIES="NO"
          ;;
 
          -nr|--no-remove)
@@ -771,91 +866,59 @@ main()
 
          -u|--pessimistic|--unlucky)
             STATUS_OPTIONS="`concat "${STATUS_OPTIONS}" "$1"`"
-            OPTIMISTIC="NO"
+            OPTION_OPTIMISTIC="NO"
          ;;
 
-         -t|--trace)
-            TEST_OPTIONS="`concat "${TEST_OPTIONS}" "$1"`"
-            BOOTSTRAP_FLAGS="`concat "${BOOTSTRAP_FLAGS}" "$1"`"
-            set -x
+         --open-xcode)
+            OPTION_OPEN_XCODE="YES"
          ;;
 
-         -te|--trace-execution)
-            TEST_OPTIONS="`concat "${TEST_OPTIONS}" "$1"`"
-            BOOTSTRAP_FLAGS="`concat "${BOOTSTRAP_FLAGS}" "$1"`"
-            MULLE_EXECUTOR_TRACE="YES"
-         ;;
-
-         -v|--verbose)
-            TEST_OPTIONS="`concat "${TEST_OPTIONS}" "$1"`"
-            STATUS_OPTIONS="`concat "${STATUS_OPTIONS}" "$1"`"
-            BOOTSTRAP_FLAGS="`concat "${BOOTSTRAP_FLAGS}" "$1"`"
-            MULLE_BOOTSTRAP_FLUFF="NO"
-            MULLE_BOOTSTRAP_VERBOSE="YES"
-         ;;
-
-         -vv|--very-verbose)
-            TEST_OPTIONS="`concat "${TEST_OPTIONS}" "$1"`"
-            STATUS_OPTIONS="`concat "${STATUS_OPTIONS}" "$1"`"
-            BOOTSTRAP_FLAGS="`concat "${BOOTSTRAP_FLAGS}" "$1"`"
-            MULLE_BOOTSTRAP_FLUFF="YES"
-            MULLE_BOOTSTRAP_VERBOSE="YES"
-            MULLE_EXECUTOR_TRACE="YES"
-         ;;
-
-         -vvv|--very-verbose-with-settings)
-            TEST_OPTIONS="`concat "${TEST_OPTIONS}" "$1"`"
-            BOOTSTRAP_FLAGS="`concat "${BOOTSTRAP_FLAGS}" "$1"`"
-            MULLE_BOOTSTRAP_FLUFF="YES"
-            MULLE_BOOTSTRAP_VERBOSE="YES"
-            MULLE_EXECUTOR_TRACE="YES"
-         ;;
-
-         -V|--verbose-build)
-            TEST_OPTIONS="`concat "${TEST_OPTIONS}" "$1"`"
-            BOOTSTRAP_FLAGS="`concat "${BOOTSTRAP_FLAGS}" "$1"`"
-            MAKE_FLAGS="${MAKE_FLAGS} VERBOSE=1"
+         --xcodeproj)
+            OPTION_XCODEPROJ="YES"
          ;;
 
          --version)
-            echo "${MULLE_BUILD_VERSION}"
+            echo "${MULLE_EXECUTABLE_VERSION}"
             exit 0
          ;;
 
-         -i|--ignore-branch|-nr|--no-recursion|--use-prefix-libraries|-cs|--check-usr-local-include|-e|--embedded-only|-es|--embedded-symlink|-u|--update-symlinks|-K|--clean|-k|--no-clean)
-            BOOTSTRAP_OPTIONS="`concat "${BOOTSTRAP_OPTIONS}" "$1"`"
-            TEST_OPTIONS="`concat "${TEST_OPTIONS}" "$1"`"
-            STATUS_OPTIONS="`concat "${STATUS_OPTIONS}" "$1"`"
-         ;;
-
-         -*)
-            BOOTSTRAP_FLAGS="`concat "${BOOTSTRAP_FLAGS}" "$1"`"
-            TEST_OPTIONS="`concat "${TEST_OPTIONS}" "$1"`"
-            STATUS_OPTIONS="`concat "${STATUS_OPTIONS}" "$1"`"
-         ;;
-
+         # more common flags of mulle-bootstrap and mulle-build, that get passed through
          *)
-            break
+            case "$1" in
+               -V|--verbose-build)
+                  TEST_OPTIONS="`concat "${TEST_OPTIONS}" "$1"`"
+                  BOOTSTRAP_FLAGS="`concat "${BOOTSTRAP_FLAGS}" "$1"`"
+                  MAKE_FLAGS="${MAKE_FLAGS} VERBOSE=1"
+               ;;
+
+               -i|--ignore-branch|-nr|--no-recursion|--use-prefix-libraries|-cs|--check-usr-local-include|-e|--embedded-only|-es|--embedded-symlink|-u|--update-symlinks|-K|--clean|-k|--no-clean)
+                  BOOTSTRAP_OPTIONS="`concat "${BOOTSTRAP_OPTIONS}" "$1"`"
+                  TEST_OPTIONS="`concat "${TEST_OPTIONS}" "$1"`"
+                  STATUS_OPTIONS="`concat "${STATUS_OPTIONS}" "$1"`"
+               ;;
+
+               -*)
+                  BOOTSTRAP_FLAGS="`concat "${BOOTSTRAP_FLAGS}" "$1"`"
+                  TEST_OPTIONS="`concat "${TEST_OPTIONS}" "$1"`"
+                  STATUS_OPTIONS="`concat "${STATUS_OPTIONS}" "$1"`"
+               ;;
+
+               *)
+                  break
+               ;;
+            esac
          ;;
       esac
 
       shift
    done
 
-   PATH="`make_executable_search_path "${PATH}"`"
-   export PATH
-
-   log_fluff "PATH set to: $PATH"
-
-   if [ "${OPTIMISTIC}" = "YES" ]
-   then
-      BOOTSTRAP_FLAGS="`concat "${BOOTSTRAP_FLAGS}" "-l"`"
-   fi
-
    if mulle_bootstrap_version_too_old
    then
-      fail "mulle-bootstrap needs to be updated."
+      fail "Installed mulle-bootstrap version is incompatible with version ${MULLE_BOOTSTRAP_MIN_MAJOR}.x.x"
    fi
+
+   bootstrap_setup_trace "${MULLE_TRACE}"
 
    #
    # allow mulle-build clean, mulle-install clean and some other
@@ -872,7 +935,7 @@ main()
    fi
 
    case "${command}" in
-      install|build)
+      build|install)
          URL="$1"
 
          case "${URL}" in
@@ -881,18 +944,18 @@ main()
             ;;
 
             ""|*)
-               local_mode "$@"
+               if [ "${OPTION_XCODEPROJ}" = "YES" ]
+               then
+                  xcode_mode "$@"
+               else
+                  local_mode "$@"
+               fi
             ;;
          esac
       ;;
 
-      update)
-         if [ -d .git ]
-         then
-            log_info "Updating ${C_MAGENTA}${C_BOLD}`basename -- "${PWD}"`${C_INFO}"
-            git_pull
-         fi
-         "${MULLE_BOOTSTRAP_EXE}" ${BOOTSTRAP_FLAGS} "${command}" ${BOOTSTRAP_FETCH_OPTIONS} ${BOOTSTRAP_OPTIONS} "$@" || exit 1
+      clean)
+         local_clean "$@"
       ;;
 
       git)
@@ -902,13 +965,6 @@ main()
          git "$@" || exit 1
       ;;
 
-      tag)
-         "${MULLE_BOOTSTRAP_EXE}" ${BOOTSTRAP_FLAGS} "${command}" ${BOOTSTRAP_OPTIONS} "$@" || exit 1
-         # tag it after succesfully tagging dependencies
-         log_info "Tagging ${C_MAGENTA}${C_BOLD}`basename -- "${PWD}"`${C_INFO} with ${C_RESET_BOLD}${1}${C_INFO}"
-         git tag "$@" || exit 1
-      ;;
-
       status)
          "${MULLE_BOOTSTRAP_EXE}" ${BOOTSTRAP_FLAGS} "git" ${BOOTSTRAP_OPTIONS} "${command}" ${STATUS_OPTIONS} "$@" || exit 1
 
@@ -916,25 +972,11 @@ main()
          git "${command}" ${STATUS_OPTIONS} "$@" || exit 1
       ;;
 
-
-      clean)
-         local cleandefault
-
-         if [ $# -eq 0 ]
-         then
-            if [ "${executable}" = "mulle-install" ]
-            then
-               cleandefault="dist"     # mulle-install clean
-            fi
-
-            if [ "${executable}" = "mulle-build" ]
-            then
-               cleandefault="output"   # mulle-build clean
-            fi
-         fi
-
-         local_clean "$@"
-         "${MULLE_BOOTSTRAP_EXE}" ${BOOTSTRAP_FLAGS} clean ${BOOTSTRAP_OPTIONS} "$@" ${cleandefault}
+      tag)
+         "${MULLE_BOOTSTRAP_EXE}" ${BOOTSTRAP_FLAGS} "${command}" ${BOOTSTRAP_OPTIONS} "$@" || exit 1
+         # tag it after succesfully tagging dependencies
+         log_info "Tagging ${C_MAGENTA}${C_BOLD}`basename -- "${PWD}"`${C_INFO} with ${C_RESET_BOLD}${1}${C_INFO}"
+         git tag "$@" || exit 1
       ;;
 
       test)
@@ -949,10 +991,20 @@ main()
          then
              ( exekutor cd "${testdir}" ; exekutor "./build-test.sh" ${BUILD_TEST_OPTIONS} "$@" ) || exit 1
          else
-            DONT_INSTALL=YES local_mode "$@" || exit 1
+            OPTION_INSTALL="NO" local_mode "$@" || exit 1
          fi
 
          ( exekutor cd "${testdir}" ; exekutor "./run-test.sh" ${TEST_OPTIONS} "$@" ) || exit 1
+      ;;
+
+
+      update)
+         if [ -d .git ]
+         then
+            log_info "Updating ${C_MAGENTA}${C_BOLD}`basename -- "${PWD}"`${C_INFO}"
+            git_pull
+         fi
+         "${MULLE_BOOTSTRAP_EXE}" ${BOOTSTRAP_FLAGS} "${command}" ${BOOTSTRAP_FETCH_OPTIONS} ${BOOTSTRAP_OPTIONS} "$@" || exit 1
       ;;
 
       # catches all paths and URLS, abolute, relative
@@ -965,5 +1017,15 @@ main()
    esac
 }
 
+MULLE_EXECUTABLE="`basename -- "$0"`"
+MULLE_ARGUMENTS="$@"
+MULLE_EXECUTABLE_FAIL_PREFIX="${MULLE_EXECUTABLE}"
+MULLE_EXECUTABLE_PID="$$"
+export MULLE_EXECUTABLE_PID
+
+
+build_init "$@"
 
 main "$@"
+
+trap - TERM EXIT

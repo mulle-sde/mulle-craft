@@ -4,14 +4,21 @@ NAME="mulle-build"
 ORIGIN=public
 VERSION="`./mulle-build --version | head -1`"
 
+
+TAP="${1:-software}"
+[ $# -ne 0 ] && shift
+BRANCH="${1:-release}"
+[ $# -ne 0 ] && shift
+TAG="${1:-${VERSION}}"
+[ $# -ne 0 ] && shift
+
 #
 #
 #
 
 RBFILE="${NAME}.rb"
-HOMEBREWTAP="../homebrew-software"
+HOMEBREWTAP="../homebrew-${TAP}"
 
-TAG="${1:-${VERSION}}"
 
 directory="`mulle-bootstrap library-path`"
 
@@ -45,27 +52,27 @@ git_must_be_clean()
 
 git_must_be_clean || exit 1
 
-branch="`git rev-parse --abbrev-ref HEAD`"
+devbranch="`git rev-parse --abbrev-ref HEAD`"
 
 #
 # make it a release
 #
-git checkout release     || exit 1
-git rebase "${branch}"   || exit 1
+git checkout "${BRANCH}"  || exit 1
+git rebase "${devbranch}" || exit 1
 
 # if rebase fails, we shouldn't be hitting tag now
 git tag "${TAG}"         || exit 1
 
-git push "${ORIGIN}" release --tags  || exit 1
-git push github release --tags       || exit 1
+git push "${ORIGIN}" "${BRANCH}"  --tags  || exit 1
+git push github "${BRANCH}"  --tags       || exit 1
 
-./bin/generate-brew-formula.sh "${VERSION}" > "${HOMEBREWTAP}/${RBFILE}"
+./bin/generate-brew-formula.sh "${VERSION}" "${TAP}" > "${HOMEBREWTAP}/${RBFILE}"
 (
    cd "${HOMEBREWTAP}" ;
    git add "${RBFILE}" ;
-   git commit -m "${TAG} release of ${NAME}" "${RBFILE}" ;
+   git commit -m "${TAG} "${BRANCH}" of ${NAME}" "${RBFILE}" ;
    git push origin master
 )  || exit 1
 
-git checkout "${branch}"          || exit 1
-git push "${ORIGIN}" "${branch}"  || exit 1
+git checkout "${devbranch}"          || exit 1
+git push "${ORIGIN}" "${devbranch}"  || exit 1

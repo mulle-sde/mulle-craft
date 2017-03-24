@@ -14,7 +14,9 @@ HOMEPAGE="http://www.mulle-kybernetik.com/software/git/${TARGET}"
 
 VERSION="$1"
 [ $# -eq 0 ] || shift
-ARCHIVEURL="${1:-http://www.mulle-kybernetik.com/software/git/${TARGET}/tarball/$VERSION}"
+TAP="${1:-software}"
+[ $# -eq 0 ] || shift
+ARCHIVEURL="${1:-http://www.mulle-kybernetik.com/software/git/${TARGET}/tarball/${VERSION}"
 [ $# -eq 0 ] || shift
 
 set -e
@@ -59,7 +61,7 @@ class ${PROJECT} < Formula
   version "${VERSION}"
   sha256 "${HASH}"
 
-  depends_on 'mulle-kybernetik/software/mulle-bootstrap'
+  depends_on 'mulle-kybernetik/${TAP}/mulle-bootstrap'
   depends_on 'cmake'
 
   def install
