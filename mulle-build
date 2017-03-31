@@ -30,10 +30,10 @@
 #   ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
 #   POSSIBILITY OF SUCH DAMAGE.
 
-MULLE_EXECUTABLE_VERSION="3.0.2" # mulle-build version
+MULLE_EXECUTABLE_VERSION="3.1.0" # mulle-build version
 
 MULLE_BOOTSTRAP_MIN_MAJOR="3"
-MULLE_BOOTSTRAP_MIN_MINOR="0"
+MULLE_BOOTSTRAP_MIN_MINOR="1"
 
 
 usage()
@@ -46,10 +46,12 @@ usage:
 EOF
 
    case "$1" in
-      build|install)
+      analyze|build|install)
          cat <<EOF >&2
       -b <tag|branch> : specify tag or branch to fetch from URL
-      -d              : build debug
+      --debug         : build debug
+      --no-bootstrap  : skip mulle-bootstrap checks
+      --xcodeproj     : generate Xcode project (use --open-xcode to autoopen)
       -f              : don't build dependencies with mulle-bootstrap
                         Embedded_repositories will be fetched though.
       -m <executable> : specify make program to use
@@ -98,6 +100,11 @@ do_fetch_dependencies()
 {
    local rval
 
+   if [ "${OPTION_SKIP_MULLE_BOOTSTRAP}" = "YES" ]
+   then
+      return
+   fi
+
    exekutor "${MULLE_BOOTSTRAP_EXE}" -s status
    rval="$?"
 
@@ -123,6 +130,11 @@ do_build_dependencies()
 {
    local rval
 
+   if [ "${OPTION_SKIP_MULLE_BOOTSTRAP}" = "YES" ]
+   then
+      return
+   fi
+
    exekutor "${MULLE_BOOTSTRAP_EXE}" -s status
    rval="$?"
 
@@ -138,6 +150,11 @@ do_build_dependencies()
 
 do_install_dependencies()
 {
+   if [ "${OPTION_SKIP_MULLE_BOOTSTRAP}" = "YES" ]
+   then
+      return
+   fi
+
    if [ -z "${INSTALL_PREFIX}" ]
    then
       exekutor "${MULLE_BOOTSTRAP_EXE}" install ${BOOTSTRAP_OPTIONS} "$@" || exit 1
@@ -220,30 +237,20 @@ _do_cmake()
       ;;
    esac
 
-   #
-   # Figure out C/CXX compiler (only for current) project
-   #
-   local  cc
-
-   cc="`cat .CC 2> /dev/null`"
-   if [ ! -z "${cc}" ]
-   then
-      log_verbose "Compiler ${C_RESET_BOLD}CC${C_VERBOSE} set to ${C_MAGENTA}${C_BOLD}${cc}${C_VERBOSE} found in \".CC\""
-      CMAKE_FLAGS="`concat "${CMAKE_FLAGS}" "'-DCMAKE_C_COMPILER=${cc}'"`"
-   fi
-
-   local  cxx
-
-   cxx="`cat .CXX 2> /dev/null`"
-   if [ ! -z "${cxx}" ]
-   then
-      log_verbose "Compiler ${C_RESET_BOLD}CXX${C_VERBOSE} set to ${C_MAGENTA}${C_BOLD}${cxx}${C_VERBOSE} found in \".CXX\""
-      CMAKE_FLAGS="`concat "${CMAKE_FLAGS}" "'-DCMAKE_CXX_COMPILER=${cxx}'"`"
-   fi
-
    # local other
+   if [ ! -z "${C_COMPILER}" ]
+   then
+      cmakeflags="`concat "${cmakeflags}" "'-DCMAKE_C_COMPILER=${C_COMPILER}'"`"
+   fi
 
-   # other="`mulle-bootstrap flags -1 cmakeflags`"
+   local  CXX_COMPILER
+
+   if [ ! -z "${CXX_COMPILER}" ]
+   then
+      cmakeflags="`concat "${cmakeflags}" "'-DCMAKE_CXX_COMPILER=${CXX_COMPILER}'"`"
+   fi
+
+   # other="`mulle-bootstrap paths -1 cmakeflags`"
    # CMAKE_FLAGS="`concat "${CMAKE_FLAGS}" "${other}"`"
 
    mkdir "${BUILD_DIR}" 2> /dev/null
@@ -260,10 +267,10 @@ _do_cmake()
       # lameness, but want to allow spaces in prefix
       if [ ! -z "${INSTALL_PREFIX}" ]
       then
-         CMAKE_FLAGS="`concat "${CMAKE_FLAGS}" "'-DCMAKE_INSTALL_PREFIX=${INSTALL_PREFIX}'"`"
+         cmakeflags="`concat "${cmakeflags}" "'-DCMAKE_INSTALL_PREFIX=${INSTALL_PREFIX}'"`"
       fi
 
-      eval_exekutor cmake "-G" "'${CMAKE_GENERATOR}'" \
+      eval_exekutor "${CMAKE_WRAPPER}" "${CMAKE}" "-G" "'${CMAKE_GENERATOR}'" \
                      "${cmakeflags}" \
                      "${CMAKE_FLAGS}" \
                      "$@" \
@@ -298,11 +305,6 @@ do_cmake()
 #
 do_make()
 {
-   local command
-
-   command="$1"
-   shift
-
    (
       exekutor cd build ;
 
@@ -312,7 +314,7 @@ do_make()
          env | sort >&2
       fi
 
-      eval_exekutor "${MAKE}" "${MAKE_FLAGS}" "${command}" || exit 1 ;
+      eval_exekutor "${MAKE_WRAPPER}" "${MAKE}" "${MAKE_FLAGS}" "$@" || exit 1 ;
    )
 }
 
@@ -322,6 +324,11 @@ do_make()
 #
 setup_make_environment()
 {
+   if [ -z "${CMAKE}" ]
+   then
+      CMAKE="cmake"
+   fi
+
    if [ -z "${MAKE}" ]
    then
       case "`uname`" in
@@ -346,6 +353,27 @@ setup_make_environment()
             CMAKE_GENERATOR="Unix Makefiles"
          ;;
       esac
+   fi
+}
+
+setup_cc_environment()
+{
+   #
+   # Figure out C/CXX compiler (only for current) project
+   #
+
+   C_COMPILER="`cat .CC 2> /dev/null`"
+   if [ ! -z "${C_COMPILER}" ]
+   then
+      log_verbose "Compiler ${C_RESET_BOLD}CC${C_VERBOSE} set to ${C_MAGENTA}${C_BOLD}${C_COMPILER}${C_VERBOSE} found in \".CC\""
+   fi
+
+   local  CXX_COMPILER
+
+   CXX_COMPILER="`cat .CXX 2> /dev/null`"
+   if [ ! -z "${CXX_COMPILER}" ]
+   then
+      log_verbose "Compiler ${C_RESET_BOLD}CXX${C_VERBOSE} set to ${C_MAGENTA}${C_BOLD}${CXX_COMPILER}${C_VERBOSE} found in \".CXX\""
    fi
 }
 
@@ -488,8 +516,6 @@ local_mode()
 {
    log_fluff ":.:local mode:.:"
 
-   setup_make_environment
-
    [ -z "${TAG}" ] || fail "-b option is not compatible with local mode."
    [ -z "${SCM}" ] || fail "-s option is not compatible with local mode."
 
@@ -623,7 +649,7 @@ url_mode()
       fi
    fi
 
-   local command
+   local random
 
    random=`exekutor mktemp -d -t "mulle-install.XXXX"`
 
@@ -702,6 +728,27 @@ build_init()
 }
 
 
+run_build()
+{
+   URL="$1"
+
+   case "${URL}" in
+      */*|*:*)
+         url_mode "$@"
+      ;;
+
+      ""|*)
+         if [ "${OPTION_XCODEPROJ}" = "YES" ]
+         then
+            xcode_mode "$@"
+         else
+            local_mode "$@"
+         fi
+      ;;
+   esac
+}
+
+
 main()
 {
    local command
@@ -713,11 +760,10 @@ main()
    command="`echo "${MULLE_EXECUTABLE}" | cut -d- -f2`"
 
    # technical flags
-   local MULLE_FLAG_EXECUTOR_DRY_RUN="NO"
+   local MULLE_FLAG_EXEKUTOR_DRY_RUN="NO"
    local MULLE_FLAG_LOG_CACHE="NO"
    local MULLE_FLAG_LOG_DEBUG="NO"
-   local MULLE_FLAG_LOG_EXECUTOR="NO"
-   local MULLE_FLAG_LOG_EXECUTOR="NO"
+   local MULLE_FLAG_LOG_EXEKUTOR="NO"
    local MULLE_FLAG_LOG_FLUFF="NO"
    local MULLE_FLAG_LOG_SCRIPTS="NO"
    local MULLE_FLAG_LOG_SETTINGS="NO"
@@ -740,6 +786,7 @@ main()
    local OPTION_OPEN_XCODE="NO"
    local OPTION_OPTIMISTIC="YES"
    local OPTION_XCODEPROJ="NO"
+   local OPTION_SKIP_MULLE_BOOTSTRAP="NO"
 
    if [ "${MULLE_EXECUTABLE}" = "mulle-build" ]
    then
@@ -825,6 +872,11 @@ main()
 
          -nbd|--no-build-dependencies)
             OPTION_BUILD_DEPENDENCIES="NO"
+         ;;
+
+
+         -nbo|--no-bootstrap)
+            OPTION_SKIP_MULLE_BOOTSTRAP="YES"
          ;;
 
          -ni|--no-install)
@@ -920,38 +972,34 @@ main()
 
    bootstrap_setup_trace "${MULLE_TRACE}"
 
-   #
-   # allow mulle-build clean, mulle-install clean and some other
-   # obscure commands
-   #
-   if [ "${command}" = "build" -o "${command}" = "install" ]
-   then
-      case "$1" in
-         clean|refresh|setup-xcode|xcode|library-path|init|fetch|dist|config|bootstrap|nomagic)
-            command="$1"
-            shift
-         ;;
-      esac
-   fi
+   setup_make_environment
+   setup_cc_environment
 
    case "${command}" in
-      build|install)
-         URL="$1"
+      analyze)
+         MAKE_WRAPPER="mulle-scan-build"
+         CMAKE_WRAPPER="mulle-scan-build"
 
-         case "${URL}" in
-            */*|*:*)
-               url_mode "$@"
+         case "${CC}" in
+            mulle*)
+               # keep default for mulle-clang
             ;;
 
-            ""|*)
-               if [ "${OPTION_XCODEPROJ}" = "YES" ]
+            *)
+               # try native scan-build if available
+               if [ ! -z "`command -v scan-build`" ]
                then
-                  xcode_mode "$@"
-               else
-                  local_mode "$@"
+                  MAKE_WRAPPER="scan-build"
+                  CMAKE_WRAPPER="scan-build"
                fi
             ;;
          esac
+
+         run_build "$@"
+      ;;
+
+      build|install)
+         run_build "$@"
       ;;
 
       clean)
@@ -1007,15 +1055,13 @@ main()
          "${MULLE_BOOTSTRAP_EXE}" ${BOOTSTRAP_FLAGS} "${command}" ${BOOTSTRAP_FETCH_OPTIONS} ${BOOTSTRAP_OPTIONS} "$@" || exit 1
       ;;
 
-      # catches all paths and URLS, abolute, relative
-
-      # other commands forward to mulle-bootstrap
       *)
-         "${MULLE_BOOTSTRAP_EXE}" ${BOOTSTRAP_FLAGS} "${command}" ${BOOTSTRAP_OPTIONS} "$@" || exit 1
+         usage "${command}"
       ;;
 
    esac
 }
+
 
 MULLE_EXECUTABLE="`basename -- "$0"`"
 MULLE_ARGUMENTS="$@"

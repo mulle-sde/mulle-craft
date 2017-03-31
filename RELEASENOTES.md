@@ -1,3 +1,15 @@
+3.1.0
+=====
+
+Keep version in lockstep with mulle-bootstrap for the moment.
+
+3.0.0
+=====
+
+Lot's of changes to be in lock-step with mulle-bootstrap. One nice feature
+gained is mulle-analyze (you need mulle-scan-build or scan-build) for it to
+work.
+
 0.10.5
 =====
 
