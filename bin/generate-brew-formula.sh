@@ -66,8 +66,7 @@ class ${PROJECT} < Formula
   version "${VERSION}"
   sha256 "${HASH}"
 
-  depends_on 'mulle-kybernetik/${TAP}/mulle-bootstrap'
-  depends_on 'cmake'
+  depends_on 'mulle-kybernetik/${TAP}/mulle-bootstrap' => :run
 
   def install
      system "./install.sh", "#{prefix}"

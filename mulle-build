@@ -30,10 +30,10 @@
 #   ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
 #   POSSIBILITY OF SUCH DAMAGE.
 
-MULLE_EXECUTABLE_VERSION="3.1.0" # mulle-build version
+MULLE_EXECUTABLE_VERSION="3.2.0" # mulle-build version
 
 MULLE_BOOTSTRAP_MIN_MAJOR="3"
-MULLE_BOOTSTRAP_MIN_MINOR="1"
+MULLE_BOOTSTRAP_MIN_MINOR="2"
 
 
 usage()
@@ -324,37 +324,13 @@ do_make()
 #
 setup_make_environment()
 {
-   if [ -z "${CMAKE}" ]
-   then
-      CMAKE="cmake"
-   fi
+   MAKE="`platform_make "${C_COMPILER}"`"
+   MAKE="`verify_binary "${MAKE}" "make" ""`" || exit 1
 
-   if [ -z "${MAKE}" ]
-   then
-      case "`uname`" in
-         MINGW*)
-            MAKE="nmake"
-         ;;
-
-         *)
-            MAKE="make"
-         ;;
-      esac
-   fi
-
-   if [ -z "${CMAKE_GENERATOR}" ]
-   then
-      case "${MAKE}" in
-         nmake*)
-            CMAKE_GENERATOR="NMake Makefiles"
-         ;;
-
-         *)
-            CMAKE_GENERATOR="Unix Makefiles"
-         ;;
-      esac
-   fi
+   CMAKE="`verify_binary "cmake" "cmake" ""`" || exit 1
+   CMAKE_GENERATOR="`platform_cmake_generator "${MAKE}"`"
 }
+
 
 setup_cc_environment()
 {
@@ -365,14 +341,16 @@ setup_cc_environment()
    C_COMPILER="`cat .CC 2> /dev/null`"
    if [ ! -z "${C_COMPILER}" ]
    then
+      C_COMPILER="`verify_binary "${C_COMPILER}" "CC" ""`" || exit 1
       log_verbose "Compiler ${C_RESET_BOLD}CC${C_VERBOSE} set to ${C_MAGENTA}${C_BOLD}${C_COMPILER}${C_VERBOSE} found in \".CC\""
    fi
 
-   local  CXX_COMPILER
+   local CXX_COMPILER
 
    CXX_COMPILER="`cat .CXX 2> /dev/null`"
    if [ ! -z "${CXX_COMPILER}" ]
    then
+      CXX_COMPILER="`verify_binary "${CXX_COMPILER}" "CXX" ""`" || exit 1
       log_verbose "Compiler ${C_RESET_BOLD}CXX${C_VERBOSE} set to ${C_MAGENTA}${C_BOLD}${CXX_COMPILER}${C_VERBOSE} found in \".CXX\""
    fi
 }
@@ -972,8 +950,10 @@ main()
 
    bootstrap_setup_trace "${MULLE_TRACE}"
 
-   setup_make_environment
+   . mulle-bootstrap-command.sh || exit 1
+
    setup_cc_environment
+   setup_make_environment
 
    case "${command}" in
       analyze)
