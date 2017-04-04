@@ -727,6 +727,36 @@ run_build()
 }
 
 
+locate_tests()
+{
+   local testdir
+
+   testdir="${TESTS:-`pwd -P`}"
+
+   if [ -x "${testdir}/run-test.sh" ]
+   then
+      echo "${testdir}"
+      return
+   fi
+
+   local old
+
+   old="${IFS}"
+   IFS="
+"
+   for testdir in `find . -name tests -type d -print`
+   do
+      IFS="${old}"
+      if [ -x "${testdir}/run-test.sh" ]
+      then
+         echo "${testdir}"
+         return
+      fi
+   done
+   IFS="${old}"
+}
+
+
 main()
 {
    local command
@@ -1009,10 +1039,13 @@ main()
 
       test)
          # check this first
-         testdir="${TESTS:-tests}"
-         if [ ! -x "${testdir}/run-test.sh" ]
+         local testdir
+
+         testdir="`locate_tests`"
+
+         if [ -z "${testdir}" ]
          then
-            fail "Don't know how to run tests (${testdir}/run-test.sh is missing)"
+            fail "Don't know how to run tests (tests/run-test.sh is missing)"
          fi
 
          if [ -x "${testdir}/build-test.sh" ]

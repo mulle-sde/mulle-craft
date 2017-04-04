@@ -6,3 +6,12 @@ build/
 .bootstrap.auto/
 
 mulle-build.sublime-workspace
+mulle-analyze
+mulle-clean
+mulle-git
+mulle-install
+mulle-status
+mulle-tag
+mulle-test
+mulle-update
+mulle-xcodeproj
