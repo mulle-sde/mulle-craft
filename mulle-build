@@ -30,7 +30,7 @@
 #   ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
 #   POSSIBILITY OF SUCH DAMAGE.
 
-MULLE_EXECUTABLE_VERSION="3.3.0" # mulle-build version
+MULLE_EXECUTABLE_VERSION="3.4.0" # mulle-build version
 
 MULLE_BOOTSTRAP_MIN_MAJOR="3"
 MULLE_BOOTSTRAP_MIN_MINOR="3"
@@ -826,6 +826,7 @@ main()
       if bootstrap_technical_flags "$1"
       then
          BOOTSTRAP_FLAGS="`concat "${BOOTSTRAP_FLAGS}" "$1"`"
+         TEST_OPTIONS="$1"
 
          shift
          continue
