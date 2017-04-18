@@ -826,6 +826,7 @@ main()
       if bootstrap_technical_flags "$1"
       then
          BOOTSTRAP_FLAGS="`concat "${BOOTSTRAP_FLAGS}" "$1"`"
+         TEST_OPTIONS="$1"
 
          shift
          continue
