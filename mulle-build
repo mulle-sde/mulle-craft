@@ -30,10 +30,10 @@
 #   ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
 #   POSSIBILITY OF SUCH DAMAGE.
 
-MULLE_EXECUTABLE_VERSION="3.2.1" # mulle-build version
+MULLE_EXECUTABLE_VERSION="3.3.0" # mulle-build version
 
 MULLE_BOOTSTRAP_MIN_MAJOR="3"
-MULLE_BOOTSTRAP_MIN_MINOR="2"
+MULLE_BOOTSTRAP_MIN_MINOR="3"
 
 
 usage()
@@ -549,6 +549,11 @@ xcode_mode()
       do_cmake "$@" || exit 1
       log_info "Generated xcodeproj in `pwd -P`"
 
+      if [ "${OPTION_LINK_XCODEPROJ}" = "YES" ]
+      then
+         exekutor ln -sf "${XCODEBUILD_DIR}"/*.xcodeproj
+      fi
+
       #
       # set mulle-clang if desired
       #
@@ -794,6 +799,8 @@ main()
    local OPTION_OPEN_XCODE="NO"
    local OPTION_OPTIMISTIC="YES"
    local OPTION_XCODEPROJ="NO"
+   local OPTION_LINK_XCODEPROJ="NO"
+
    local OPTION_SKIP_MULLE_BOOTSTRAP="NO"
 
    if [ "${MULLE_EXECUTABLE}" = "mulle-build" ]
@@ -863,6 +870,10 @@ main()
 
          -h|--help)
             usage "${command}"
+         ;;
+
+         -l|--link-xcodeproj)
+            OPTION_LINK_XCODEPROJ="YES"
          ;;
 
          -m|--make)
@@ -1066,6 +1077,13 @@ main()
             git_pull
          fi
          "${MULLE_BOOTSTRAP_EXE}" ${BOOTSTRAP_FLAGS} "${command}" ${BOOTSTRAP_FETCH_OPTIONS} ${BOOTSTRAP_OPTIONS} "$@" || exit 1
+      ;;
+
+      xcode)
+         OPTION_OPEN_XCODE="YES"
+         OPTION_XCODEPROJ="YES"
+
+         run_build "$@"
       ;;
 
       *)
