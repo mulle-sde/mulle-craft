@@ -1,3 +1,9 @@
+3.4.1
+=====
+
+* Improve finding of the tests folder.
+* mulle-build --tests-path will output the tests folder path
+
 3.1.0
 =====
 

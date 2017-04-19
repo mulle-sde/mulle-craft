@@ -30,7 +30,7 @@
 #   ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
 #   POSSIBILITY OF SUCH DAMAGE.
 
-MULLE_EXECUTABLE_VERSION="3.4.0" # mulle-build version
+MULLE_EXECUTABLE_VERSION="3.4.1" # mulle-build version
 
 MULLE_BOOTSTRAP_MIN_MAJOR="3"
 MULLE_BOOTSTRAP_MIN_MINOR="3"
@@ -735,8 +735,11 @@ run_build()
 locate_tests()
 {
    local testdir
+   local rootdir
 
-   testdir="${TESTS:-`pwd -P`}"
+   rootdir="`mulle-bootstrap project-path 2> /dev/null`"
+   rootdir="${rootdir:-`pwd -P`}"
+   testdir="${TESTS:-${rootdir}}"
 
    if [ -x "${testdir}/run-test.sh" ]
    then
@@ -749,15 +752,34 @@ locate_tests()
    old="${IFS}"
    IFS="
 "
-   for testdir in `find . -name tests -type d -print`
+   #
+   # find the nearest tests folder, with a run-test.sh
+   # executable. The awk emits "#pathComponents path"
+   # and then it get sorted. We run breadth first
+   # search this way
+   #
+   for testdir in `find "${rootdir}" -name tests -type d -print | \
+                     awk -F'/' '{print NF " " $0}' | \
+                     sort -n | \
+                     sed 's/[0-9]* \(.*\)/\1/'`
    do
       IFS="${old}"
-      if [ -x "${testdir}/run-test.sh" ]
-      then
-         echo "${testdir}"
-         return
-      fi
+
+      case "${testdir}" in
+         ${rootdir}/stashes/*)
+            # ignore "top level" stashes
+         ;;
+
+         *)
+            if [ -x "${testdir}/run-test.sh" ]
+            then
+               echo "${testdir}"
+               return
+            fi
+         ;;
+      esac
    done
+
    IFS="${old}"
 }
 
@@ -941,6 +963,12 @@ main()
             OPTION_OPTIMISTIC="NO"
          ;;
 
+         --tests-path)
+            locate_tests
+            exit 0
+         ;;
+
+
          --open-xcode)
             OPTION_OPEN_XCODE="YES"
          ;;
@@ -1069,7 +1097,6 @@ main()
 
          ( exekutor cd "${testdir}" ; exekutor "./run-test.sh" ${TEST_OPTIONS} "$@" ) || exit 1
       ;;
-
 
       update)
          if [ -d .git ]
