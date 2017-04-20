@@ -3,6 +3,8 @@
 
 * Improve finding of the tests folder.
 * mulle-build --tests-path will output the tests folder path
+* Improve output of paths from ./run-test.sh
+
 
 3.1.0
 =====

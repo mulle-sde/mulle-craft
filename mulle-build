@@ -30,10 +30,10 @@
 #   ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
 #   POSSIBILITY OF SUCH DAMAGE.
 
-MULLE_EXECUTABLE_VERSION="3.4.1" # mulle-build version
+MULLE_EXECUTABLE_VERSION="3.4.2" # mulle-build version
 
 MULLE_BOOTSTRAP_MIN_MAJOR="3"
-MULLE_BOOTSTRAP_MIN_MINOR="3"
+MULLE_BOOTSTRAP_MIN_MINOR="4"
 
 
 usage()
@@ -51,6 +51,7 @@ EOF
       -b <tag|branch> : specify tag or branch to fetch from URL
       --debug         : build debug
       --no-bootstrap  : skip mulle-bootstrap checks
+      --tests-path    : output tests folder location
       --xcodeproj     : generate Xcode project (use --open-xcode to autoopen)
       -f              : don't build dependencies with mulle-bootstrap
                         Embedded_repositories will be fetched though.
@@ -229,7 +230,7 @@ _do_cmake()
 
    case "${BUILD_DIR}" in
       */*)
-        relative="`perfect_relative_path_between "${PWD}" "${BUILD_DIR}"`"
+        relative="`symlink_relpath "${PWD}" "${BUILD_DIR}"`"
       ;;
 
       *)
@@ -1080,22 +1081,59 @@ main()
       test)
          # check this first
          local testdir
+         local userrel
 
          testdir="`locate_tests`"
+         userrel="`symlink_relpath "${testdir}" "$PWD"`/"
 
          if [ -z "${testdir}" ]
          then
             fail "Don't know how to run tests (tests/run-test.sh is missing)"
          fi
 
+
          if [ -x "${testdir}/build-test.sh" ]
          then
-             ( exekutor cd "${testdir}" ; exekutor "./build-test.sh" ${BUILD_TEST_OPTIONS} "$@" ) || exit 1
+            (
+               exekutor cd "${testdir}"
+               eval_exekutor "./build-test.sh" --path-prefix "'${userrel}'" "${BUILD_TEST_OPTIONS}" "$@"
+            ) || exit 1
          else
             OPTION_INSTALL="NO" local_mode "$@" || exit 1
          fi
 
-         ( exekutor cd "${testdir}" ; exekutor "./run-test.sh" ${TEST_OPTIONS} "$@" ) || exit 1
+         local cmdline
+         local relative
+
+         #
+         # improve relative paths for change to "${testdir}"
+         #
+         while [ $# -ne 0 ]
+         do
+            # grab off options
+            case "$1" in
+               -j)
+                  cmdline="`concat "${cmdline}" "$1"`"
+                  shift
+                  cmdline="`concat "${cmdline}" "$1"`"
+               ;;
+
+               -*)
+                  cmdline="`concat "${cmdline}" "$1"`"
+               ;;
+
+               *)
+                  relative="`symlink_relpath "${PWD}/$1" "${testdir}"`"
+                  cmdline="`concat "${cmdline}" "'${relative}'"`"
+               ;;
+            esac
+            shift
+         done
+
+         (
+            exekutor cd "${testdir}"
+            eval_exekutor "./run-test.sh" --path-prefix "'${userrel}'" "${TEST_OPTIONS}" "${cmdline}"
+         ) || exit 1
       ;;
 
       update)
