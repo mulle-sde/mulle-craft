@@ -30,7 +30,7 @@
 #   ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
 #   POSSIBILITY OF SUCH DAMAGE.
 
-MULLE_EXECUTABLE_VERSION="3.4.2" # mulle-build version
+MULLE_EXECUTABLE_VERSION="3.4.3" # mulle-build version
 
 MULLE_BOOTSTRAP_MIN_MAJOR="3"
 MULLE_BOOTSTRAP_MIN_MINOR="4"
@@ -168,17 +168,22 @@ do_install_dependencies()
 
 cmake_clean()
 {
-   log_verbose "Deleting ${BUILD_DIR}/CMakeFiles"
+   log_verbose "Deleting \"${BUILD_DIR}/CMakeFiles\""
    exekutor rm -rf "${BUILD_DIR}/CMakeFiles" 2> /dev/null
 
-   log_verbose "Deleting ${BUILD_DIR}/CMakeCache.txt"
+   log_verbose "Deleting \"${BUILD_DIR}/CMakeCache.txt\""
    exekutor rm "${BUILD_DIR}/CMakeCache.txt" 2> /dev/null
 }
 
 
 need_cmake_clean()
 {
-   if [ ! -f "${BUILD_DIR}/CMakeFiles" ]
+   if [ "${MULLE_FLAG_MAGNUM_FORCE}" != "NONE" ]
+   then
+      return 0
+   fi
+
+   if [ ! -e "${BUILD_DIR}/CMakeFiles" ]
    then
       return 0
    fi
@@ -199,7 +204,12 @@ need_cmake_clean()
 
 need_cmake_build()
 {
-   if [ ! -f "${BUILD_DIR}/CMakeFiles" ]
+   if [ ! -e "${BUILD_DIR}/CMakeFiles" ]
+   then
+      return 0
+   fi
+
+   if [ ! -e "Makefile" ]
    then
       return 0
    fi
@@ -506,6 +516,26 @@ local_mode()
       prefix_cmake_flags
    fi
 
+   local  orgpwd
+
+   orgpwd="$PWD"
+
+   while [ ! -f "CMakeLists.txt" ]
+   do
+      local old
+
+      old="$PWD"
+      cd ..
+
+      if [ "$PWD" = "${old}" ]
+      then
+         fail "There is no CMakeLists.txt here ($orgpwd), can't continue"
+      fi
+   done
+
+   setup_cc_environment
+   setup_make_environment
+
    if [ -d .bootstrap ]
    then
       if [ "${OPTION_BUILD_DEPENDENCIES}" = "NO" ]
@@ -544,6 +574,9 @@ local_mode()
 
 xcode_mode()
 {
+   setup_cc_environment
+   setup_make_environment
+
    (
       BUILD_DIR="${XCODEBUILD_DIR}"
       CMAKE_GENERATOR="Xcode"
@@ -611,6 +644,9 @@ url_mode()
          fi
       ;;
    esac
+
+   setup_cc_environment
+   setup_make_environment
 
    local random
    local bootstrapoptions
@@ -805,6 +841,7 @@ main()
    local MULLE_FLAG_LOG_SETTINGS="NO"
    local MULLE_FLAG_LOG_VERBOSE="NO"
    local MULLE_FLAG_MERGE_LOG="NO"
+   local MULLE_FLAG_MAGNUM_FORCE="NONE"
    local MULLE_TRACE_PATHS_FLIP_X="NO"
    local MULLE_TRACE_POSTPONE="NO"
    local MULLE_TRACE_RESOLVER_FLIP_X="NO"
@@ -879,6 +916,10 @@ main()
          -e|--embedded-only)
             EMBEDDED_ONLY="YES"
             PREFIX_USED=YES
+         ;;
+
+         -f|--force)
+            MULLE_FLAG_MAGNUM_FORCE="BOTH"
          ;;
 
          --homebrew)
@@ -992,8 +1033,14 @@ main()
                   MAKE_FLAGS="${MAKE_FLAGS} VERBOSE=1"
                ;;
 
-               -i|--ignore-branch|-nr|--no-recursion|--use-prefix-libraries|-cs|--check-usr-local-include|-e|--embedded-only|-es|--embedded-symlink|-u|--update-symlinks|-K|--clean|-k|--no-clean)
-                  BOOTSTRAP_OPTIONS="`concat "${BOOTSTRAP_OPTIONS}" "$1"`"
+               --cores|-j)
+                  BOOTSTRAP_FLAGS="`concat "${BOOTSTRAP_FLAGS}" "$1"`"
+                  TEST_OPTIONS="`concat "${TEST_OPTIONS}" "$1"`"
+                  STATUS_OPTIONS="`concat "${STATUS_OPTIONS}" "$1"`"
+                  [ $# -eq 0 ] && usage "${command}"
+                  shift
+
+                  BOOTSTRAP_FLAGS="`concat "${BOOTSTRAP_FLAGS}" "$1"`"
                   TEST_OPTIONS="`concat "${TEST_OPTIONS}" "$1"`"
                   STATUS_OPTIONS="`concat "${STATUS_OPTIONS}" "$1"`"
                ;;
@@ -1022,9 +1069,6 @@ main()
    bootstrap_setup_trace "${MULLE_TRACE}"
 
    . mulle-bootstrap-command.sh || exit 1
-
-   setup_cc_environment
-   setup_make_environment
 
    case "${command}" in
       analyze)
