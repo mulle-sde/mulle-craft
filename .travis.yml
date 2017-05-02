@@ -7,4 +7,5 @@ before_install:
 script:
    - mulle-bootstrap init
    - mulle-bootstrap setting -g -r repositories https://github.com/mulle-nat/Foobie.git
+   - echo "project( empty)" > CMakeLists.txt
    - mulle-build -vvv -V
