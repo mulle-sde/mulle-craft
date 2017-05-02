@@ -9,5 +9,5 @@ script:
    - mulle-bootstrap setting -g -r repositories https://github.com/mulle-nat/powerfoo.git
    - echo "project( empty)" > CMakeLists.txt
    - echo "add_executable( empty main.c)" >> CMakeLists.txt
-   - echo "int main() { return( 0}; }" > main.c
+   - echo "int main() { return( 0); }" > main.c
    - mulle-build -vvv -V
