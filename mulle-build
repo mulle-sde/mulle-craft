@@ -30,7 +30,7 @@
 #   ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
 #   POSSIBILITY OF SUCH DAMAGE.
 
-MULLE_EXECUTABLE_VERSION="3.4.9" # mulle-build version
+MULLE_EXECUTABLE_VERSION="3.4.10" # mulle-build version
 
 MULLE_BOOTSTRAP_MIN_MAJOR="3"
 MULLE_BOOTSTRAP_MIN_MINOR="4"
@@ -99,6 +99,8 @@ EOF
 #
 do_fetch_dependencies()
 {
+   log_debug "do_fetch_dependencies" "$*"
+
    local rval
 
    if [ "${OPTION_SKIP_MULLE_BOOTSTRAP}" = "YES" ]
@@ -129,10 +131,13 @@ do_fetch_dependencies()
 
 do_build_dependencies()
 {
+   log_debug "do_build_dependencies" "$*"
+
    local rval
 
    if [ "${OPTION_SKIP_MULLE_BOOTSTRAP}" = "YES" ]
    then
+      log_fluff "Skipped \"mulle-boostrap build\" on request"
       return
    fi
 
@@ -153,21 +158,24 @@ do_install_dependencies()
 {
    if [ "${OPTION_SKIP_MULLE_BOOTSTRAP}" = "YES" ]
    then
+      log_fluff "Skipped \"mulle-boostrap systeminstall\" on request"
       return
    fi
 
    if [ -z "${INSTALL_PREFIX}" ]
    then
-      exekutor "${MULLE_BOOTSTRAP_EXE}" install ${BOOTSTRAP_OPTIONS} "$@" || exit 1
+      exekutor "${MULLE_BOOTSTRAP_EXE}" systeminstall ${BOOTSTRAP_OPTIONS} "$@" || exit 1
    else
-      exekutor "${MULLE_BOOTSTRAP_EXE}" install ${BOOTSTRAP_OPTIONS} "$@" "${INSTALL_PREFIX}" || exit 1
+      exekutor "${MULLE_BOOTSTRAP_EXE}" systeminstall ${BOOTSTRAP_OPTIONS} "$@" "${INSTALL_PREFIX}" || exit 1
    fi
-   log_fluff "FINISHED: mulle-bootstrap install"
+   log_fluff "FINISHED: mulle-bootstrap systeminstall"
 }
 
 
 cmake_clean()
 {
+   log_debug "cmake_clean" "$*"
+
    log_verbose "Deleting \"${BUILD_DIR}/CMakeFiles\""
    exekutor rm -rf "${BUILD_DIR}/CMakeFiles" 2> /dev/null
 
@@ -198,6 +206,8 @@ need_cmake_clean()
       return 0
    fi
 
+   log_fluff "cmake clean not needed"
+
    return 1
 }
 
@@ -219,12 +229,16 @@ need_cmake_build()
       return 0
    fi
 
+   log_fluff "cmake build not needed"
+
    return 1
 }
 
 
 _do_cmake()
 {
+   log_debug "_do_cmake" "$*"
+
    local cmakeflags
 
    [ -z "${CMAKE_GENERATOR}" ] && fail "empty CMAKE_GENERATOR"
@@ -292,6 +306,8 @@ _do_cmake()
 
 do_cmake()
 {
+   log_debug "do_cmake" "$*"
+
    local skip_build
 
    skip_build="${OPTION_OPTIMISTIC}"
@@ -316,6 +332,8 @@ do_cmake()
 #
 do_make()
 {
+   log_debug "do_make" "$*"
+
    (
       exekutor cd build ;
 
@@ -335,6 +353,8 @@ do_make()
 #
 setup_make_environment()
 {
+   log_debug "setup_make_environment" "$*"
+
    MAKE="`platform_make "${C_COMPILER}"`"
    MAKE="`verify_binary "${MAKE}" "make" ""`" || exit 1
 
@@ -345,6 +365,8 @@ setup_make_environment()
 
 setup_cc_environment()
 {
+   log_debug "setup_cc_environment" "$*"
+
    #
    # Figure out C/CXX compiler (only for current) project
    #
@@ -543,8 +565,8 @@ local_mode()
          do_fetch_dependencies "--embedded-only" || fail "failed to fetch dependencies"
          log_fluff "Did not build dependencies as requested"
       else
-         do_fetch_dependencies || fail "failed to fetch dependencies"
-         do_build_dependencies || fail "failed to build dependencies"
+         do_fetch_dependencies || fail "Failed to fetch dependencies"
+         do_build_dependencies || fail "Failed to build dependencies"
       fi
    else
       log_fluff "No .bootstrap found, so not bootstrapping"
@@ -553,6 +575,7 @@ local_mode()
    if [ -z "${DONT_BUILD}" ]
    then
       [ ! -f CMakeLists.txt ] && fail "Can only build cmake based projects, in local mode."
+
       do_cmake "$@"
 
       if [ "${OPTION_INSTALL}" = "YES" ]
@@ -568,6 +591,8 @@ local_mode()
       else
          do_make "" "$@" || fail "failed to make"
       fi
+   else
+      log_fluff "Don't build set, so done"
    fi
 }
 
@@ -706,9 +731,6 @@ build_init()
 {
    # look for mulle-bootstrap in the place where mulle-build is, they
    # belong together
-
-   set -x
-   echo "$PATH" >&2
 
    MULLE_BOOTSTRAP_EXE="`dirname -- "$0"`/mulle-bootstrap"
    if [ ! -x "${MULLE_BOOTSTRAP_EXE}" ]
@@ -923,7 +945,6 @@ main()
 
          -e|--embedded-only)
             EMBEDDED_ONLY="YES"
-            PREFIX_USED=YES
          ;;
 
          -f|--force)
@@ -985,8 +1006,6 @@ main()
          ;;
 
          -p|--prefix)
-            [ -z "${PREFIX_USED}" ] || fail "$1 specified too late"
-
             shift
             [ $# -eq 0 ] && usage "${command}"
 
