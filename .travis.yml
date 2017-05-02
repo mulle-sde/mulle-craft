@@ -1,0 +1,9 @@
+language: objc
+
+before_install:
+   - brew install mulle-kybernetik/alpha/mulle-build
+
+script:
+   - mulle-bootstrap init
+   - mulle-bootstrap setting -g -r repositories https://github.com/mulle-nat/Foobie.git
+   - mulle-build -vvv -V
