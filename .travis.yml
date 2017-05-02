@@ -1,4 +1,5 @@
-language: objc
+language: objective-c
+
 
 before_install:
    - brew install mulle-kybernetik/alpha/mulle-build
