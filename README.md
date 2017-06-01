@@ -4,7 +4,8 @@
 
 > Caveat: It's very much a 0.x project yet.
 
-Use it to build [mulle-bootstrap](//www.mulle-kybernetik.com/software/git/mulle-bootstrap) and [cmake](//gitlab.kitware.com/cmake/cmake) based
+Use it to build [mulle-bootstrap](//www.mulle-kybernetik.com/software/git/mulle-bootstrap)
+and [cmake](//gitlab.kitware.com/cmake/cmake) based
 projects conveniently on multiple platforms (OSX, Linux, Windows)
 
 Where **mulle-bootstrap** solves the dependency problems of your project.

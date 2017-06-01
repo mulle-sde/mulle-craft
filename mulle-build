@@ -30,10 +30,10 @@
 #   ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
 #   POSSIBILITY OF SUCH DAMAGE.
 
-MULLE_EXECUTABLE_VERSION="3.4.10" # mulle-build version
+MULLE_EXECUTABLE_VERSION="3.6.0" # mulle-build version
 
 MULLE_BOOTSTRAP_MIN_MAJOR="3"
-MULLE_BOOTSTRAP_MIN_MINOR="4"
+MULLE_BOOTSTRAP_MIN_MINOR="6"
 
 
 usage()
@@ -295,7 +295,7 @@ _do_cmake()
          cmakeflags="`concat "${cmakeflags}" "'-DCMAKE_INSTALL_PREFIX=${INSTALL_PREFIX}'"`"
       fi
 
-      eval_exekutor "${CMAKE_WRAPPER}" "${CMAKE}" "-G" "'${CMAKE_GENERATOR}'" \
+      eval_exekutor "${CMAKE_WRAPPER}" "${WRAPPER_OPTIONS}" "${CMAKE}" "-G" "'${CMAKE_GENERATOR}'" \
                      "${cmakeflags}" \
                      "${CMAKE_FLAGS}" \
                      "$@" \
@@ -343,7 +343,7 @@ do_make()
          env | sort >&2
       fi
 
-      eval_exekutor "${MAKE_WRAPPER}" "${MAKE}" "${MAKE_FLAGS}" "$@" || exit 1 ;
+      eval_exekutor "${MAKE_WRAPPER}" "${WRAPPER_OPTIONS}" "${MAKE}" "${MAKE_FLAGS}" "$@" || exit 1 ;
    )
 }
 
@@ -804,6 +804,19 @@ locate_tests()
    local testdir
    local rootdir
 
+   # ez shortcut
+   testdir="${TESTS:-tests}"
+   if [ -x "${testdir}/run-test.sh" ]
+   then
+      echo "${testdir}"
+      return
+   fi
+
+   #
+   # this can lead to "mulle-bootstrap" escaping
+   # the project though, if it has no .bootstrap folder
+   # Solution: add an empty .bootstrap folder
+   #
    rootdir="`mulle-bootstrap project-path 2> /dev/null`"
    rootdir="${rootdir:-`pwd -P`}"
    testdir="${TESTS:-${rootdir}}"
@@ -851,6 +864,73 @@ locate_tests()
 }
 
 
+run_test()
+{
+   # check this first
+   local testdir
+   local userrel
+
+   testdir="`locate_tests`"
+   userrel="`symlink_relpath "${testdir}" "$PWD"`/"
+
+   if [ -z "${testdir}" ]
+   then
+      fail "Don't know how to run tests (tests/run-test.sh is missing)"
+   fi
+
+   if [ -x "${testdir}/build-test.sh" ]
+   then
+      (
+         exekutor cd "${testdir}"
+         TEST_PATH_PREFIX="${userrel}" eval_exekutor "./build-test.sh"  "${BUILD_TEST_OPTIONS}" "$@"
+      ) || exit 1
+   else
+      log_fluff "No build-test.sh found."
+
+      if [ -f "CMakeLists.txt" ]
+      then
+         log_fluff "CMakeLists.txt is present so build it."
+         OPTION_INSTALL="NO" local_mode "$@" || exit 1
+      else
+         log_fluff "CMakeLists.txt is not present. Nothing to build."
+      fi
+   fi
+
+   local cmdline
+   local relative
+
+   #
+   # improve relative paths for change to "${testdir}"
+   #
+   while [ $# -ne 0 ]
+   do
+      # grab off options
+      case "$1" in
+         -j)
+            cmdline="`concat "${cmdline}" "$1"`"
+            shift
+            cmdline="`concat "${cmdline}" "$1"`"
+         ;;
+
+         -*)
+            cmdline="`concat "${cmdline}" "$1"`"
+         ;;
+
+         *)
+            relative="`symlink_relpath "${PWD}/$1" "${testdir}"`"
+            cmdline="`concat "${cmdline}" "'${relative}'"`"
+         ;;
+      esac
+      shift
+   done
+
+   (
+      exekutor cd "${testdir}"
+      eval_exekutor "./run-test.sh" --path-prefix "'${userrel}'" "${TEST_OPTIONS}" "${cmdline}"
+   ) || exit 1
+}
+
+
 main()
 {
    local command
@@ -884,18 +964,18 @@ main()
    local XCODEBUILD_DIR="${XCODEBUILD_DIR:-build-xcode.d}"
 
    local OPTION_BUILD_DEPENDENCIES="YES"
-   local OPTION_INSTALL="YES"
+   local OPTION_INSTALL="NO"
    local OPTION_INSTALL_DEPENDENCIES="YES"
    local OPTION_OPEN_XCODE="NO"
    local OPTION_OPTIMISTIC="YES"
    local OPTION_XCODEPROJ="NO"
    local OPTION_LINK_XCODEPROJ="NO"
+   local OPTION_FAST_TEST="NO"   # useful for homebrew, to skip slow tests
+   local OPTION_SKIP_MULLE_BOOTSTRAP="YES"
 
-   local OPTION_SKIP_MULLE_BOOTSTRAP="NO"
-
-   if [ "${MULLE_EXECUTABLE}" = "mulle-build" ]
+   if [ "${MULLE_EXECUTABLE}" = "mulle-install" ]
    then
-      OPTION_INSTALL="NO"
+      OPTION_INSTALL="YES"
    fi
 
    case "`uname`" in
@@ -951,6 +1031,10 @@ main()
             MULLE_FLAG_MAGNUM_FORCE="BOTH"
          ;;
 
+         --fast-test)
+            OPTION_FAST_TEST="YES"
+         ;;
+
          --homebrew)
             [ -z "${HOMEBREW_PREFIX}" ] && fail "not called from homebrew"
             [ -z "${INSTALL_PREFIX}" ] && fail "$1 needs preceeding --prefix"
@@ -960,6 +1044,7 @@ main()
             ## embedded only
             OPTION_BUILD_DEPENDENCIES="NO"
             OPTION_INSTALL_DEPENDENCIES="NO"
+            OPTION_SKIP_MULLE_BOOTSTRAP="NO"
          ;;
 
          -h|--help)
@@ -988,8 +1073,8 @@ main()
          ;;
 
 
-         -nbo|--no-bootstrap)
-            OPTION_SKIP_MULLE_BOOTSTRAP="YES"
+         -bo|--bootstrap)
+            OPTION_SKIP_MULLE_BOOTSTRAP="NO"
          ;;
 
          -ni|--no-install)
@@ -1076,6 +1161,7 @@ main()
                   BOOTSTRAP_FLAGS="`concat "${BOOTSTRAP_FLAGS}" "$1"`"
                   TEST_OPTIONS="`concat "${TEST_OPTIONS}" "$1"`"
                   STATUS_OPTIONS="`concat "${STATUS_OPTIONS}" "$1"`"
+                  WRAPPER_OPTIONS="`concat "${WRAPPER_OPTIONS}" "$1"`"
                ;;
 
                *)
@@ -1129,92 +1215,40 @@ main()
       ;;
 
       git)
-         "${MULLE_BOOTSTRAP_EXE}" ${BOOTSTRAP_FLAGS} "${command}" ${BOOTSTRAP_OPTIONS} "$@" || exit 1
+         if "${MULLE_BOOTSTRAP_EXE}" project-path > /dev/null
+         then
+            "${MULLE_BOOTSTRAP_EXE}" ${BOOTSTRAP_FLAGS} "${command}" ${BOOTSTRAP_OPTIONS} "$@" || exit 1
+         fi
 
          log_info "### `basename ${PWD}`:"
          git "$@" || exit 1
       ;;
 
       status)
-         "${MULLE_BOOTSTRAP_EXE}" ${BOOTSTRAP_FLAGS} "git" ${BOOTSTRAP_OPTIONS} "${command}" ${STATUS_OPTIONS} "$@" || exit 1
+         if "${MULLE_BOOTSTRAP_EXE}" project-path > /dev/null
+         then
+            "${MULLE_BOOTSTRAP_EXE}" ${BOOTSTRAP_FLAGS} "git" ${BOOTSTRAP_OPTIONS} "${command}" ${STATUS_OPTIONS} "$@" || exit 1
+         fi
 
          log_info "### `basename ${PWD}`:"
          git "${command}" ${STATUS_OPTIONS} "$@" || exit 1
       ;;
 
       tag)
-         "${MULLE_BOOTSTRAP_EXE}" ${BOOTSTRAP_FLAGS} "${command}" ${BOOTSTRAP_OPTIONS} "$@" || exit 1
+         if "${MULLE_BOOTSTRAP_EXE}" project-path > /dev/null
+         then
+            "${MULLE_BOOTSTRAP_EXE}" ${BOOTSTRAP_FLAGS} "${command}" ${BOOTSTRAP_OPTIONS} "$@" || exit 1
+         fi
+
          # tag it after succesfully tagging dependencies
          log_info "Tagging ${C_MAGENTA}${C_BOLD}`basename -- "${PWD}"`${C_INFO} with ${C_RESET_BOLD}${1}${C_INFO}"
          git tag "$@" || exit 1
       ;;
 
       test)
-         # check this first
-         local testdir
-         local userrel
-
-         testdir="`locate_tests`"
-         userrel="`symlink_relpath "${testdir}" "$PWD"`/"
-
-         if [ -z "${testdir}" ]
-         then
-            fail "Don't know how to run tests (tests/run-test.sh is missing)"
-         fi
-
-
-         if [ -x "${testdir}/build-test.sh" ]
-         then
-            (
-               exekutor cd "${testdir}"
-               eval_exekutor "./build-test.sh" --path-prefix "'${userrel}'" "${BUILD_TEST_OPTIONS}" "$@"
-            ) || exit 1
-         else
-            OPTION_INSTALL="NO" local_mode "$@" || exit 1
-         fi
-
-         local cmdline
-         local relative
-
-         #
-         # improve relative paths for change to "${testdir}"
-         #
-         while [ $# -ne 0 ]
-         do
-            # grab off options
-            case "$1" in
-               -j)
-                  cmdline="`concat "${cmdline}" "$1"`"
-                  shift
-                  cmdline="`concat "${cmdline}" "$1"`"
-               ;;
-
-               -*)
-                  cmdline="`concat "${cmdline}" "$1"`"
-               ;;
-
-               *)
-                  relative="`symlink_relpath "${PWD}/$1" "${testdir}"`"
-                  cmdline="`concat "${cmdline}" "'${relative}'"`"
-               ;;
-            esac
-            shift
-         done
-
-         (
-            exekutor cd "${testdir}"
-            eval_exekutor "./run-test.sh" --path-prefix "'${userrel}'" "${TEST_OPTIONS}" "${cmdline}"
-         ) || exit 1
+         run_test "$@"
       ;;
 
-      update)
-         if [ -d .git ]
-         then
-            log_info "Updating ${C_MAGENTA}${C_BOLD}`basename -- "${PWD}"`${C_INFO}"
-            git_pull
-         fi
-         "${MULLE_BOOTSTRAP_EXE}" ${BOOTSTRAP_FLAGS} "${command}" ${BOOTSTRAP_FETCH_OPTIONS} ${BOOTSTRAP_OPTIONS} "$@" || exit 1
-      ;;
 
       xcode)
          OPTION_OPEN_XCODE="YES"

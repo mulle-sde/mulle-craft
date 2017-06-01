@@ -1,9 +1,16 @@
+3.6.0
+=====
+
+* keep version number similiar to mulle-bootstrap
+
+
 3.4.1
 =====
 
 * Improve finding of the tests folder.
 * mulle-build --tests-path will output the tests folder path
 * Improve output of paths from ./run-test.sh
+* mulle-update is too dangerous and it's a goner
 
 
 3.1.0
