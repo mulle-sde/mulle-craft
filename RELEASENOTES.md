@@ -1,3 +1,8 @@
+3.6.3
+=====
+
+* run_install is a little more complex than I remembered...
+
 3.6.2
 =====
 

@@ -30,7 +30,7 @@
 #   ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
 #   POSSIBILITY OF SUCH DAMAGE.
 
-MULLE_EXECUTABLE_VERSION="3.6.2" # mulle-build version
+MULLE_EXECUTABLE_VERSION="3.6.3" # mulle-build version
 
 MULLE_BOOTSTRAP_MIN_MAJOR="3"
 MULLE_BOOTSTRAP_MIN_MINOR="6"
@@ -784,7 +784,20 @@ run_install()
 {
    URL="$1"
 
-   url_mode "$@"
+   case "${URL}" in
+      */*|*:*)
+         url_mode "$@"
+      ;;
+
+      ""|*)
+         if [ "${OPTION_XCODEPROJ}" = "YES" ]
+         then
+            xcode_mode "$@"
+         else
+            local_mode "$@"
+         fi
+      ;;
+   esac
 }
 
 
