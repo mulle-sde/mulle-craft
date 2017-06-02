@@ -4,9 +4,11 @@
 
 > Caveat: It's very much a 0.x project yet.
 
-Use it to build [mulle-bootstrap](//www.mulle-kybernetik.com/software/git/mulle-bootstrap)
-and [cmake](//gitlab.kitware.com/cmake/cmake) based
-projects conveniently on multiple platforms (OSX, Linux, Windows)
+Use it to build
+[mulle-bootstrap](//www.mulle-kybernetik.com/software/git/mulle-bootstrap)
+and
+[cmake](//gitlab.kitware.com/cmake/cmake)
+based projects conveniently on multiple platforms (OSX, Linux, Windows)
 
 Where **mulle-bootstrap** solves the dependency problems of your project.
 **mulle-build** combines it with cmake to build your complete project. It is
@@ -53,6 +55,9 @@ mulle-update  | pull changes on project and dependencies      | [mulle-update](d
 ## Install mulle-build
 
 ### Windows: Install "Git for Windows" bash
+
+> Before going down this road, try the new
+> [bash/WSL](https://msdn.microsoft.com/de-de/commandline/wsl/about).
 
 On Windows you need to install some more prerequisites first.
 
@@ -103,11 +108,11 @@ git clone --branch release https://www.mulle-kybernetik.com/repositories/mulle-b
 ```
 
 
-## Example Travis-CI integration using mulle-build
+## Example Travis-CI integration with linux using mulle-build
 
 Travis CI integration simplifies to a uniform `.travis.yml` file that one
 can use unchanged in all `mulle-build` aware C projects. The main effort is
-getting a recent `cmake` installed:
+getting a recent `cmake` installed on "precise" :
 
 
 ```
@@ -132,8 +137,7 @@ before_install:
    - git clone https://github.com/Linuxbrew/brew.git ~/.linuxbrew
    - PATH="$HOME/.linuxbrew/bin:$PATH"
    - brew update
-   - brew tap mulle-kybernetik/software
-   - brew install mulle-build
+   - brew install mulle-kybernetik/software/mulle-build
 
 
 script:
@@ -158,10 +162,11 @@ class MyFormula < Formula
   sha256 <sha256>
 
   depends_on <dependencies>
-  depends_on 'mulle-build' => :build
+
+  depends_on 'mulle-kybernetik/software/mulle-build' => :build
 
   def install
-     system "mulle-install", "-e", "--prefix", "#{prefix}"
+     system "mulle-install", "--prefix", "#{prefix}", "--homebrew"
   end
 
   test do

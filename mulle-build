@@ -30,7 +30,7 @@
 #   ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
 #   POSSIBILITY OF SUCH DAMAGE.
 
-MULLE_EXECUTABLE_VERSION="3.6.0" # mulle-build version
+MULLE_EXECUTABLE_VERSION="3.6.2" # mulle-build version
 
 MULLE_BOOTSTRAP_MIN_MAJOR="3"
 MULLE_BOOTSTRAP_MIN_MINOR="6"
@@ -156,6 +156,8 @@ do_build_dependencies()
 
 do_install_dependencies()
 {
+   log_debug "do_install_dependencies" "$*"
+
    if [ "${OPTION_SKIP_MULLE_BOOTSTRAP}" = "YES" ]
    then
       log_fluff "Skipped \"mulle-boostrap systeminstall\" on request"
@@ -708,9 +710,9 @@ url_mode()
       then
          if [ -z "${INSTALL_PREFIX}" ]
          then
-            exekutor "${MULLE_BOOTSTRAP_EXE}" ${BOOTSTRAP_FLAGS} install || exit 1
+            exekutor "${MULLE_BOOTSTRAP_EXE}" ${BOOTSTRAP_FLAGS} systeminstall || exit 1
          else
-            exekutor "${MULLE_BOOTSTRAP_EXE}" ${BOOTSTRAP_FLAGS} install "${INSTALL_PREFIX}" || exit 1
+            exekutor "${MULLE_BOOTSTRAP_EXE}" ${BOOTSTRAP_FLAGS} systeminstall "${INSTALL_PREFIX}" || exit 1
          fi
       else
          log_fluff "Did not install as requested"
@@ -778,24 +780,28 @@ build_init()
 }
 
 
-run_build()
+run_install()
 {
    URL="$1"
 
-   case "${URL}" in
-      */*|*:*)
-         url_mode "$@"
-      ;;
+   url_mode "$@"
+}
 
-      ""|*)
-         if [ "${OPTION_XCODEPROJ}" = "YES" ]
-         then
-            xcode_mode "$@"
-         else
-            local_mode "$@"
-         fi
-      ;;
-   esac
+
+run_build()
+{
+   if [ "${OPTION_XCODEPROJ}" = "YES" ]
+   then
+      xcode_mode "$@"
+   else
+      local_mode "$@"
+   fi
+}
+
+
+run_analyze()
+{
+   run_build "$@"
 }
 
 
@@ -1004,8 +1010,8 @@ main()
 
       case "$1" in
          -b|--tag|--branch)
+            [ $# -eq 1 ] && fail "missing argument to $1"
             shift
-            [ $# -eq 0 ] && usage "${command}"
 
             TAG="$1"
          ;;
@@ -1056,8 +1062,8 @@ main()
          ;;
 
          -m|--make)
+            [ $# -eq 1 ] && fail "missing argument to $1"
             shift
-            [ $# -eq 0 ] && usage "${command}"
 
             MAKE="$1"
          ;;
@@ -1071,7 +1077,6 @@ main()
          -nbd|--no-build-dependencies)
             OPTION_BUILD_DEPENDENCIES="NO"
          ;;
-
 
          -bo|--bootstrap)
             OPTION_SKIP_MULLE_BOOTSTRAP="NO"
@@ -1091,8 +1096,8 @@ main()
          ;;
 
          -p|--prefix)
+            [ $# -eq 1 ] && fail "missing argument to $1"
             shift
-            [ $# -eq 0 ] && usage "${command}"
 
             INSTALL_PREFIX="$1"
          ;;
@@ -1203,11 +1208,15 @@ main()
             ;;
          esac
 
+         run_analyze "$@"
+      ;;
+
+      build)
          run_build "$@"
       ;;
 
-      build|install)
-         run_build "$@"
+      install)
+         run_install "$@"
       ;;
 
       clean)

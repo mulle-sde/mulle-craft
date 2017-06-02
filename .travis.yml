@@ -5,6 +5,8 @@ before_install:
    - brew install mulle-kybernetik/alpha/mulle-build
 
 script:
+   - mulle-install -vvv -V -b experimental -p /tmp/ https://github.com/mulle-nat/powerfoo.git
+   - grep experimental /tmp/include/powerfoo/powerfoo.h
    - mulle-bootstrap init
    - mulle-bootstrap setting -g -r repositories https://github.com/mulle-nat/powerfoo.git
    - echo "project( empty)" > CMakeLists.txt
