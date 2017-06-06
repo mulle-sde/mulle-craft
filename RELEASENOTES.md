@@ -1,3 +1,11 @@
+3.6.4
+=====
+
+* fixed `version`
+* added `minimum-bootstrap-version` for packaging
+* added CMakeLists.txt for packaging on Linux
+
+
 3.6.3
 =====
 
