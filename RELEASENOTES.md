@@ -1,3 +1,9 @@
+### 3.7.0
+
+* pass --debug to run-test
+* never skip bootstrap when doing mulle-install
+* fixed some typos
+
 3.6.4
 =====
 

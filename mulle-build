@@ -30,8 +30,9 @@
 #   ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
 #   POSSIBILITY OF SUCH DAMAGE.
 
-MULLE_EXECUTABLE_VERSION="3.6.4" # mulle-build version
+MULLE_EXECUTABLE_VERSION="3.7.0" # mulle-build version
 
+# 3.6 is ok
 MULLE_BOOTSTRAP_MIN_MAJOR="3"
 MULLE_BOOTSTRAP_MIN_MINOR="6"
 
@@ -137,7 +138,7 @@ do_build_dependencies()
 
    if [ "${OPTION_SKIP_MULLE_BOOTSTRAP}" = "YES" ]
    then
-      log_fluff "Skipped \"mulle-boostrap build\" on request"
+      log_fluff "Skipped \"mulle-bootstrap build\" on request"
       return
    fi
 
@@ -269,8 +270,6 @@ _do_cmake()
    then
       cmakeflags="`concat "${cmakeflags}" "'-DCMAKE_C_COMPILER=${C_COMPILER}'"`"
    fi
-
-   local  CXX_COMPILER
 
    if [ ! -z "${CXX_COMPILER}" ]
    then
@@ -479,6 +478,20 @@ homebrew_cmake_flags()
       IFS="${oldifs}"
    else
       ldflags="`concat "${ldflags}" "-L${HOMEBREW_PREFIX}/lib"`"
+   fi
+
+   if [ ! -z "${HOMEBREW_FRAMEWORK_PATHS}" ]
+   then
+      IFS=":"
+      for i in $HOMEBREW_FRAMEWORK_PATHS
+      do
+         cflags="`concat "${cflags}" "-F${i}"`"
+         ldflags="`concat "${ldflags}" "-F${i}"`"
+      done
+      IFS="${oldifs}"
+   else
+      cflags="`concat "${cflags}" "-F${HOMEBREW_PREFIX}/Frameworks"`"
+      ldflags="`concat "${ldflags}" "-F${HOMEBREW_PREFIX}/Frameworks"`"
    fi
 
    CMAKE_FLAGS="`concat "${CMAKE_FLAGS}" "'-DCMAKE_FIND_FRAMEWORK=LAST'"`"
@@ -789,6 +802,12 @@ run_install()
 {
    URL="$1"
 
+   #
+   # when installing it doesn't make sense to skip it,
+   # which is the default
+   #
+   OPTION_SKIP_MULLE_BOOTSTRAP="NO"
+
    case "${URL}" in
       */*|*:*)
          url_mode "$@"
@@ -906,7 +925,7 @@ run_test()
    then
       (
          exekutor cd "${testdir}"
-         TEST_PATH_PREFIX="${userrel}" eval_exekutor "./build-test.sh"  "${BUILD_TEST_OPTIONS}" "$@"
+         TEST_PATH_PREFIX="${userrel}" eval_exekutor "./build-test.sh" "${BUILD_TEST_OPTIONS}" "$@"
       ) || exit 1
    else
       log_fluff "No build-test.sh found."
@@ -1040,7 +1059,8 @@ main()
 
          -d|--debug)
             DEBUG="YES"
-            BUILD_TEST_OPTIONS="--debug"
+            BUILD_TEST_OPTIONS="`concat "${BUILD_TEST_OPTIONS}" "--debug"`"
+            TEST_OPTIONS="`concat "${TEST_OPTIONS}" "--debug"`"
          ;;
 
          --dump-environment)
