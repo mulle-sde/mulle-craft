@@ -5,6 +5,10 @@ build/
 .bootstrap.local/
 .bootstrap.auto/
 
+*.old
+*.bak
+tap-info.sh
+
 mulle-build.sublime-workspace
 mulle-analyze
 mulle-clean

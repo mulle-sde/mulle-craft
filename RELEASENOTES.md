@@ -1,3 +1,15 @@
+## 3.8.0
+
+* when installing or homebrewing, **mulle-install** always trys to mirror git repos
+if only temporary for the sake of faster fetches
+* also cleanup test directory build folders, still need something to clean
+tests output
+* wipe the cmake cache, if any CMake*.txt files have been edited. Hopefully
+this avoids a lot of grief I am suffering... :)
+* add --no-bootstrap --build-dir options to use mulle-build to be run in
+build-test.sh
+
+
 ### 3.7.0
 
 * pass --debug to run-test
