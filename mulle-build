@@ -30,7 +30,7 @@
 #   ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
 #   POSSIBILITY OF SUCH DAMAGE.
 
-MULLE_EXECUTABLE_VERSION="3.8.0" # mulle-build version
+MULLE_EXECUTABLE_VERSION="3.8.1" # mulle-build version
 
 # 3.6 is ok
 MULLE_BOOTSTRAP_MIN_MAJOR="3"
@@ -298,6 +298,19 @@ need_cmake_build()
 }
 
 
+modification_timestamp()
+{
+   case "${UNAME}" in
+      linux|mingw)
+         stat --printf "%Y\n" "$1"
+         ;;
+      * )
+         stat -f "%m" "$1"
+         ;;
+   esac
+}
+
+
 _do_cmake()
 {
    log_debug "_do_cmake" "$*"
@@ -312,18 +325,6 @@ _do_cmake()
    else
       cmakeflags="'-DCMAKE_BUILD_TYPE=Debug'"
    fi
-
-   local relative
-
-   case "${BUILD_DIR}" in
-      */*)
-        relative="`symlink_relpath "${PWD}" "${BUILD_DIR}"`"
-      ;;
-
-      *)
-         relative=".."
-      ;;
-   esac
 
    # local other
    if [ ! -z "${C_COMPILER}" ]
@@ -356,11 +357,13 @@ _do_cmake()
          cmakeflags="`concat "${cmakeflags}" "'-DCMAKE_INSTALL_PREFIX=${INSTALL_PREFIX}'"`"
       fi
 
-      eval_exekutor "${CMAKE_WRAPPER}" "${WRAPPER_OPTIONS}" "${CMAKE}" "-G" "'${CMAKE_GENERATOR}'" \
-                     "${cmakeflags}" \
-                     "${CMAKE_FLAGS}" \
-                     "$@" \
-                     "${relative}" || exit 1
+
+      eval_exekutor "${CMAKE_WRAPPER}" "${WRAPPER_OPTIONS}" \
+                    "${CMAKE}" "-G" "'${CMAKE_GENERATOR}'" \
+                    "${cmakeflags}" \
+                    "${CMAKE_FLAGS}" \
+                    "$@" \
+                    "${BUILD_RELATIVE}" || exit 1
    ) || exit 1
 }
 
@@ -410,7 +413,7 @@ do_make()
          env | sort >&2
       fi
 
-      eval_exekutor "${MAKE_WRAPPER}" "${WRAPPER_OPTIONS}" "${MAKE}" "${MAKE_FLAGS}" "$@" || exit 1 ;
+      eval_exekutor "${MAKE_WRAPPER}" "${WRAPPER_OPTIONS}" "${MAKE}" "${MAKE_FLAGS}" "$@" || exit 1
    )
 }
 
@@ -453,6 +456,20 @@ setup_cc_environment()
       CXX_COMPILER="`verify_binary "${CXX_COMPILER}" "CXX" ""`" || exit 1
       log_verbose "Compiler ${C_RESET_BOLD}CXX${C_VERBOSE} set to ${C_MAGENTA}${C_BOLD}${CXX_COMPILER}${C_VERBOSE} found in \".CXX\""
    fi
+}
+
+
+setup_relative_environment()
+{
+   case "${BUILD_DIR}" in
+      */*)
+         BUILD_RELATIVE="`symlink_relpath "${PWD}" "${BUILD_DIR}"`"
+      ;;
+
+      *)
+         BUILD_RELATIVE=".."
+      ;;
+   esac
 }
 
 
@@ -654,40 +671,8 @@ cd_to_cmakelists_directory()
 }
 
 
-local_mode()
+_local_mode()
 {
-   log_debug "local_mode" "$*"
-
-   log_fluff ":.:local mode:.:"
-
-   [ -z "${TAG}" ] || fail "-b option is not compatible with local mode."
-   [ -z "${SCM}" ] || fail "-s option is not compatible with local mode."
-
-   if [ "${EMBEDDED_ONLY}" = "YES" ]
-   then
-      OPTION_BUILD_DEPENDENCIES="${OPTION_BUILD_DEPENDENCIES:-NO}"
-      OPTION_INSTALL_DEPENDENCIES="NO"
-
-      prefix_cmake_flags
-   fi
-
-   setup_cc_environment
-   setup_make_environment
-
-   if [ -d .bootstrap ]
-   then
-      if [ "${OPTION_BUILD_DEPENDENCIES}" = "NO" ]
-      then
-         do_fetch_dependencies "--embedded-only" || fail "failed to fetch dependencies"
-         log_fluff "Did not build dependencies as requested"
-      else
-         do_fetch_dependencies || fail "Failed to fetch dependencies"
-         do_build_dependencies || fail "Failed to build dependencies"
-      fi
-   else
-      log_fluff "No .bootstrap found, so not bootstrapping"
-   fi
-
    if [ -z "${DONT_BUILD}" ]
    then
       [ ! -f CMakeLists.txt ] && fail "Can only build cmake based projects, in local mode."
@@ -713,17 +698,87 @@ local_mode()
 }
 
 
+local_mode()
+{
+   log_debug "local_mode" "$*"
+
+   log_fluff ":.:local mode:.:"
+
+   [ -z "${TAG}" ] || fail "-b option is not compatible with local mode."
+   [ -z "${SCM}" ] || fail "-s option is not compatible with local mode."
+
+   if [ "${EMBEDDED_ONLY}" = "YES" ]
+   then
+      OPTION_BUILD_DEPENDENCIES="${OPTION_BUILD_DEPENDENCIES:-NO}"
+      OPTION_INSTALL_DEPENDENCIES="NO"
+
+      prefix_cmake_flags
+   fi
+
+   setup_cc_environment
+   setup_make_environment
+   setup_relative_environment
+
+   if [ -d .bootstrap ]
+   then
+      if [ "${OPTION_BUILD_DEPENDENCIES}" = "NO" ]
+      then
+         do_fetch_dependencies "--embedded-only" || fail "failed to fetch dependencies"
+         log_fluff "Did not build dependencies as requested"
+      else
+         do_fetch_dependencies || fail "Failed to fetch dependencies"
+         do_build_dependencies || fail "Failed to build dependencies"
+      fi
+   else
+      log_fluff "No .bootstrap found, so not bootstrapping"
+   fi
+
+   local oldts
+   local incfile
+
+   incfile="src/dependencies.inc"
+   if [ -f "${incfile}" ]
+   then
+      oldts="`modification_timestamp "${incfile}"`"
+   fi
+
+   _local_mode "$@"
+
+   local newts
+
+   # check if a src/dependencies.inc exists
+   if [ -f "${incfile}" ]
+   then
+      # is there was on before, check if it's modified
+      if [ ! -z "${oldts}" ]
+      then
+         newts="`modification_timestamp "${incfile}"`"
+         if [ "${newts}" -eq "${oldts}" ]
+         then
+            exit 0
+         fi
+      fi
+
+      log_info "Rebuilding because ${C_RESET}${C_BOLD}src/dependencies.inc${C_INFO} has changed"
+
+      _local_mode "$@"
+   fi
+}
+
+
 xcode_mode()
 {
    log_debug "xcode_mode" "$*"
 
    log_fluff ":.:xcode mode:.:"
 
+   BUILD_DIR="${XCODEBUILD_DIR}"
+
    setup_cc_environment
    setup_make_environment
+   setup_relative_environment
 
    (
-      BUILD_DIR="${XCODEBUILD_DIR}"
       CMAKE_GENERATOR="Xcode"
       do_cmake "$@" || exit 1
       log_info "Generated xcodeproj in `pwd -P`"
@@ -794,6 +849,7 @@ url_mode()
 
    setup_cc_environment
    setup_make_environment
+   setup_relative_environment
 
    local random
    local bootstrapoptions

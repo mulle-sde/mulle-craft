@@ -1,3 +1,8 @@
+## 3.8.1
+
+* check if src/dependencies.inc has been changed by the build, and if yes
+rebuild once more
+
 ## 3.8.0
 
 * when installing or homebrewing, **mulle-install** always trys to mirror git repos
