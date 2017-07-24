@@ -30,11 +30,10 @@
 #   ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
 #   POSSIBILITY OF SUCH DAMAGE.
 
-MULLE_EXECUTABLE_VERSION="3.8.1" # mulle-build version
+MULLE_EXECUTABLE_VERSION="3.9.0" # mulle-build version
 
-# 3.6 is ok
 MULLE_BOOTSTRAP_MIN_MAJOR="3"
-MULLE_BOOTSTRAP_MIN_MINOR="6"
+MULLE_BOOTSTRAP_MIN_MINOR="9"
 
 
 usage()
@@ -136,7 +135,7 @@ do_fetch_dependencies()
 
    #
    # When installing and for homebrew, should always provide
-   # an at least temporary mirror
+   # at least a temporary mirror
    #
    if [ "${OPTION_AUTO_MIRROR}" = "YES" ]
    then
@@ -249,7 +248,17 @@ need_cmake_cache_clean()
 
 need_cmake_clean()
 {
+   if [ "${OPTION_NO_CLEAN}" = "YES" ]
+   then
+      return 1
+   fi
+
    if [ "${MULLE_FLAG_MAGNUM_FORCE}" != "NONE" ]
+   then
+      return 0
+   fi
+
+   if [ "${OPTION_INSTALL}" = "YES" ]
    then
       return 0
    fi
@@ -707,11 +716,8 @@ local_mode()
    [ -z "${TAG}" ] || fail "-b option is not compatible with local mode."
    [ -z "${SCM}" ] || fail "-s option is not compatible with local mode."
 
-   if [ "${EMBEDDED_ONLY}" = "YES" ]
+   if [ ! -z "${INSTALL_PREFIX}" ]
    then
-      OPTION_BUILD_DEPENDENCIES="${OPTION_BUILD_DEPENDENCIES:-NO}"
-      OPTION_INSTALL_DEPENDENCIES="NO"
-
       prefix_cmake_flags
    fi
 
@@ -1180,7 +1186,8 @@ main()
 
    local OPTION_BUILD_DEPENDENCIES="YES"
    local OPTION_INSTALL="NO"
-   local OPTION_INSTALL_DEPENDENCIES="YES"
+   local OPTION_NO_CLEAN="NO"
+   local OPTION_INSTALL_DEPENDENCIES="NO"
    local OPTION_OPEN_XCODE="NO"
    local OPTION_OPTIMISTIC="YES"
    local OPTION_XCODEPROJ="NO"
@@ -1257,7 +1264,8 @@ main()
          ;;
 
          -e|--embedded-only)
-            EMBEDDED_ONLY="YES"
+            OPTION_BUILD_DEPENDENCIES="NO"
+            OPTION_INSTALL_DEPENDENCIES="NO"
          ;;
 
          -f|--force)
@@ -1285,7 +1293,7 @@ main()
             usage "${command}"
          ;;
 
-         -l|--link-xcodeproj)
+         --link-xcodeproj)
             OPTION_LINK_XCODEPROJ="YES"
          ;;
 
@@ -1296,34 +1304,48 @@ main()
             MAKE="$1"
          ;;
 
-         -nb|--no-build)
+         --no-build)
             DONT_BUILD="YES"
             OPTION_BUILD_DEPENDENCIES="NO"
-            OPTION_INSTALL_DEPENDENCIES="NO"
          ;;
 
-         -nbd|--no-build-dependencies)
+         --build-dependencies)
+            OPTION_BUILD_DEPENDENCIES="YES"
+         ;;
+
+         --no-build-dependencies)
             OPTION_BUILD_DEPENDENCIES="NO"
          ;;
 
-         -bo|--bootstrap)
+         --bootstrap)
             OPTION_SKIP_MULLE_BOOTSTRAP="NO"
          ;;
 
-         -nbo|--no-bootstrap)
+         --no-bootstrap)
             OPTION_SKIP_MULLE_BOOTSTRAP="YES"
          ;;
 
-         -ni|--no-install)
+         --no-clean)
+            OPTION_NO_CLEAN="YES"
+         ;;
+
+         --install)
+            OPTION_INSTALL="YES"
+         ;;
+
+         --no-install)
             OPTION_INSTALL="NO"
+         ;;
+
+         --install-dependencies)
+            OPTION_INSTALL_DEPENDENCIES="YES"
+         ;;
+
+         --no-install-dependencies)
             OPTION_INSTALL_DEPENDENCIES="NO"
          ;;
 
-         -nid|--no-install-dependencies)
-            OPTION_INSTALL_DEPENDENCIES="NO"
-         ;;
-
-         -nr|--no-remove)
+         --no-remove)
             DONT_REMOVE="YES"
          ;;
 

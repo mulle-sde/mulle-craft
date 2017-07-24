@@ -1,3 +1,9 @@
+## 3.9.0
+
+* cleaned up a lot of options, some old favorites may be gone
+* improved install
+
+
 ## 3.8.1
 
 * check if src/dependencies.inc has been changed by the build, and if yes

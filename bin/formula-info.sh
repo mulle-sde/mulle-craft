@@ -3,7 +3,7 @@
 # formula operations.
 #
 PROJECT="mulle-build"      # your project/repository name
-DESC="🔨 Build and install tool - using bash, cmake, mulle-bootstrap"
+DESC="🔨 Build and install tool on top of cmake and mulle-bootstrap"
 LANGUAGE="bash"             # c,cpp, objc, bash ...
 # NAME="${PROJECT}"        # formula filename without .rb extension
 
@@ -16,3 +16,5 @@ LANGUAGE="bash"             # c,cpp, objc, bash ...
 # So keep them single quoted.
 #
 DEPENDENCIES='${BOOTSTRAP_TAP}mulle-bootstrap'
+
+DEBIAN_DEPENDENCIES="mulle-bootstrap (>= 3.8.2), cmake (>= 3.0.0), make"
