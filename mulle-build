@@ -30,7 +30,7 @@
 #   ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
 #   POSSIBILITY OF SUCH DAMAGE.
 
-MULLE_EXECUTABLE_VERSION="3.9.0" # mulle-build version
+MULLE_EXECUTABLE_VERSION="3.9.1" # mulle-build version
 
 MULLE_BOOTSTRAP_MIN_MAJOR="3"
 MULLE_BOOTSTRAP_MIN_MINOR="9"
@@ -707,6 +707,34 @@ _local_mode()
 }
 
 
+dependencies_inc_timestamps()
+{
+   local oldts
+   local incfile
+   local rebuild="NO"
+
+   if [ -f ".dependencies.inc" ]
+   then
+      incfiles="`cat .dependencies.inc`"
+   else
+      incfiles="src/dependencies.inc"
+   fi
+
+   IFS="
+"
+   for incfile in ${incfiles}
+   do
+      IFS="${DEFAULT_IFS}"
+
+      if [ -f "${incfile}" ]
+      then
+         echo "${incfile}:`modification_timestamp "${incfile}"`"
+      fi
+   done
+   IFS="${DEFAULT_IFS}"
+}
+
+
 local_mode()
 {
    log_debug "local_mode" "$*"
@@ -739,33 +767,23 @@ local_mode()
       log_fluff "No .bootstrap found, so not bootstrapping"
    fi
 
-   local oldts
    local incfile
+   local previous_timestamps
+   local timestamps
 
-   incfile="src/dependencies.inc"
-   if [ -f "${incfile}" ]
-   then
-      oldts="`modification_timestamp "${incfile}"`"
-   fi
+   previous_timestamps="`dependencies_inc_timestamps`"
 
    _local_mode "$@"
 
-   local newts
+   timestamps="`dependencies_inc_timestamps`"
 
-   # check if a src/dependencies.inc exists
-   if [ -f "${incfile}" ]
+   if [ "${timestamps}" != "${previous_timestamps}" ]
    then
-      # is there was on before, check if it's modified
-      if [ ! -z "${oldts}" ]
-      then
-         newts="`modification_timestamp "${incfile}"`"
-         if [ "${newts}" -eq "${oldts}" ]
-         then
-            exit 0
-         fi
-      fi
-
-      log_info "Rebuilding because ${C_RESET}${C_BOLD}src/dependencies.inc${C_INFO} has changed"
+      incfile="`diff --line-format='%L' <(echo "${timestamps}") \
+                                        <(echo "${previous_timestamps}") | \
+                  head -1 | \
+                  cut -d ':' -f 1`"
+      log_info "Rebuilding because ${C_RESET}${C_BOLD}${incfile}${C_INFO} has changed"
 
       _local_mode "$@"
    fi

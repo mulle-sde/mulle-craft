@@ -1,3 +1,7 @@
+### 3.9.1
+
+* specify different or multiple rebuild files to watch with .dependencies.inc
+
 ## 3.9.0
 
 * cleaned up a lot of options, some old favorites may be gone
