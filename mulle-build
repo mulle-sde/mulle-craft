@@ -30,7 +30,7 @@
 #   ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
 #   POSSIBILITY OF SUCH DAMAGE.
 
-MULLE_EXECUTABLE_VERSION="3.9.1" # mulle-build version
+MULLE_EXECUTABLE_VERSION="3.9.2" # mulle-build version
 
 MULLE_BOOTSTRAP_MIN_MAJOR="3"
 MULLE_BOOTSTRAP_MIN_MINOR="9"
@@ -690,7 +690,7 @@ _local_mode()
 
       if [ "${OPTION_INSTALL}" = "YES" ]
       then
-         if [ "${OPTION_INSTALL_DEPENDENCIES}" = "YES" -a -d .bootstrap ]
+         if [ "${OPTION_LOCAL_INSTALL_DEPENDENCIES}" = "YES" -a -d .bootstrap ]
          then
             do_install_dependencies || fail "failed to install dependencies"
          else
@@ -906,7 +906,7 @@ url_mode()
       redirect_exekutor .bootstrap/repositories echo "${URL};;${TAG};${SCM}"
       exekutor "${MULLE_BOOTSTRAP_EXE}" ${BOOTSTRAP_FLAGS} -a bootstrap ${BOOTSTRAP_OPTIONS} ${bootstrapoptions}  || exit 1
 
-      if [ "${OPTION_INSTALL_DEPENDENCIES}" = "YES" ]
+      if [ "${OPTION_URL_INSTALL_DEPENDENCIES}" = "YES" ]
       then
          if [ -z "${INSTALL_PREFIX}" ]
          then
@@ -1205,7 +1205,8 @@ main()
    local OPTION_BUILD_DEPENDENCIES="YES"
    local OPTION_INSTALL="NO"
    local OPTION_NO_CLEAN="NO"
-   local OPTION_INSTALL_DEPENDENCIES="NO"
+   local OPTION_URL_INSTALL_DEPENDENCIES="YES"
+   local OPTION_LOCAL_INSTALL_DEPENDENCIES="NO"
    local OPTION_OPEN_XCODE="NO"
    local OPTION_OPTIMISTIC="YES"
    local OPTION_XCODEPROJ="NO"
@@ -1283,7 +1284,8 @@ main()
 
          -e|--embedded-only)
             OPTION_BUILD_DEPENDENCIES="NO"
-            OPTION_INSTALL_DEPENDENCIES="NO"
+            OPTION_LOCAL_INSTALL_DEPENDENCIES="NO"
+            OPTION_URL_INSTALL_DEPENDENCIES="NO"
          ;;
 
          -f|--force)
@@ -1302,7 +1304,7 @@ main()
 
             ## embedded only
             OPTION_BUILD_DEPENDENCIES="NO"
-            OPTION_INSTALL_DEPENDENCIES="NO"
+            OPTION_LOCAL_INSTALL_DEPENDENCIES="NO"
             OPTION_SKIP_MULLE_BOOTSTRAP="NO"
             OPTION_AUTO_MIRROR="YES"
          ;;
@@ -1356,11 +1358,13 @@ main()
          ;;
 
          --install-dependencies)
-            OPTION_INSTALL_DEPENDENCIES="YES"
+            OPTION_LOCAL_INSTALL_DEPENDENCIES="YES"
+            OPTION_URL_INSTALL_DEPENDENCIES="YES"
          ;;
 
          --no-install-dependencies)
-            OPTION_INSTALL_DEPENDENCIES="NO"
+            OPTION_LOCAL_INSTALL_DEPENDENCIES="NO"
+            OPTION_URL_INSTALL_DEPENDENCIES="NO"
          ;;
 
          --no-remove)

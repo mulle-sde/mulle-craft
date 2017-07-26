@@ -1,3 +1,7 @@
+### 3.9.2
+
+* fix URL install and travis
+
 ### 3.9.1
 
 * specify different or multiple rebuild files to watch with .dependencies.inc

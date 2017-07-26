@@ -85,8 +85,18 @@ Check that you have the proper environment for VisualStudio compilation with
 Install the [homebrew](//brew.sh/) package manager, then
 
 ```
-brew tap mulle-kybernetik/software
-brew install mulle-build
+brew install mulle-kybernetik/software/mulle-build
+```
+
+### Linux: Install mulle-build using apt-get
+
+Run with sudo:
+
+```
+curl -sS "https://www.mulle-kybernetik.com/dists/admin-pub.asc" | apt-key add -
+echo "deb [arch=all] http://www.mulle-kybernetik.com `lsb_release -c -s` main" \
+> "/etc/apt/sources.list.d/mulle-kybernetik.com-main.list"
+apt-get -y --allow-unauthenticated install mulle-build
 ```
 
 ### Linux: Install mulle-build using linuxbrew
@@ -94,8 +104,7 @@ brew install mulle-build
 Install the [linuxbrew](//linuxbrew.sh/) package manager, then
 
 ```
-brew tap mulle-kybernetik/software
-brew install mulle-build
+brew install mulle-kybernetik/software/mulle-build
 ```
 
 ### All Platforms: Install mulle-build using git
