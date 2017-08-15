@@ -1,3 +1,8 @@
+## 3.11.0
+
+* improve working with multiple Xcode projects
+
+
 ### 3.9.2
 
 * fix URL install and travis

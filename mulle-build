@@ -30,10 +30,10 @@
 #   ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
 #   POSSIBILITY OF SUCH DAMAGE.
 
-MULLE_EXECUTABLE_VERSION="3.9.2" # mulle-build version
+MULLE_EXECUTABLE_VERSION="3.11.0" # mulle-build version
 
 MULLE_BOOTSTRAP_MIN_MAJOR="3"
-MULLE_BOOTSTRAP_MIN_MINOR="9"
+MULLE_BOOTSTRAP_MIN_MINOR="11"
 
 
 usage()
@@ -120,6 +120,7 @@ _do_fetch_dependencies()
       fi
    fi
 }
+
 
 do_fetch_dependencies()
 {
@@ -809,7 +810,7 @@ xcode_mode()
 
       if [ "${OPTION_LINK_XCODEPROJ}" = "YES" ]
       then
-         exekutor ln -sf "${XCODEBUILD_DIR}"/*.xcodeproj
+         exekutor ln -sf "${XCODEBUILD_DIR}"/*.xcodeproj || exit 1
       fi
 
       #
@@ -824,15 +825,18 @@ xcode_mode()
 
          case "${cc}" in
             *mulle-clang*)
-                mulle-xcode-settings set GCC_VERSION de.codeon.compilers.mulle-clang *.xcodeproj
+               for project in *.xcodeproj
+               do
+                   exekutor mulle-xcode-settings set GCC_VERSION de.codeon.compilers.mulle-clang "${project}" || exit 1
+               done
             ;;
          esac
 
          if [ "${OPTION_OPEN_XCODE}" = "YES" ]
          then
-            open *.xcodeproj
+            exekutor open *.xcodeproj
          else
-            xcodebuild
+            exekutor xcodebuild
          fi
       )
    ) || exit 1
@@ -1246,7 +1250,12 @@ main()
       if bootstrap_technical_flags "$1"
       then
          BOOTSTRAP_FLAGS="`concat "${BOOTSTRAP_FLAGS}" "$1"`"
-         TEST_OPTIONS="$1"
+
+         case "$1" in
+            -v*|-V*|--debug)
+               BUILD_TEST_OPTIONS="`concat "${BUILD_TEST_OPTIONS}" $1`"
+               TEST_OPTIONS="`concat "${TEST_OPTIONS}" $1`"
+         esac
 
          shift
          continue
