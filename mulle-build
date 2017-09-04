@@ -269,6 +269,16 @@ need_cmake_clean()
       return 0
    fi
 
+   if [ ".CC.${UNAME}" -nt "${BUILD_DIR}/CMakeFiles" ]
+   then
+      return 0
+   fi
+
+   if [ ".CXX.${UNAME}" -nt "${BUILD_DIR}/CMakeFiles" ]
+   then
+      return 0
+   fi
+
    if [ .CC -nt "${BUILD_DIR}/CMakeFiles" ]
    then
       return 0
@@ -313,10 +323,11 @@ modification_timestamp()
    case "${UNAME}" in
       linux|mingw)
          stat --printf "%Y\n" "$1"
-         ;;
+      ;;
+
       * )
          stat -f "%m" "$1"
-         ;;
+      ;;
    esac
 }
 
@@ -347,6 +358,11 @@ _do_cmake()
       cmakeflags="`concat "${cmakeflags}" "'-DCMAKE_CXX_COMPILER=${CXX_COMPILER}'"`"
    fi
 
+   if [ ! -z "${LD}" ]
+   then
+      cmakeflags="`concat "${cmakeflags}" "'-DCMAKE_LINKER=${LD}'"`"
+   fi
+
    # other="`mulle-bootstrap paths -1 cmakeflags`"
    # CMAKE_FLAGS="`concat "${CMAKE_FLAGS}" "${other}"`"
 
@@ -369,7 +385,7 @@ _do_cmake()
 
 
       eval_exekutor "${CMAKE_WRAPPER}" "${WRAPPER_OPTIONS}" \
-                    "${CMAKE}" "-G" "'${CMAKE_GENERATOR}'" \
+                    "'${CMAKE}'" "-G" "'${CMAKE_GENERATOR}'" \
                     "${cmakeflags}" \
                     "${CMAKE_FLAGS}" \
                     "$@" \
@@ -423,7 +439,7 @@ do_make()
          env | sort >&2
       fi
 
-      eval_exekutor "${MAKE_WRAPPER}" "${WRAPPER_OPTIONS}" "${MAKE}" "${MAKE_FLAGS}" "$@" || exit 1
+      eval_exekutor "${MAKE_WRAPPER}" "${WRAPPER_OPTIONS}" "'${MAKE}'" "${MAKE_FLAGS}" "$@" || exit 1
    )
 }
 
@@ -450,22 +466,35 @@ setup_cc_environment()
    #
    # Figure out C/CXX compiler (only for current) project
    #
-
-   C_COMPILER="`cat .CC 2> /dev/null`"
+   C_COMPILER="`cat ".CC.${UNAME}" 2> /dev/null`"
+   if [ -z "${C_COMPILER}" ]
+   then
+      C_COMPILER="`cat ".CC" 2> /dev/null`"
+   fi
    if [ ! -z "${C_COMPILER}" ]
    then
       C_COMPILER="`verify_binary "${C_COMPILER}" "CC" ""`" || exit 1
       log_verbose "Compiler ${C_RESET_BOLD}CC${C_VERBOSE} set to ${C_MAGENTA}${C_BOLD}${C_COMPILER}${C_VERBOSE} found in \".CC\""
    fi
 
-   local CXX_COMPILER
-
-   CXX_COMPILER="`cat .CXX 2> /dev/null`"
+   CXX_COMPILER="`cat ".CXX.${UNAME}" 2> /dev/null`"
+   if [ -z "${CXX_COMPILER}" ]
+   then
+      CXX_COMPILER="`cat ".CXX" 2> /dev/null`"
+   fi
    if [ ! -z "${CXX_COMPILER}" ]
    then
       CXX_COMPILER="`verify_binary "${CXX_COMPILER}" "CXX" ""`" || exit 1
       log_verbose "Compiler ${C_RESET_BOLD}CXX${C_VERBOSE} set to ${C_MAGENTA}${C_BOLD}${CXX_COMPILER}${C_VERBOSE} found in \".CXX\""
    fi
+
+   case "${UNAME}" in
+      mingw*)
+         . mulle-bootstrap-mingw.sh
+
+         setup_mingw_buildenvironment
+      ;;
+   esac
 }
 
 
@@ -1178,11 +1207,27 @@ main()
 {
    local command
 
+   set -x
    #
    # allow variations, mulle-build, mulle-install mulle-clean
    # mulle-tag etc
    #
    command="`echo "${MULLE_EXECUTABLE}" | cut -d- -f2`"
+
+   #
+   # if your system don't have symbolic links this can be useful
+   # if you don't want to duplicate this file 10 times or so
+   # pass command as first parameter
+   #
+   if [ "${command}" = "build" ]
+   then
+      case "$1" in
+         -analyze|-build|-clean|-git|-install|-status|-test|-tag|-xcode)
+            command="${1:1}"
+            shift;
+         ;;
+      esac
+   fi
 
    # technical flags
    local MULLE_FLAG_EXEKUTOR_DRY_RUN="NO"
