@@ -275,6 +275,16 @@ need_cmake_clean()
       return 0
    fi
 
+   if [ ".CC.${UNAME}" -nt "${BUILD_DIR}/CMakeFiles" ]
+   then
+      return 0
+   fi
+
+   if [ ".CXX.${UNAME}" -nt "${BUILD_DIR}/CMakeFiles" ]
+   then
+      return 0
+   fi
+
    if [ .CC -nt "${BUILD_DIR}/CMakeFiles" ]
    then
       return 0
@@ -319,10 +329,11 @@ modification_timestamp()
    case "${UNAME}" in
       linux|mingw)
          stat --printf "%Y\n" "$1"
-         ;;
+      ;;
+
       * )
          stat -f "%m" "$1"
-         ;;
+      ;;
    esac
 }
 
@@ -337,20 +348,25 @@ _do_cmake()
 
    if [ -z "${DEBUG}" ]
    then
-      cmakeflags="'-DCMAKE_BUILD_TYPE=Release'"
+      cmakeflags="-DCMAKE_BUILD_TYPE='Release'"
    else
-      cmakeflags="'-DCMAKE_BUILD_TYPE=Debug'"
+      cmakeflags="-DCMAKE_BUILD_TYPE='Debug'"
    fi
 
    # local other
    if [ ! -z "${C_COMPILER}" ]
    then
-      cmakeflags="`concat "${cmakeflags}" "'-DCMAKE_C_COMPILER=${C_COMPILER}'"`"
+      cmakeflags="`concat "${cmakeflags}" "-DCMAKE_C_COMPILER='${C_COMPILER}'"`"
    fi
 
    if [ ! -z "${CXX_COMPILER}" ]
    then
-      cmakeflags="`concat "${cmakeflags}" "'-DCMAKE_CXX_COMPILER=${CXX_COMPILER}'"`"
+      cmakeflags="`concat "${cmakeflags}" "-DCMAKE_CXX_COMPILER='${CXX_COMPILER}'"`"
+   fi
+
+   if [ ! -z "${LD}" ]
+   then
+      cmakeflags="`concat "${cmakeflags}" "-DCMAKE_LINKER='${LD}'"`"
    fi
 
    # other="`mulle-bootstrap paths -1 cmakeflags`"
@@ -370,12 +386,12 @@ _do_cmake()
       # lameness, but want to allow spaces in prefix
       if [ ! -z "${INSTALL_PREFIX}" ]
       then
-         cmakeflags="`concat "${cmakeflags}" "'-DCMAKE_INSTALL_PREFIX=${INSTALL_PREFIX}'"`"
+         cmakeflags="`concat "${cmakeflags}" "-DCMAKE_INSTALL_PREFIX='${INSTALL_PREFIX}'"`"
       fi
 
 
       eval_exekutor "${CMAKE_WRAPPER}" "${WRAPPER_OPTIONS}" \
-                    "${CMAKE}" "-G" "'${CMAKE_GENERATOR}'" \
+                    "'${CMAKE}'" "-G" "'${CMAKE_GENERATOR}'" \
                     "${cmakeflags}" \
                     "${CMAKE_FLAGS}" \
                     "$@" \
@@ -429,7 +445,7 @@ do_make()
          env | sort >&2
       fi
 
-      eval_exekutor "${MAKE_WRAPPER}" "${WRAPPER_OPTIONS}" "${MAKE}" "${MAKE_FLAGS}" "$@" || exit 1
+      eval_exekutor "${MAKE_WRAPPER}" "${WRAPPER_OPTIONS}" "'${MAKE}'" "${MAKE_FLAGS}" "$@" || exit 1
    )
 }
 
@@ -456,22 +472,35 @@ setup_cc_environment()
    #
    # Figure out C/CXX compiler (only for current) project
    #
-
-   C_COMPILER="`cat .CC 2> /dev/null`"
+   C_COMPILER="`cat ".CC.${UNAME}" 2> /dev/null`"
+   if [ -z "${C_COMPILER}" ]
+   then
+      C_COMPILER="`cat ".CC" 2> /dev/null`"
+   fi
    if [ ! -z "${C_COMPILER}" ]
    then
       C_COMPILER="`verify_binary "${C_COMPILER}" "CC" ""`" || exit 1
       log_verbose "Compiler ${C_RESET_BOLD}CC${C_VERBOSE} set to ${C_MAGENTA}${C_BOLD}${C_COMPILER}${C_VERBOSE} found in \".CC\""
    fi
 
-   local CXX_COMPILER
-
-   CXX_COMPILER="`cat .CXX 2> /dev/null`"
+   CXX_COMPILER="`cat ".CXX.${UNAME}" 2> /dev/null`"
+   if [ -z "${CXX_COMPILER}" ]
+   then
+      CXX_COMPILER="`cat ".CXX" 2> /dev/null`"
+   fi
    if [ ! -z "${CXX_COMPILER}" ]
    then
       CXX_COMPILER="`verify_binary "${CXX_COMPILER}" "CXX" ""`" || exit 1
       log_verbose "Compiler ${C_RESET_BOLD}CXX${C_VERBOSE} set to ${C_MAGENTA}${C_BOLD}${CXX_COMPILER}${C_VERBOSE} found in \".CXX\""
    fi
+
+   case "${UNAME}" in
+      mingw*)
+         . mulle-bootstrap-mingw.sh
+
+         setup_mingw_buildenvironment
+      ;;
+   esac
 }
 
 
@@ -602,16 +631,34 @@ homebrew_cmake_flags()
 
 prefix_cmake_flags()
 {
+   log_debug "prefix_cmake_flags" "$*"
+
    local cflags
    local ldflags
 
-   cflags="-isystem ${INSTALL_PREFIX:-/usr/local}/include"
-   ldflags="-L${INSTALL_PREFIX:-/usr/local}/lib"
+   #
+   # Would be nicer to pass this into cmake directly without -L -isystem
+   # but don't know how to
+   #
+   case "${C_COMPILER%.*}" in
+      cl|*-cl)
+         # doesn't work, because cmake mangles the leading '/'
+         # just have to live w/o it
+         # cflags="/DNDEBUG=1 /I${INSTALL_PREFIX:-/usr/local}/include"
+         # ldflags="/LIBPATH:${INSTALL_PREFIX:-/usr/local}/lib"
+         return
+      ;;
 
-   CMAKE_FLAGS="`concat "${CMAKE_FLAGS}" "'-DCMAKE_FIND_FRAMEWORK=LAST'"`"
-   CMAKE_FLAGS="`concat "${CMAKE_FLAGS}" "'-DCMAKE_C_FLAGS_RELEASE=-DNDEBUG ${cflags}'"`"
-   CMAKE_FLAGS="`concat "${CMAKE_FLAGS}" "'-DCMAKE_SHARED_LINKER_FLAGS=${ldflags}'"`"
-   CMAKE_FLAGS="`concat "${CMAKE_FLAGS}" "'-DCMAKE_EXE_LINKER_FLAGS=${ldflags}'"`"
+      *)
+         cflags="-DNDEBUG -isystem ${INSTALL_PREFIX:-/usr/local}/include"
+         ldflags="-L${INSTALL_PREFIX:-/usr/local}/lib"
+      ;;
+   esac
+
+   CMAKE_FLAGS="`concat "${CMAKE_FLAGS}" "-DCMAKE_FIND_FRAMEWORK='LAST'"`"
+   CMAKE_FLAGS="`concat "${CMAKE_FLAGS}" "-DCMAKE_C_FLAGS_RELEASE='${cflags}'"`"
+   CMAKE_FLAGS="`concat "${CMAKE_FLAGS}" "-DCMAKE_SHARED_LINKER_FLAGS='${ldflags}'"`"
+   CMAKE_FLAGS="`concat "${CMAKE_FLAGS}" "-DCMAKE_EXE_LINKER_FLAGS='${ldflags}'"`"
 }
 
 
@@ -751,14 +798,14 @@ local_mode()
    [ -z "${TAG}" ] || fail "-b option is not compatible with local mode."
    [ -z "${SCM}" ] || fail "-s option is not compatible with local mode."
 
+   setup_cc_environment
+   setup_make_environment
+   setup_relative_environment
+
    if [ ! -z "${INSTALL_PREFIX}" ]
    then
       prefix_cmake_flags
    fi
-
-   setup_cc_environment
-   setup_make_environment
-   setup_relative_environment
 
    if [ -d .bootstrap ]
    then
@@ -1186,13 +1233,28 @@ build_init()
 
 main()
 {
-   local command
+   local cmd
 
    #
    # allow variations, mulle-build, mulle-install mulle-clean
    # mulle-tag etc
    #
-   command="`echo "${MULLE_EXECUTABLE}" | cut -d- -f2`"
+   cmd="`echo "${MULLE_EXECUTABLE}" | cut -d- -f2`"
+
+   #
+   # if your system don't have symbolic links this can be useful
+   # if you don't want to duplicate this file 10 times or so
+   # pass command as first parameter
+   #
+   if [ "${cmd}" = "build" ]
+   then
+      case "$1" in
+         -analyze|-build|-clean|-git|-install|-status|-test|-tag|-xcode)
+            cmd="${1:1}"
+            shift;
+         ;;
+      esac
+   fi
 
    case "$1" in
       -analyze|-build|-install|-clean|-git|-status|-tag|-test|-xcode)
@@ -1240,7 +1302,7 @@ main()
    #
    # per command different defaults
    #
-   case "${command}" in
+   case "${cmd}" in
       "install")
          log_fluff "Set different default values for install"
 
@@ -1338,7 +1400,7 @@ main()
          ;;
 
          -h|--help)
-            usage "${command}"
+            usage "${cmd}"
          ;;
 
          --link-xcodeproj)
@@ -1423,14 +1485,14 @@ main()
          ;;
 
          -s|--scm)
-            case "${command}" in
+            case "${cmd}" in
                status)
                   STATUS_OPTIONS="`concat "${STATUS_OPTIONS}" "$1"`"
                ;;
 
                *)
                   shift
-                  [ $# -eq 0 ] && usage "${command}"
+                  [ $# -eq 0 ] && usage "${cmd}"
 
                   SCM="$1"
                ;;
@@ -1473,7 +1535,7 @@ main()
                   BOOTSTRAP_FLAGS="`concat "${BOOTSTRAP_FLAGS}" "$1"`"
                   TEST_OPTIONS="`concat "${TEST_OPTIONS}" "$1"`"
                   STATUS_OPTIONS="`concat "${STATUS_OPTIONS}" "$1"`"
-                  [ $# -eq 0 ] && usage "${command}"
+                  [ $# -eq 0 ] && usage "${cmd}"
                   shift
 
                   BOOTSTRAP_FLAGS="`concat "${BOOTSTRAP_FLAGS}" "$1"`"
@@ -1506,7 +1568,7 @@ main()
 
    . mulle-bootstrap-command.sh || exit 1
 
-   case "${command}" in
+   case "${cmd}" in
       analyze)
          MAKE_WRAPPER="mulle-scan-build"
          CMAKE_WRAPPER="mulle-scan-build"
@@ -1544,7 +1606,7 @@ main()
       git)
          if "${MULLE_BOOTSTRAP_EXE}" project-path > /dev/null
          then
-            "${MULLE_BOOTSTRAP_EXE}" ${BOOTSTRAP_FLAGS} "${command}" ${BOOTSTRAP_OPTIONS} "$@" || exit 1
+            "${MULLE_BOOTSTRAP_EXE}" ${BOOTSTRAP_FLAGS} "${cmd}" ${BOOTSTRAP_OPTIONS} "$@" || exit 1
          fi
 
          log_info "### `basename ${PWD}`:"
@@ -1554,17 +1616,17 @@ main()
       status)
          if "${MULLE_BOOTSTRAP_EXE}" project-path > /dev/null
          then
-            "${MULLE_BOOTSTRAP_EXE}" ${BOOTSTRAP_FLAGS} "git" ${BOOTSTRAP_OPTIONS} "${command}" ${STATUS_OPTIONS} "$@" || exit 1
+            "${MULLE_BOOTSTRAP_EXE}" ${BOOTSTRAP_FLAGS} "git" ${BOOTSTRAP_OPTIONS} "${cmd}" ${STATUS_OPTIONS} "$@" || exit 1
          fi
 
          log_info "### `basename ${PWD}`:"
-         git "${command}" ${STATUS_OPTIONS} "$@" || exit 1
+         git "${cmd}" ${STATUS_OPTIONS} "$@" || exit 1
       ;;
 
       tag)
          if "${MULLE_BOOTSTRAP_EXE}" project-path > /dev/null
          then
-            "${MULLE_BOOTSTRAP_EXE}" ${BOOTSTRAP_FLAGS} "${command}" ${BOOTSTRAP_OPTIONS} "$@" || exit 1
+            "${MULLE_BOOTSTRAP_EXE}" ${BOOTSTRAP_FLAGS} "${cmd}" ${BOOTSTRAP_OPTIONS} "$@" || exit 1
          fi
 
          # tag it after succesfully tagging dependencies
@@ -1585,11 +1647,22 @@ main()
       ;;
 
       *)
-         usage "${command}"
+         usage "${cmd}"
       ;;
 
    esac
 }
+
+
+#
+# leading backslash ? looks like we're getting called from
+# mingw via a .BAT or so
+#
+case "$PATH" in
+   '\\'*)
+      PATH="`tr '\\' '/' <<< "${PATH}"`"
+   ;;
+esac
 
 
 MULLE_EXECUTABLE="`basename -- "$0"`"
