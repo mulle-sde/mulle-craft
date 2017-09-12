@@ -188,7 +188,7 @@ do_install_dependencies()
 
    if [ "${OPTION_SKIP_MULLE_BOOTSTRAP}" = "YES" ]
    then
-      log_fluff "Skipped \"mulle-boostrap systeminstall\" on request"
+      log_fluff "Skipped \"mulle-bootstrap systeminstall\" on request"
       return
    fi
 
