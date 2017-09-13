@@ -1,3 +1,7 @@
+## 3.12.0
+
+* improve mingw compatibility
+
 ## 3.11.0
 
 * improve working with multiple Xcode projects
