@@ -428,10 +428,6 @@ do_cmake()
 }
 
 
-#
-# if we are using brew the dependencies are also installed via
-# brew, otherwise install dependencies too
-#
 do_make()
 {
    log_debug "do_make" "$*"
