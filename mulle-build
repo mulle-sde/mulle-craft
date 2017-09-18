@@ -107,7 +107,9 @@ _do_fetch_dependencies()
    # 2, 3 means fetch needed
    if [ $rval -ge 2 ]
    then
-      exekutor "${MULLE_BOOTSTRAP_EXE}" ${BOOTSTRAP_FLAGS} fetch ${BOOTSTRAP_FETCH_OPTIONS} ${BOOTSTRAP_OPTIONS} "$@" || exit 1 # --embedded-only
+      exekutor "${MULLE_BOOTSTRAP_EXE}" ${BOOTSTRAP_FLAGS} fetch \
+                                        ${BOOTSTRAP_FETCH_OPTIONS} \
+                                        ${BOOTSTRAP_OPTIONS} "$@" || exit 1 # --embedded-only
       log_fluff "FINISHED: mulle-bootstrap fetch"
 
       #
@@ -116,7 +118,7 @@ _do_fetch_dependencies()
       if [ "${MULLE_EXECUTABLE}" = "mulle-build" ]
       then
          log_verbose "Don't warn about scripts next build"
-         exekutor "${MULLE_BOOTSTRAP_EXE}" config --on dont_warn_scripts
+         exekutor "${MULLE_BOOTSTRAP_EXE}" config --on dont_warn_scripts || exit 1
       fi
    fi
 }
@@ -124,7 +126,7 @@ _do_fetch_dependencies()
 
 do_fetch_dependencies()
 {
-   log_debug "do_fetch_dependencies" "$*"
+   log_debug "do_fetch_dependencies" "$@"
 
    local tmpdir
    local git_mirror
@@ -159,7 +161,7 @@ do_fetch_dependencies()
 
 do_build_dependencies()
 {
-   log_debug "do_build_dependencies" "$*"
+   log_debug "do_build_dependencies" "$@"
 
    local rval
 
@@ -169,7 +171,7 @@ do_build_dependencies()
       return
    fi
 
-   exekutor "${MULLE_BOOTSTRAP_EXE}" -s status
+   exekutor "${MULLE_BOOTSTRAP_EXE}" -s status || exit 1
    rval="$?"
 
    # 1 means build needed
@@ -184,7 +186,7 @@ do_build_dependencies()
 
 do_install_dependencies()
 {
-   log_debug "do_install_dependencies" "$*"
+   log_debug "do_install_dependencies" "$@"
 
    if [ "${OPTION_SKIP_MULLE_BOOTSTRAP}" = "YES" ]
    then
@@ -204,7 +206,7 @@ do_install_dependencies()
 
 cmake_cache_clean()
 {
-   log_debug "cmake_cache_clean" "$*"
+   log_debug "cmake_cache_clean" "$@"
 
    log_verbose "Deleting \"${BUILD_DIR}/CMakeCache.txt\""
    exekutor rm "${BUILD_DIR}/CMakeCache.txt" 2> /dev/null
@@ -213,7 +215,7 @@ cmake_cache_clean()
 
 cmake_clean()
 {
-   log_debug "cmake_clean" "$*"
+   log_debug "cmake_clean" "$@"
 
    if [ -d "${BUILD_DIR}" ]
    then
@@ -340,7 +342,7 @@ modification_timestamp()
 
 _do_cmake()
 {
-   log_debug "_do_cmake" "$*"
+   log_debug "_do_cmake" "$@"
 
    local cmakeflags
 
@@ -402,7 +404,7 @@ _do_cmake()
 
 do_cmake()
 {
-   log_debug "do_cmake" "$*"
+   log_debug "do_cmake" "$@"
 
    local skip_build
 
@@ -430,7 +432,7 @@ do_cmake()
 
 do_make()
 {
-   log_debug "do_make" "$*"
+   log_debug "do_make" "$@"
 
    (
       exekutor cd "${BUILD_DIR}" ;
@@ -451,7 +453,7 @@ do_make()
 #
 setup_make_environment()
 {
-   log_debug "setup_make_environment" "$*"
+   log_debug "setup_make_environment" "$@"
 
    MAKE="`platform_make "${C_COMPILER}"`"
    MAKE="`verify_binary "${MAKE}" "make" ""`" || exit 1
@@ -463,7 +465,7 @@ setup_make_environment()
 
 setup_cc_environment()
 {
-   log_debug "setup_cc_environment" "$*"
+   log_debug "setup_cc_environment" "$@"
 
    #
    # Figure out C/CXX compiler (only for current) project
@@ -627,7 +629,7 @@ homebrew_cmake_flags()
 
 prefix_cmake_flags()
 {
-   log_debug "prefix_cmake_flags" "$*"
+   log_debug "prefix_cmake_flags" "$@"
 
    local cflags
    local ldflags
@@ -660,7 +662,7 @@ prefix_cmake_flags()
 
 local_clean()
 {
-   log_debug "local_clean" "$*"
+   log_debug "local_clean" "$@"
 
    log_fluff ":.:clean:.:"
 
@@ -791,7 +793,7 @@ local_mode()
 
    log_fluff ":.:local mode:.:"
 
-   [ -z "${TAG}" ] || fail "-b option is not compatible with local mode."
+   [ -z "${BRANCH}" ] || fail "-b option is not compatible with local mode."
    [ -z "${SCM}" ] || fail "-s option is not compatible with local mode."
 
    setup_cc_environment
@@ -907,16 +909,16 @@ url_mode()
    [ -z "${DONT_BUILD}" ] || fail "-nb option is not compatible with URL install."
    [ -z "${MAKE}" ]       || fail "-m option is not compatible with URL install."
 
-   local url
+   local url="$1"
+   local directory="$2"
 
-   url="$URL"
    [ -z "${url}" ] && fail "URL is empty"
 
    #
    # if url is local directory, make relative absolute
    #
    case "${url}" in
-      /*|*:/*)
+      /*|*:*)
       ;;
 
       *)
@@ -931,7 +933,6 @@ url_mode()
    setup_make_environment
    setup_relative_environment
 
-   local random
    local bootstrapoptions
 
    bootstrapoptions=
@@ -952,35 +953,41 @@ url_mode()
       fi
    fi
 
-   local random
+   #
+   # hackish, need to fix this
+   #
+   if [ -z "${directory}" ]
+   then
+      directory=`exekutor mktemp -d -t "mulle-install.XXXX"`
+   else
+      mkdir "${directory}" || exit 1
+      DONT_REMOVE="YES"
+      OPTION_URL_INSTALL_DEPENDENCIES="NO"
+   fi
 
-   random=`exekutor mktemp -d -t "mulle-install.XXXX"`
-
+   set -x
    (
-      exekutor cd "${random}"|| exit 1 ;
-      exekutor "${MULLE_BOOTSTRAP_EXE}" ${BOOTSTRAP_FLAGS} init -d -n ;
-      redirect_exekutor .bootstrap/repositories echo "${URL};;${TAG};${SCM}"
-      exekutor "${MULLE_BOOTSTRAP_EXE}" ${BOOTSTRAP_FLAGS} -a bootstrap ${BOOTSTRAP_OPTIONS} ${bootstrapoptions}  || exit 1
-
+      exekutor cd "${directory}" || exit 1  &&
+      exekutor "${MULLE_BOOTSTRAP_EXE}" ${BOOTSTRAP_FLAGS} init -d -n &&
+      redirect_exekutor .bootstrap/repositories echo "${url};;${BRANCH};${SCM}" &&
+      exekutor "${MULLE_BOOTSTRAP_EXE}" ${BOOTSTRAP_FLAGS} -a bootstrap ${BOOTSTRAP_OPTIONS} ${bootstrapoptions} &&
       if [ "${OPTION_URL_INSTALL_DEPENDENCIES}" = "YES" ]
       then
          if [ -z "${INSTALL_PREFIX}" ]
          then
-            exekutor "${MULLE_BOOTSTRAP_EXE}" ${BOOTSTRAP_FLAGS} systeminstall || exit 1
+            exekutor "${MULLE_BOOTSTRAP_EXE}" ${BOOTSTRAP_FLAGS} systeminstall 
          else
-            exekutor "${MULLE_BOOTSTRAP_EXE}" ${BOOTSTRAP_FLAGS} systeminstall "${INSTALL_PREFIX}" || exit 1
+            exekutor "${MULLE_BOOTSTRAP_EXE}" ${BOOTSTRAP_FLAGS} systeminstall "${INSTALL_PREFIX}" 
          fi
-      else
-         log_fluff "Did not install as requested"
       fi
-   )
+   ) || exit 1
 
    if [ -z "${DONT_REMOVE}" ]
    then
-      exekutor chmod -R ugo+w "${random}"
-      exekutor rm -rf "${random}"
+      exekutor chmod -R ugo+w "${directory}"
+      exekutor rm -rf "${directory}"
    else
-      log_info "Build in \"${random}\""
+      log_info "Project is in \"${directory}\""
    fi
 }
 
@@ -1056,14 +1063,14 @@ run_install()
 {
    log_debug "run_install" "$*" "($PWD)"
 
-   URL="$1"
+   local url="$1"
 
    #
    # when installing it doesn't make sense to skip it,
    # which is the default
    #
 
-   case "${URL}" in
+   case "${url}" in
       */*|*:*)
          url_mode "$@"
       ;;
@@ -1087,10 +1094,35 @@ run_build()
 {
    log_debug "run_build" "$*" "($PWD)"
 
+   local url="$1"
+
+   local directory
+
    if [ "${OPTION_XCODEPROJ}" = "YES" ]
    then
       xcode_mode "$@"
    else
+	   case "${url}" in
+    	   *:*)
+            directory="`basename "${url}"`"
+            directory="${directory%%.*}"
+
+            local gitoptions
+
+            if [ ! -z "${BRANCH}" ]
+            then
+               gitoptions="-b ${BRANCH}"
+            fi
+
+            exekutor git clone ${gitoptions} "${url}" "${directory}" || exit 1
+            (
+               exekutor cd "${directory}" &&
+               exekutor mulle-build --bootstrap
+            )
+            return $?
+         ;;
+      esac
+
       cd_to_cmakelists_directory
       local_mode "$@"
    fi
@@ -1252,12 +1284,6 @@ main()
       esac
    fi
 
-   case "$1" in
-      -analyze|-build|-install|-clean|-git|-status|-tag|-test|-xcode)
-         command="${1:1}"
-         shift
-      ;;
-   esac
    #
    # technical flags
    local MULLE_FLAG_EXEKUTOR_DRY_RUN="NO"
@@ -1351,7 +1377,7 @@ main()
             [ $# -eq 1 ] && fail "missing argument to $1"
             shift
 
-            TAG="$1"
+            BRANCH="$1"
          ;;
 
          -D*|-W*)
