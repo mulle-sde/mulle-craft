@@ -30,7 +30,8 @@
 #   ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
 #   POSSIBILITY OF SUCH DAMAGE.
 
-MULLE_EXECUTABLE_VERSION="3.12.0" # mulle-build version
+# mulle-build version
+MULLE_EXECUTABLE_VERSION="3.12.1"
 
 MULLE_BOOTSTRAP_MIN_MAJOR="3"
 MULLE_BOOTSTRAP_MIN_MINOR="12"
@@ -126,7 +127,7 @@ _do_fetch_dependencies()
 
 do_fetch_dependencies()
 {
-   log_debug "do_fetch_dependencies" "$@"
+   log_debug "${MULLE_EXECUTABLE}:do_fetch_dependencies" "$@"
 
    local tmpdir
    local git_mirror
@@ -161,7 +162,7 @@ do_fetch_dependencies()
 
 do_build_dependencies()
 {
-   log_debug "do_build_dependencies" "$@"
+   log_debug "${MULLE_EXECUTABLE}:do_build_dependencies" "$@"
 
    local rval
 
@@ -171,7 +172,7 @@ do_build_dependencies()
       return
    fi
 
-   exekutor "${MULLE_BOOTSTRAP_EXE}" -s status || exit 1
+   exekutor "${MULLE_BOOTSTRAP_EXE}" -s status
    rval="$?"
 
    # 1 means build needed
@@ -186,7 +187,7 @@ do_build_dependencies()
 
 do_install_dependencies()
 {
-   log_debug "do_install_dependencies" "$@"
+   log_debug "${MULLE_EXECUTABLE}:do_install_dependencies" "$@"
 
    if [ "${OPTION_SKIP_MULLE_BOOTSTRAP}" = "YES" ]
    then
@@ -206,7 +207,7 @@ do_install_dependencies()
 
 cmake_cache_clean()
 {
-   log_debug "cmake_cache_clean" "$@"
+   log_debug "${MULLE_EXECUTABLE}:cmake_cache_clean" "$@"
 
    log_verbose "Deleting \"${BUILD_DIR}/CMakeCache.txt\""
    exekutor rm "${BUILD_DIR}/CMakeCache.txt" 2> /dev/null
@@ -215,14 +216,13 @@ cmake_cache_clean()
 
 cmake_clean()
 {
-   log_debug "cmake_clean" "$@"
+   log_debug "${MULLE_EXECUTABLE}:cmake_clean" "$@"
 
    if [ -d "${BUILD_DIR}" ]
    then
       (
-         log_verbose "make clean in \"${BUILD_DIR}\""
-         exekutor cd "${BUILD_DIR}"
-         exekutor make clean 2> /dev/null
+         log_verbose "Removing \"${BUILD_DIR}\""
+         rmdir_safer "${BUILD_DIR}"
       )
    fi
 }
@@ -342,7 +342,7 @@ modification_timestamp()
 
 _do_cmake()
 {
-   log_debug "_do_cmake" "$@"
+   log_debug "${MULLE_EXECUTABLE}:_do_cmake" "$@"
 
    local cmakeflags
 
@@ -404,7 +404,7 @@ _do_cmake()
 
 do_cmake()
 {
-   log_debug "do_cmake" "$@"
+   log_debug "${MULLE_EXECUTABLE}:do_cmake" "$@"
 
    local skip_build
 
@@ -432,7 +432,7 @@ do_cmake()
 
 do_make()
 {
-   log_debug "do_make" "$@"
+   log_debug "${MULLE_EXECUTABLE}:do_make" "$@"
 
    (
       exekutor cd "${BUILD_DIR}" ;
@@ -453,10 +453,33 @@ do_make()
 #
 setup_make_environment()
 {
-   log_debug "setup_make_environment" "$@"
+   log_debug "${MULLE_EXECUTABLE}:setup_make_environment" "$@"
 
-   MAKE="`platform_make "${C_COMPILER}"`"
+   local filename
+
+   filename=".MAKE.${UNAME}"
+   MAKE="`cat "${filename}" 2> /dev/null`"
+   if [ -z "${MAKE}" ]
+   then
+      filename=".MAKE"
+      MAKE="`cat "${filename}" 2> /dev/null`"
+   fi
+
+   if [ -z "${MAKE}" ]
+   then
+      MAKE="`platform_make "${C_COMPILER}"`"
+   else
+      log_verbose "${C_RESET_BOLD}MAKE${C_VERBOSE} set to \
+${C_MAGENTA}${C_BOLD}${MAKE}${C_VERBOSE} found in \".MAKE\""
+   fi
+
    MAKE="`verify_binary "${MAKE}" "make" ""`" || exit 1
+}
+
+
+setup_cmake_environment()
+{
+   log_debug "${MULLE_EXECUTABLE}:setup_cmake_environment" "$@"
 
    CMAKE="`verify_binary "cmake" "cmake" ""`" || exit 1
    CMAKE_GENERATOR="`platform_cmake_generator "${MAKE}"`"
@@ -465,7 +488,7 @@ setup_make_environment()
 
 setup_cc_environment()
 {
-   log_debug "setup_cc_environment" "$@"
+   log_debug "${MULLE_EXECUTABLE}:setup_cc_environment" "$@"
 
    #
    # Figure out C/CXX compiler (only for current) project
@@ -629,7 +652,7 @@ homebrew_cmake_flags()
 
 prefix_cmake_flags()
 {
-   log_debug "prefix_cmake_flags" "$@"
+   log_debug "${MULLE_EXECUTABLE}:prefix_cmake_flags" "$@"
 
    local cflags
    local ldflags
@@ -662,7 +685,7 @@ prefix_cmake_flags()
 
 local_clean()
 {
-   log_debug "local_clean" "$@"
+   log_debug "${MULLE_EXECUTABLE}:local_clean" "$@"
 
    log_fluff ":.:clean:.:"
 
@@ -789,7 +812,7 @@ dependencies_inc_timestamps()
 
 local_mode()
 {
-   log_debug "local_mode" "$*"
+   log_debug "${MULLE_EXECUTABLE}:local_mode" "$*"
 
    log_fluff ":.:local mode:.:"
 
@@ -798,6 +821,7 @@ local_mode()
 
    setup_cc_environment
    setup_make_environment
+   setup_cmake_environment
    setup_relative_environment
 
    if [ ! -z "${INSTALL_PREFIX}" ]
@@ -847,7 +871,7 @@ local_mode()
 #
 xcode_mode()
 {
-   log_debug "xcode_mode" "$*"
+   log_debug "${MULLE_EXECUTABLE}:xcode_mode" "$*"
 
    log_fluff ":.:xcode mode:.:"
 
@@ -855,6 +879,7 @@ xcode_mode()
 
    setup_cc_environment
    setup_make_environment
+   setup_cmake_environment
    setup_relative_environment
 
    (
@@ -902,7 +927,7 @@ xcode_mode()
 #
 url_mode()
 {
-   log_debug "url_mode" "$*"
+   log_debug "${MULLE_EXECUTABLE}:url_mode" "$*"
 
    log_fluff ":.:URL mode:.:"
 
@@ -931,6 +956,7 @@ url_mode()
 
    setup_cc_environment
    setup_make_environment
+   setup_cmake_environment
    setup_relative_environment
 
    local bootstrapoptions
@@ -975,9 +1001,9 @@ url_mode()
       then
          if [ -z "${INSTALL_PREFIX}" ]
          then
-            exekutor "${MULLE_BOOTSTRAP_EXE}" ${BOOTSTRAP_FLAGS} systeminstall 
+            exekutor "${MULLE_BOOTSTRAP_EXE}" ${BOOTSTRAP_FLAGS} systeminstall
          else
-            exekutor "${MULLE_BOOTSTRAP_EXE}" ${BOOTSTRAP_FLAGS} systeminstall "${INSTALL_PREFIX}" 
+            exekutor "${MULLE_BOOTSTRAP_EXE}" ${BOOTSTRAP_FLAGS} systeminstall "${INSTALL_PREFIX}"
          fi
       fi
    ) || exit 1
@@ -994,7 +1020,7 @@ url_mode()
 
 locate_tests()
 {
-   log_debug "locate_tests" "$*"
+   log_debug "${MULLE_EXECUTABLE}:locate_tests" "$*"
 
    local testdir
    local rootdir
@@ -1061,7 +1087,7 @@ locate_tests()
 
 run_install()
 {
-   log_debug "run_install" "$*" "($PWD)"
+   log_debug "${MULLE_EXECUTABLE}:run_install" "$*" "($PWD)"
 
    local url="$1"
 
@@ -1092,7 +1118,7 @@ run_install()
 
 run_build()
 {
-   log_debug "run_build" "$*" "($PWD)"
+   log_debug "${MULLE_EXECUTABLE}:run_build" "$*" "($PWD)"
 
    local url="$1"
 
@@ -1131,7 +1157,7 @@ run_build()
 
 run_analyze()
 {
-   log_debug "run_analyze" "$*" "($PWD)"
+   log_debug "${MULLE_EXECUTABLE}:run_analyze" "$*" "($PWD)"
 
    run_build "$@"
 }
@@ -1139,7 +1165,7 @@ run_analyze()
 
 run_test()
 {
-   log_debug "run_test" "$*"
+   log_debug "${MULLE_EXECUTABLE}:run_test" "$*"
 
    # check this first
    local testdir
