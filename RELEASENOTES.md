@@ -1,3 +1,7 @@
+### 3.12.2
+
+* MAKEFLAGS and CMAKEFLAGS instead of MAKE_FLAGS and CMAKE_FLAGS for cultural compliance
+
 ## 3.12.0
 
 * improve mingw compatibility

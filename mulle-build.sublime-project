@@ -1,8 +1,16 @@
 {
-	"folders":
-	[
-		{
-			"path": "."
-		}
-	]
+   "folders":
+   [
+      {
+         "path": ".",
+         "file_exclude_patterns": [ "*~", "*~.*", "*.chk", ".DS_Store", "*.sublime-workspace", "tmp.*" ],
+    "folder_exclude_patterns": [
+      "package",
+      "build",
+      ".repos",
+      ".git*",
+    ],
+
+      }
+   ]
 }

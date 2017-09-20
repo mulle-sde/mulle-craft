@@ -31,7 +31,7 @@
 #   POSSIBILITY OF SUCH DAMAGE.
 
 # mulle-build version
-MULLE_EXECUTABLE_VERSION="3.12.1"
+MULLE_EXECUTABLE_VERSION="3.12.2"
 
 MULLE_BOOTSTRAP_MIN_MAJOR="3"
 MULLE_BOOTSTRAP_MIN_MINOR="12"
@@ -344,9 +344,12 @@ _do_cmake()
 {
    log_debug "${MULLE_EXECUTABLE}:_do_cmake" "$@"
 
-   local cmakeflags
-
    [ -z "${CMAKE_GENERATOR}" ] && fail "empty CMAKE_GENERATOR"
+
+   #
+   # local flags
+   #
+   local cmakeflags
 
    if [ -z "${DEBUG}" ]
    then
@@ -372,11 +375,11 @@ _do_cmake()
    fi
 
    # other="`mulle-bootstrap paths -1 cmakeflags`"
-   # CMAKE_FLAGS="`concat "${CMAKE_FLAGS}" "${other}"`"
+   # CMAKEFLAGS="`concat "${CMAKEFLAGS}" "${other}"`"
 
    mkdir "${BUILD_DIR}" 2> /dev/null
    (
-      # CMAKE_FLAGS same as in mulle-bootstrap
+      # CMAKEFLAGS same as in mulle-bootstrap
       exekutor cd "${BUILD_DIR}"
 
       if [  "${MULLE_TRACE}" = "YES" -o "${DUMP_ENVIRONMENT}" = "YES" ]
@@ -395,7 +398,7 @@ _do_cmake()
       eval_exekutor "${CMAKE_WRAPPER}" "${WRAPPER_OPTIONS}" \
                     "'${CMAKE}'" "-G" "'${CMAKE_GENERATOR}'" \
                     "${cmakeflags}" \
-                    "${CMAKE_FLAGS}" \
+                    "${CMAKEFLAGS}" \
                     "$@" \
                     "${BUILD_RELATIVE}" || exit 1
    ) || exit 1
@@ -443,7 +446,7 @@ do_make()
          env | sort >&2
       fi
 
-      eval_exekutor "${MAKE_WRAPPER}" "${WRAPPER_OPTIONS}" "'${MAKE}'" "${MAKE_FLAGS}" "$@" || exit 1
+      eval_exekutor "${MAKE_WRAPPER}" "${WRAPPER_OPTIONS}" "'${MAKE}'" "${MAKEFLAGS}" "$@" || exit 1
    )
 }
 
@@ -471,6 +474,19 @@ setup_make_environment()
    else
       log_verbose "${C_RESET_BOLD}MAKE${C_VERBOSE} set to \
 ${C_MAGENTA}${C_BOLD}${MAKE}${C_VERBOSE} found in \".MAKE\""
+   fi
+
+   if [ "${OPTION_VERBOSE_MAKE}" = "YES" ]
+   then
+      case "${MAKE%.*}" in
+         ninja)
+            MAKEFLAGS="`concat "${MAKEFLAGS}" "-v"`"
+         ;;
+
+         *)
+            MAKEFLAGS="`concat "${MAKEFLAGS}" "VERBOSE=1"`"
+         ;;
+      esac
    fi
 
    MAKE="`verify_binary "${MAKE}" "make" ""`" || exit 1
@@ -643,10 +659,10 @@ homebrew_cmake_flags()
       ldflags="`concat "${ldflags}" "-F${HOMEBREW_PREFIX}/Frameworks"`"
    fi
 
-   CMAKE_FLAGS="`concat "${CMAKE_FLAGS}" "'-DCMAKE_FIND_FRAMEWORK=LAST'"`"
-   CMAKE_FLAGS="`concat "${CMAKE_FLAGS}" "'-DCMAKE_C_FLAGS_RELEASE=-DNDEBUG ${cflags}'"`"
-   CMAKE_FLAGS="`concat "${CMAKE_FLAGS}" "'-DCMAKE_SHARED_LINKER_FLAGS=${ldflags}'"`"
-   CMAKE_FLAGS="`concat "${CMAKE_FLAGS}" "'-DCMAKE_EXE_LINKER_FLAGS=${ldflags}'"`"
+   CMAKEFLAGS="`concat "${CMAKEFLAGS}" "'-DCMAKE_FIND_FRAMEWORK=LAST'"`"
+   CMAKEFLAGS="`concat "${CMAKEFLAGS}" "'-DCMAKE_C_FLAGS_RELEASE=-DNDEBUG ${cflags}'"`"
+   CMAKEFLAGS="`concat "${CMAKEFLAGS}" "'-DCMAKE_SHARED_LINKER_FLAGS=${ldflags}'"`"
+   CMAKEFLAGS="`concat "${CMAKEFLAGS}" "'-DCMAKE_EXE_LINKER_FLAGS=${ldflags}'"`"
 }
 
 
@@ -676,10 +692,10 @@ prefix_cmake_flags()
       ;;
    esac
 
-   CMAKE_FLAGS="`concat "${CMAKE_FLAGS}" "-DCMAKE_FIND_FRAMEWORK='LAST'"`"
-   CMAKE_FLAGS="`concat "${CMAKE_FLAGS}" "-DCMAKE_C_FLAGS_RELEASE='${cflags}'"`"
-   CMAKE_FLAGS="`concat "${CMAKE_FLAGS}" "-DCMAKE_SHARED_LINKER_FLAGS='${ldflags}'"`"
-   CMAKE_FLAGS="`concat "${CMAKE_FLAGS}" "-DCMAKE_EXE_LINKER_FLAGS='${ldflags}'"`"
+   CMAKEFLAGS="`concat "${CMAKEFLAGS}" "-DCMAKE_FIND_FRAMEWORK='LAST'"`"
+   CMAKEFLAGS="`concat "${CMAKEFLAGS}" "-DCMAKE_C_FLAGS_RELEASE='${cflags}'"`"
+   CMAKEFLAGS="`concat "${CMAKEFLAGS}" "-DCMAKE_SHARED_LINKER_FLAGS='${ldflags}'"`"
+   CMAKEFLAGS="`concat "${CMAKEFLAGS}" "-DCMAKE_EXE_LINKER_FLAGS='${ldflags}'"`"
 }
 
 
@@ -1346,6 +1362,7 @@ main()
    local OPTION_FAST_TEST="NO"   # useful for homebrew, to skip slow tests
    local OPTION_SKIP_MULLE_BOOTSTRAP="YES"
    local OPTION_AUTO_MIRROR="NO"
+   local OPTION_VERBOSE_MAKE="NO"
 
    #
    # per command different defaults
@@ -1407,7 +1424,7 @@ main()
          ;;
 
          -D*|-W*)
-            CMAKE_FLAGS="`concat "${CMAKE_FLAGS}" "'$1'"`"
+            CMAKEFLAGS="`concat "${CMAKEFLAGS}" "'$1'"`"
          ;;
 
          -d|--debug)
@@ -1576,7 +1593,7 @@ main()
                -V|--verbose-build)
                   TEST_OPTIONS="`concat "${TEST_OPTIONS}" "$1"`"
                   BOOTSTRAP_FLAGS="`concat "${BOOTSTRAP_FLAGS}" "$1"`"
-                  MAKE_FLAGS="${MAKE_FLAGS} VERBOSE=1"
+                  OPTION_VERBOSE_MAKE="YES"
                ;;
 
                --cores|-j)
