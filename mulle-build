@@ -773,7 +773,7 @@ cd_to_cmakelists_directory()
 
 _local_mode()
 {
-   if [ -z "${DONT_BUILD}" ]
+   if [ "${OPTION_DONT_BUILD}" = "NO" ]
    then
       [ ! -f CMakeLists.txt ] && fail "Can only build cmake based projects, in local mode."
 
@@ -1195,18 +1195,23 @@ run_test()
       fail "Don't know how to run tests (tests/run-test.sh is missing)"
    fi
 
-   if [ -x "${testdir}/build-test.sh" ]
+   if [ "${OPTION_DONT_BUILD}" = "NO" ]
    then
-      (
-         exekutor cd "${testdir}"
-         TEST_PATH_PREFIX="${userrel}" eval_exekutor "./build-test.sh" ${BUILD_TEST_OPTIONS} "$@"
-      ) || exit 1
-   else
-      if [ -f "${testdir}/build-test.sh" ]
+      if [ -x "${testdir}/build-test.sh" ]
       then
-         fail "build-test.sh is not executable"
+         (
+            exekutor cd "${testdir}"
+            TEST_PATH_PREFIX="${userrel}" eval_exekutor "./build-test.sh" ${BUILD_TEST_OPTIONS} "$@"
+         ) || exit 1
+      else
+         if [ -f "${testdir}/build-test.sh" ]
+         then
+            fail "build-test.sh is not executable"
+         fi
+         log_verbose "No build-test.sh found"
       fi
-      log_verbose "No build-test.sh found"
+   else
+      log_fluff "Build skipped on demand"
    fi
 
    local cmdline
@@ -1363,6 +1368,7 @@ main()
    local OPTION_SKIP_MULLE_BOOTSTRAP="YES"
    local OPTION_AUTO_MIRROR="NO"
    local OPTION_VERBOSE_MAKE="NO"
+   local OPTION_DONT_BUILD="NO"
 
    #
    # per command different defaults
@@ -1445,6 +1451,7 @@ main()
 
          -f|--force)
             MULLE_FLAG_MAGNUM_FORCE="BOTH"
+            TEST_OPTIONS="`concat "${TEST_OPTIONS}" $1`"
          ;;
 
          --fast-test)
@@ -1480,7 +1487,7 @@ main()
          ;;
 
          --no-build)
-            DONT_BUILD="YES"
+            OPTION_DONT_BUILD="YES"
             OPTION_BUILD_DEPENDENCIES="NO"
          ;;
 
