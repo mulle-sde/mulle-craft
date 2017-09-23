@@ -31,7 +31,7 @@
 #   POSSIBILITY OF SUCH DAMAGE.
 
 # mulle-build version
-MULLE_EXECUTABLE_VERSION="3.12.2"
+MULLE_EXECUTABLE_VERSION="3.12.3"
 
 MULLE_BOOTSTRAP_MIN_MAJOR="3"
 MULLE_BOOTSTRAP_MIN_MINOR="12"
@@ -209,8 +209,11 @@ cmake_cache_clean()
 {
    log_debug "${MULLE_EXECUTABLE}:cmake_cache_clean" "$@"
 
-   log_verbose "Deleting \"${BUILD_DIR}/CMakeCache.txt\""
-   exekutor rm "${BUILD_DIR}/CMakeCache.txt" 2> /dev/null
+   if [ -f "${BUILD_DIR}/CMakeCache.txt" ]
+   then
+      log_verbose "Deleting \"${BUILD_DIR}/CMakeCache.txt\""
+      exekutor rm "${BUILD_DIR}/CMakeCache.txt" 2> /dev/null || exit 1
+   fi
 }
 
 
@@ -223,7 +226,7 @@ cmake_clean()
       (
          log_verbose "Removing \"${BUILD_DIR}\""
          rmdir_safer "${BUILD_DIR}"
-      )
+      ) || exit 1
    fi
 }
 
