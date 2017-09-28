@@ -31,7 +31,7 @@
 #   POSSIBILITY OF SUCH DAMAGE.
 
 # mulle-build version
-MULLE_EXECUTABLE_VERSION="3.12.3"
+MULLE_EXECUTABLE_VERSION="3.13.0"
 
 MULLE_BOOTSTRAP_MIN_MAJOR="3"
 MULLE_BOOTSTRAP_MIN_MINOR="12"
@@ -54,6 +54,7 @@ EOF
       --no-bootstrap  : skip mulle-bootstrap checks
       --tests-path    : output tests folder location
       --xcodeproj     : generate Xcode project (use --open-xcode to autoopen)
+      --sublime       : generate Sublime Text project (use --open-sublime to autoopen)
       -f              : don't build dependencies with mulle-bootstrap
                         Embedded_repositories will be fetched though.
       -m <executable> : specify make program to use
@@ -558,6 +559,14 @@ setup_relative_environment()
 }
 
 
+setup_sublime_environment()
+{
+   JQ="`verify_binary "jq" "jq" "jq"`"  || exit 1
+   SUBL="`verify_binary "subl" "subl" "subl"`"  || exit 1
+}
+
+
+
 mulle_bootstrap_version_too_old()
 {
    local version
@@ -885,6 +894,108 @@ local_mode()
 }
 
 
+emit_sublime_project()
+{
+   local build_systems="$1"
+
+   # todo read this stuff from config files or so
+   cat <<EOF
+{
+   "folders":
+   [
+      {
+         "path": "../",
+         "file_exclude_patterns":
+         [
+            ".*",
+            "*~",
+            "*~.*",
+            "*.bak",
+            "*.exe",
+            "*.so",
+            "*.o",
+            "*.dylib",
+            "*.debug",
+            "*.sublime-workspace",
+            "tmp.*",
+            "tests/**/^([^.]+)$",
+         ],
+         "folder_exclude_patterns":
+         [
+            ".*",
+            "*.dSYM",
+            "*.xcodeproj",
+            "*.xcworkspace",
+            "addictions",
+            "bin",
+            "build*",
+            "dependencies",
+            "old",
+            "stashes",
+            "mulle-configuration",
+            "tests/bin",
+            "tests/build*",
+            "tests/lib",
+            "tests/include",
+            "tests/mulle-tests",
+         ]
+      }
+   ],
+   "build_systems":
+   ${build_systems}
+}
+EOF
+}
+
+#
+# Xcode mode generates a sublime/nina project from CMakeLists.txt
+#
+sublime_mode()
+{
+   log_debug "${MULLE_EXECUTABLE}:sublime_mode" "$*"
+
+   BUILD_DIR="${SUBLIMEBUILD_DIR}"
+
+   setup_cc_environment
+   setup_make_environment
+   setup_cmake_environment
+   setup_relative_environment
+   setup_sublime_environment
+
+   (
+      CMAKE_GENERATOR="Sublime Text 2 - Ninja"
+
+      do_cmake "$@" || exit 1
+      log_info "Generated sublime project in `pwd -P`"
+
+      project="`echo "${BUILD_DIR}"/*.sublime-project`"
+
+      #
+      # ignore a lot of files we don't want to see by default
+      #
+      build_systems="`exekutor ${JQ} '.["build_systems"]' "${project}"`" || exit 1
+
+      emit_sublime_project "${build_systems}" > "${project}"
+
+      if [ "${OPTION_LINK_SUBLIME}" = "YES" ]
+      then
+         exekutor ln -sf "${BUILD_DIR}"/*.sublime-project || exit 1
+      fi
+
+      (
+         cd "${BUILD_DIR}"
+
+         if [ "${OPTION_OPEN_SUBLIME}" = "YES" ]
+         then
+            exekutor open *.sublime-project
+         else
+            exekutor ninja
+         fi
+      )
+   ) || exit 1
+}
+
+
 #
 # Xcode mode generates a xcodeproj from CMakeLists.txt
 #
@@ -908,7 +1019,7 @@ xcode_mode()
 
       if [ "${OPTION_LINK_XCODEPROJ}" = "YES" ]
       then
-         exekutor ln -sf "${XCODEBUILD_DIR}"/*.xcodeproj || exit 1
+         exekutor ln -sf "${BUILD_DIR}"/*.xcodeproj || exit 1
       fi
 
       #
@@ -1125,10 +1236,15 @@ run_install()
          then
             xcode_mode "$@"
          else
-            cd_to_cmakelists_directory
+            if [ "${OPTION_SUBLIME}" = "YES" ]
+            then
+               sublime_mode "$@"
+            else
+               cd_to_cmakelists_directory
 
-            cmake_cache_clean
-            local_mode "$@"
+               cmake_cache_clean
+               local_mode "$@"
+            fi
          fi
       ;;
    esac
@@ -1146,31 +1262,38 @@ run_build()
    if [ "${OPTION_XCODEPROJ}" = "YES" ]
    then
       xcode_mode "$@"
-   else
-	   case "${url}" in
-    	   *:*)
-            directory="`basename "${url}"`"
-            directory="${directory%%.*}"
-
-            local gitoptions
-
-            if [ ! -z "${BRANCH}" ]
-            then
-               gitoptions="-b ${BRANCH}"
-            fi
-
-            exekutor git clone ${gitoptions} "${url}" "${directory}" || exit 1
-            (
-               exekutor cd "${directory}" &&
-               exekutor mulle-build --bootstrap
-            )
-            return $?
-         ;;
-      esac
-
-      cd_to_cmakelists_directory
-      local_mode "$@"
+      return $?
    fi
+
+   if [ "${OPTION_SUBLIME}" = "YES" ]
+   then
+      sublime_mode "$@"
+      return $?
+   fi
+
+   case "${url}" in
+ 	   *:*)
+         directory="`basename "${url}"`"
+         directory="${directory%%.*}"
+
+         local gitoptions
+
+         if [ ! -z "${BRANCH}" ]
+         then
+            gitoptions="-b ${BRANCH}"
+         fi
+
+         exekutor git clone ${gitoptions} "${url}" "${directory}" || exit 1
+         (
+            exekutor cd "${directory}" &&
+            exekutor mulle-build --bootstrap
+         )
+         return $?
+      ;;
+   esac
+
+   cd_to_cmakelists_directory
+   local_mode "$@"
 }
 
 
@@ -1327,7 +1450,7 @@ main()
    if [ "${cmd}" = "build" ]
    then
       case "$1" in
-         -analyze|-build|-clean|-git|-install|-status|-test|-tag|-xcode)
+         -analyze|-build|-clean|-git|-install|-sublime|-status|-test|-tag|-xcode)
             cmd="${1:1}"
             shift;
          ;;
@@ -1357,6 +1480,7 @@ main()
    local TEST_OPTIONS=
    local BUILD_TEST_OPTIONS=
    local XCODEBUILD_DIR="${XCODEBUILD_DIR:-build-xcode.d}"
+   local SUBLIMEBUILD_DIR="${SUBLIMEBUILD_DIR:-build-sublime.d}"
 
    local OPTION_BUILD_DEPENDENCIES="YES"
    local OPTION_INSTALL="NO"
@@ -1364,9 +1488,11 @@ main()
    local OPTION_URL_INSTALL_DEPENDENCIES="YES"
    local OPTION_LOCAL_INSTALL_DEPENDENCIES="NO"
    local OPTION_OPEN_XCODE="NO"
+   local OPTION_OPEN_SUBLIME="NO"
    local OPTION_OPTIMISTIC="YES"
    local OPTION_XCODEPROJ="NO"
    local OPTION_LINK_XCODEPROJ="NO"
+   local OPTION_LINK_SUBLIME="NO"
    local OPTION_FAST_TEST="NO"   # useful for homebrew, to skip slow tests
    local OPTION_SKIP_MULLE_BOOTSTRAP="YES"
    local OPTION_AUTO_MIRROR="NO"
@@ -1478,6 +1604,10 @@ main()
             usage "${cmd}"
          ;;
 
+         --link-sublime)
+            OPTION_LINK_SUBLIME="YES"
+         ;;
+
          --link-xcodeproj)
             OPTION_LINK_XCODEPROJ="YES"
          ;;
@@ -1545,6 +1675,14 @@ main()
             BUILD_DIR="$1"
          ;;
 
+         --sublime-build-dir)
+            [ $# -eq 1 ] && fail "missing argument to $1"
+            shift
+
+            SUBLIMEBUILD_DIR="$1"
+         ;;
+
+
          --xcode-build-dir)
             [ $# -eq 1 ] && fail "missing argument to $1"
             shift
@@ -1584,8 +1722,16 @@ main()
             exit 0
          ;;
 
+         --open-sublime)
+            OPTION_OPEN_SUBLIME="YES"
+         ;;
+
          --open-xcode)
             OPTION_OPEN_XCODE="YES"
+         ;;
+
+         --sublime)
+            OPTION_SUBLIME="YES"
          ;;
 
          --xcodeproj)
@@ -1713,6 +1859,13 @@ main()
          run_test "$@"
       ;;
 
+
+      sublime)
+         OPTION_OPEN_SUBLIME="YES"
+         OPTION_SUBLIME="YES"
+
+         run_build "$@"
+      ;;
 
       xcode)
          OPTION_OPEN_XCODE="YES"
