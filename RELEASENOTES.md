@@ -1,3 +1,7 @@
+### 3.13.1
+
+* use ninja for sublime
+
 ## 3.13.0
 
 * add mulle-sublime (mulle-build -sublime) to the commands

@@ -31,7 +31,7 @@
 #   POSSIBILITY OF SUCH DAMAGE.
 
 # mulle-build version
-MULLE_EXECUTABLE_VERSION="3.13.0"
+MULLE_EXECUTABLE_VERSION="3.13.1"
 
 MULLE_BOOTSTRAP_MIN_MAJOR="3"
 MULLE_BOOTSTRAP_MIN_MINOR="12"
@@ -360,6 +360,11 @@ _do_cmake()
       cmakeflags="-DCMAKE_BUILD_TYPE='Release'"
    else
       cmakeflags="-DCMAKE_BUILD_TYPE='Debug'"
+   fi
+
+   if [ "${OPTION_DATABASE}" = "YES" ]
+   then
+      cmakeflags="`concat "${cmakeflags}" "-DCMAKE_EXPORT_COMPILE_COMMANDS='ON'"`"
    fi
 
    # local other
@@ -898,6 +903,16 @@ emit_sublime_project()
 {
    local build_systems="$1"
 
+   case "${CMAKE_GENERATOR}" in
+      *Ninja*)
+         build_systems="`echo "${build_systems}" | jq '.[] += { "syntax": "Ninja.sublime-syntax" }'`"
+      ;;
+
+      *)
+         build_systems="`echo "${build_systems}" | jq '.[] += { "syntax": "Make.sublime-syntax" }'`"
+      ;;
+   esac
+
    # todo read this stuff from config files or so
    cat <<EOF
 {
@@ -918,7 +933,7 @@ emit_sublime_project()
             "*.debug",
             "*.sublime-workspace",
             "tmp.*",
-            "tests/**/^([^.]+)$",
+            "tests/**/^([^.]+)$"
          ],
          "folder_exclude_patterns":
          [
@@ -937,7 +952,7 @@ emit_sublime_project()
             "tests/build*",
             "tests/lib",
             "tests/include",
-            "tests/mulle-tests",
+            "tests/mulle-tests"
          ]
       }
    ],
@@ -985,7 +1000,7 @@ sublime_mode()
       (
          cd "${BUILD_DIR}"
 
-         if [ "${OPTION_OPEN_SUBLIME}" = "YES" ]
+         if [ "${OPTION_OPEN}" = "YES" ]
          then
             exekutor open *.sublime-project
          else
@@ -1041,7 +1056,7 @@ xcode_mode()
             ;;
          esac
 
-         if [ "${OPTION_OPEN_XCODE}" = "YES" ]
+         if [ "${OPTION_OPEN}" = "YES" ]
          then
             exekutor open *.xcodeproj
          else
@@ -1483,12 +1498,12 @@ main()
    local SUBLIMEBUILD_DIR="${SUBLIMEBUILD_DIR:-build-sublime.d}"
 
    local OPTION_BUILD_DEPENDENCIES="YES"
+   local OPTION_DATABASE="YES"
    local OPTION_INSTALL="NO"
    local OPTION_CLEAN="YES"
    local OPTION_URL_INSTALL_DEPENDENCIES="YES"
    local OPTION_LOCAL_INSTALL_DEPENDENCIES="NO"
-   local OPTION_OPEN_XCODE="NO"
-   local OPTION_OPEN_SUBLIME="NO"
+   local OPTION_OPEN="YES"
    local OPTION_OPTIMISTIC="YES"
    local OPTION_XCODEPROJ="NO"
    local OPTION_LINK_XCODEPROJ="NO"
@@ -1640,6 +1655,14 @@ main()
             OPTION_SKIP_MULLE_BOOTSTRAP="YES"
          ;;
 
+         --database)
+            OPTION_DATABASE="YES"
+         ;;
+
+         --no-database)
+            OPTION_DATABASE="NO"
+         ;;
+
          --no-clean)
             TEST_OPTIONS="`concat "${TEST_OPTIONS}" "$1"`"
             BUILD_TEST_OPTIONS="`concat "${BUILD_TEST_OPTIONS}" "$1"`"
@@ -1722,12 +1745,12 @@ main()
             exit 0
          ;;
 
-         --open-sublime)
-            OPTION_OPEN_SUBLIME="YES"
+         --open|--open-sublime|--open-xcode)
+            OPTION_OPEN="YES"
          ;;
 
-         --open-xcode)
-            OPTION_OPEN_XCODE="YES"
+         --no-open|--no-open-sublime|--no-open-xcode)
+            OPTION_OPEN="NO"
          ;;
 
          --sublime)
@@ -1861,14 +1884,12 @@ main()
 
 
       sublime)
-         OPTION_OPEN_SUBLIME="YES"
          OPTION_SUBLIME="YES"
 
          run_build "$@"
       ;;
 
       xcode)
-         OPTION_OPEN_XCODE="YES"
          OPTION_XCODEPROJ="YES"
 
          run_build "$@"
