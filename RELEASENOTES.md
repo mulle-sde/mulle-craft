@@ -1,3 +1,11 @@
+### 3.13.3
+
+* improve -V trace and environment dump
+
+### 3.13.2
+
+* fix --homebrew not building dependencies (or will I regret this soon) ?
+
 ### 3.13.1
 
 * use ninja for sublime

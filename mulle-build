@@ -31,7 +31,7 @@
 #   POSSIBILITY OF SUCH DAMAGE.
 
 # mulle-build version
-MULLE_EXECUTABLE_VERSION="3.13.2"
+MULLE_EXECUTABLE_VERSION="3.13.3"
 
 MULLE_BOOTSTRAP_MIN_MAJOR="3"
 MULLE_BOOTSTRAP_MIN_MINOR="12"
@@ -391,7 +391,7 @@ _do_cmake()
       # CMAKEFLAGS same as in mulle-bootstrap
       exekutor cd "${BUILD_DIR}"
 
-      if [  "${MULLE_TRACE}" = "YES" -o "${DUMP_ENVIRONMENT}" = "YES" ]
+      if [ ! -z "${MULLE_TRACE}" -o "${DUMP_ENVIRONMENT}" = "YES" ]
       then
          log_verbose "Environment:"
          env | sort >&2
@@ -449,7 +449,7 @@ do_make()
    (
       exekutor cd "${BUILD_DIR}" ;
 
-      if [ "${MULLE_TRACE}" = "YES" -o "${DUMP_ENVIRONMENT}" = "YES" ]
+      if [ -z "${MULLE_TRACE}" -o "${DUMP_ENVIRONMENT}" = "YES" ]
       then
          log_verbose "Environment:"
          env | sort >&2
@@ -1519,7 +1519,7 @@ main()
          BOOTSTRAP_FLAGS="`concat "${BOOTSTRAP_FLAGS}" "$1"`"
 
          case "$1" in
-            -t|-v*|-V*|--debug)
+            -t|-ld|-v*|--debug)
                BUILD_TEST_OPTIONS="`concat "${BUILD_TEST_OPTIONS}" $1`"
                TEST_OPTIONS="`concat "${TEST_OPTIONS}" $1`"
             ;;
@@ -1739,9 +1739,9 @@ main()
          # more common flags of mulle-bootstrap and mulle-build, that get passed through
          *)
             case "$1" in
-               -V|--verbose-build)
-                  TEST_OPTIONS="`concat "${TEST_OPTIONS}" "$1"`"
+               -V)
                   BOOTSTRAP_FLAGS="`concat "${BOOTSTRAP_FLAGS}" "$1"`"
+                  TEST_OPTIONS="`concat "${TEST_OPTIONS}" "$1"`"
                   OPTION_VERBOSE_MAKE="YES"
                ;;
 
@@ -1779,6 +1779,25 @@ main()
    fi
 
    bootstrap_setup_trace "${MULLE_TRACE}"
+
+   case "${MULLE_TRACE}" in
+      VERBOSE)
+      ;;
+
+      FLUFF)
+         OPTION_VERBOSE_MAKE="YES"
+      ;;
+
+      TRACE)
+         OPTION_VERBOSE_MAKE="YES"
+         DUMP_ENVIRONMENT="YES"
+      ;;
+
+      1848)
+         OPTION_VERBOSE_MAKE="YES"
+         DUMP_ENVIRONMENT="YES"
+      ;;
+   esac
 
    . mulle-bootstrap-command.sh || exit 1
 
