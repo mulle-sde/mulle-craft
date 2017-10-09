@@ -31,7 +31,7 @@
 #   POSSIBILITY OF SUCH DAMAGE.
 
 # mulle-build version
-MULLE_EXECUTABLE_VERSION="3.13.1"
+MULLE_EXECUTABLE_VERSION="3.13.2"
 
 MULLE_BOOTSTRAP_MIN_MAJOR="3"
 MULLE_BOOTSTRAP_MIN_MINOR="12"
@@ -847,8 +847,6 @@ local_mode()
 {
    log_debug "${MULLE_EXECUTABLE}:local_mode" "$*"
 
-   log_fluff ":.:local mode:.:"
-
    [ -z "${BRANCH}" ] || fail "-b option is not compatible with local mode."
    [ -z "${SCM}" ] || fail "-s option is not compatible with local mode."
 
@@ -1018,8 +1016,6 @@ xcode_mode()
 {
    log_debug "${MULLE_EXECUTABLE}:xcode_mode" "$*"
 
-   log_fluff ":.:xcode mode:.:"
-
    BUILD_DIR="${XCODEBUILD_DIR}"
 
    setup_cc_environment
@@ -1073,8 +1069,6 @@ xcode_mode()
 url_mode()
 {
    log_debug "${MULLE_EXECUTABLE}:url_mode" "$*"
-
-   log_fluff ":.:URL mode:.:"
 
    [ -z "${DONT_BUILD}" ] || fail "-nb option is not compatible with URL install."
    [ -z "${MAKE}" ]       || fail "-m option is not compatible with URL install."
@@ -1247,20 +1241,10 @@ run_install()
       ;;
 
       ""|*)
-         if [ "${OPTION_XCODEPROJ}" = "YES" ]
-         then
-            xcode_mode "$@"
-         else
-            if [ "${OPTION_SUBLIME}" = "YES" ]
-            then
-               sublime_mode "$@"
-            else
-               cd_to_cmakelists_directory
+         cd_to_cmakelists_directory
 
-               cmake_cache_clean
-               local_mode "$@"
-            fi
-         fi
+         cmake_cache_clean
+         local_mode "$@"
       ;;
    esac
 }
@@ -1273,18 +1257,6 @@ run_build()
    local url="$1"
 
    local directory
-
-   if [ "${OPTION_XCODEPROJ}" = "YES" ]
-   then
-      xcode_mode "$@"
-      return $?
-   fi
-
-   if [ "${OPTION_SUBLIME}" = "YES" ]
-   then
-      sublime_mode "$@"
-      return $?
-   fi
 
    case "${url}" in
  	   *:*)
@@ -1608,8 +1580,6 @@ main()
 
             homebrew_cmake_flags
 
-            ## embedded only
-            OPTION_BUILD_DEPENDENCIES="NO"
             OPTION_LOCAL_INSTALL_DEPENDENCIES="NO"
             OPTION_SKIP_MULLE_BOOTSTRAP="NO"
             OPTION_AUTO_MIRROR="YES"
@@ -1836,7 +1806,17 @@ main()
       ;;
 
       build)
-         run_build "$@"
+         if [ "${OPTION_XCODEPROJ}" = "YES" ]
+         then
+            xcode_mode "$@"
+         else
+            if [ "${OPTION_SUBLIME}" = "YES" ]
+            then
+               sublime_mode "$@"
+            else
+               run_build "$@"
+            fi
+         fi
       ;;
 
       install)
@@ -1884,15 +1864,11 @@ main()
 
 
       sublime)
-         OPTION_SUBLIME="YES"
-
-         run_build "$@"
+         sublime_mode "$@"
       ;;
 
       xcode)
-         OPTION_XCODEPROJ="YES"
-
-         run_build "$@"
+         xcode_mode "$@"
       ;;
 
       *)
