@@ -31,10 +31,10 @@
 #   POSSIBILITY OF SUCH DAMAGE.
 
 # mulle-build version
-MULLE_EXECUTABLE_VERSION="3.13.3"
+MULLE_EXECUTABLE_VERSION="3.14.1"
 
 MULLE_BOOTSTRAP_MIN_MAJOR="3"
-MULLE_BOOTSTRAP_MIN_MINOR="12"
+MULLE_BOOTSTRAP_MIN_MINOR="14"
 
 
 usage()
@@ -147,7 +147,7 @@ do_fetch_dependencies()
       git_mirror="`exekutor mulle-bootstrap config "git_mirror"`"
       if [ -z "${git_mirror}" ]
       then
-         tmpdir="`mktemp -d "/tmp/mirror-XXXXXXXX"`"
+         tmpdir="`make_tmp_directory "mirror"`"
          exekutor mulle-bootstrap config "git_mirror" "${tmpdir}"
       fi
    fi
@@ -604,8 +604,6 @@ git_pull()
 {
    local branch
    local origin
-
-   log_fluff ":.:pull:.:"
 
    branch="`git rev-parse --abbrev-ref HEAD`"
    if [ -d ".git/refs/remotes/origin/${branch}" ]
@@ -1123,7 +1121,7 @@ url_mode()
    #
    if [ -z "${directory}" ]
    then
-      directory=`exekutor mktemp -d -t "mulle-install.XXXX"`
+      directory="`make_tmp_directory "install"`"
    else
       mkdir "${directory}" || exit 1
       DONT_REMOVE="YES"
