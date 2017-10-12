@@ -1,3 +1,12 @@
+### 3.14.2
+
+* Various small improvements
+
+## 3.14.0
+
+* depends on mulle-bootstrap 3.14 for tmp mechanism functions
+
+
 ### 3.13.3
 
 * improve -V trace and environment dump
