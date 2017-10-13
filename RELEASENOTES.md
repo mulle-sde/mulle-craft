@@ -1,3 +1,7 @@
+### 3.14.3
+
+* OPTION_SKIP_MULLE_BOOTSTRAP is default NO if it looks like there was never a bootstrap
+
 ### 3.14.2
 
 * Various small improvements

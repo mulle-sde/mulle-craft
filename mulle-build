@@ -31,7 +31,7 @@
 #   POSSIBILITY OF SUCH DAMAGE.
 
 # mulle-build version
-MULLE_EXECUTABLE_VERSION="3.14.2"
+MULLE_EXECUTABLE_VERSION="3.14.3"
 
 MULLE_BOOTSTRAP_MIN_MAJOR="3"
 MULLE_BOOTSTRAP_MIN_MINOR="14"
@@ -796,7 +796,7 @@ _local_mode()
 
       if [ "${OPTION_INSTALL}" = "YES" ]
       then
-         if [ "${OPTION_LOCAL_INSTALL_DEPENDENCIES}" = "YES" -a -d .bootstrap ]
+         if [ "${OPTION_LOCAL_INSTALL_DEPENDENCIES}" = "YES" ] && [ -d .bootstrap.local -o -d .bootstrap ]
          then
             do_install_dependencies || fail "failed to install dependencies"
          else
@@ -1483,6 +1483,15 @@ main()
    local OPTION_AUTO_MIRROR="NO"
    local OPTION_VERBOSE_MAKE="NO"
    local OPTION_DONT_BUILD="NO"
+
+   local OPTION_SKIP_MULLE_BOOTSTRAP="YES"
+
+   #
+   # if it looks totally clean, make bootstrapping the default
+   if [ -d .bootstrap -o -d .bootstrap.local ] && [ ! -d .bootstrap.auto ]
+   then
+      OPTION_SKIP_MULLE_BOOTSTRAP="NO"
+   fi
 
    #
    # per command different defaults

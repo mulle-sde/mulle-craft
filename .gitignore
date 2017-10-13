@@ -7,7 +7,8 @@ build/
 
 *.old
 *.bak
-tap-info.sh
+tmp.*
+bin/publisher-info.sh
 
 mulle-build.sublime-workspace
 mulle-analyze
