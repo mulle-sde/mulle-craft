@@ -1007,6 +1007,24 @@ sublime_mode()
 }
 
 
+check_for_mulle_xcode_settings()
+{
+   #
+   # OK
+   #
+   if [ -z "`command -v mulle-xcode-settings`" ]
+   then
+      user_say_yes "Need to install mulle-xcode-settings (via brew)
+Install mulle-xcode-settings now ?"
+      [ $? -eq 0 ] || return 1
+
+      [ -z "${MULLE_BOOTSTRAP_BREW_SH}" ] && . mulle-bootstrap-brew.sh
+
+      brew_install_brews install "mulle-kybernetik/software/mulle-xcode-settings"
+   fi
+   return 0
+}
+
 #
 # Xcode mode generates a xcodeproj from CMakeLists.txt
 #
@@ -1043,10 +1061,13 @@ xcode_mode()
 
          case "${cc}" in
             *mulle-clang*)
-               for project in *.xcodeproj
-               do
-                   exekutor mulle-xcode-settings set GCC_VERSION de.codeon.compilers.mulle-clang "${project}" || exit 1
-               done
+               if check_for_mulle_xcode_settings
+               then
+                  for project in *.xcodeproj
+                  do
+                      exekutor mulle-xcode-settings set GCC_VERSION de.codeon.compilers.mulle-clang "${project}" || exit 1
+                  done
+               fi
             ;;
          esac
 
@@ -1355,7 +1376,7 @@ run_test()
 
    (
       exekutor cd "${testdir}"
-      eval_exekutor "./run-test.sh" --path-prefix "'${userrel}'" "${TEST_OPTIONS}" "${cmdline}"
+      eval_exekutor TEST_PATH_PREFIX="${userrel}" './run-test.sh' "${TEST_OPTIONS}" "${cmdline}"
    ) || exit 1
 }
 
