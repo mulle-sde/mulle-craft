@@ -1,0 +1,138 @@
+#! /usr/bin/env bash
+
+[ "${TRACE}" = "YES" ] && set -x
+
+
+run_mulle_build()
+{
+   log_fluff "####################################"
+   log_fluff ${MULLE_BUILD} ${MULLE_BUILD_FLAGS} "$@"
+   log_fluff "####################################"
+
+   exekutor ${MULLE_BUILD} -e ${MULLE_BUILD_FLAGS} "$@"
+}
+
+
+expect_content()
+{
+   local output="$1"
+   local expect="$2"
+
+   if [ ! -f "${output}" ]
+   then
+      if [ -z "${expect}" ]
+      then
+         return
+      fi
+      fail "Did not produce \"${output}\" as expected"
+   else
+      if [ -z "${expect}" ]
+      then
+         fail "Did produce \"${output}\" unexpectedly. Nothing was expected"
+      fi
+   fi
+
+   if [ -f "${expect}.${UNAME}" ]
+   then
+      expect="${expect}.${UNAME}"
+   fi
+
+   if [ ! -f "${expect}" ]
+   then
+      internal_fail "\"${expect}\" is missing from test"
+   fi
+
+   local diffs
+
+   diffs="`diff "${output}" "${expect}"`"
+   if [ $? -ne 0 ]
+   then
+      log_error "Unexpected output generated"
+      cat <<EOF >&2
+----------------
+Output: ($output)
+----------------
+`cat "${output}"`
+----------------
+Expected: ($expect)
+----------------
+`cat "${expect}"`
+----------------
+Diff:
+----------------
+${diffs}
+----------------
+EOF
+      exit 1
+   fi
+}
+
+
+run_test()
+{
+   local cmake_expect="$1"; shift
+   local make_expect="$1"; shift
+
+   MULLE_SOURCETREE_FLAGS="-e" \
+   CMAKE_REDIRECT_FILE="${directory}/cmake-args.txt" \
+   MAKE_REDIRECT_FILE="${directory}/make-args.txt" \
+   CMAKE="${PWD}/../mock-cmake" \
+   MAKE="${PWD}/../mock-make" \
+   MULLE_BUILD_DIR="${directory}/build" \
+      run_mulle_build build "$@"
+
+   if [ "$?" -ne 0 ]
+   then
+      exit 1
+   fi
+
+   expect_content "${directory}/cmake-args.txt" "${cmake_expect}"
+   expect_content "${directory}/make-args.txt" "${make_expect}"
+
+   remove_file_if_present "${directory}/cmake-args.txt"
+   remove_file_if_present "${directory}/make-args.txt"
+   rmdir_safer "${directory}/build"
+}
+
+
+main()
+{
+   MULLE_BUILD_FLAGS="$@"
+
+   _options_mini_main "$@"
+
+   local directory
+
+   directory="`make_tmp_directory`" || exit 1
+   directory="${directory:-/tmp/build}"
+
+   #
+   # Check that some simple pass through stuff works
+   #
+   run_test "cmake.txt" "make.txt" --debug
+   log_verbose "----- #1 PASSED -----"
+
+   run_test "cmake.txt" "make.txt" --debug --sourcetree
+   log_verbose "----- #2 PASSED -----"
+
+   log_info "----- ALL PASSED -----"
+
+   rmdir_safer "${directory}"
+}
+
+
+
+init()
+{
+   MULLE_BASHFUNCTIONS_LIBEXEC_DIR="`mulle-bashfunctions-env library-path`" || exit 1
+
+   . "${MULLE_BASHFUNCTIONS_LIBEXEC_DIR}/mulle-bashfunctions.sh" || exit 1
+
+   MULLE_BUILD="${MULLE_BUILD:-${PWD}/../../mulle-build}"
+}
+
+
+
+init "$@"
+main "$@"
+

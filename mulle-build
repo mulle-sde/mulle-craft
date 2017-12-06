@@ -1,7 +1,6 @@
 #! /usr/bin/env bash
 #
-#   Copyright (c) 2016-2017 Nat! - Mulle kybernetiK
-#   Copyright (c) 2016-2017 Nat! - Codeon GmbH
+#   Copyright (c) 2017 Nat! - Mulle kybernetiK
 #   All rights reserved.
 #
 #   Redistribution and use in source and binary forms, with or without
@@ -29,1734 +28,172 @@
 #   CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
 #   ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
 #   POSSIBILITY OF SUCH DAMAGE.
+#
+if [ "${TRACE}" = "YES" ]
+then
+   set -x
+fi
 
-# mulle-build version
-MULLE_EXECUTABLE_VERSION="3.14.3"
 
-MULLE_BOOTSTRAP_MIN_MAJOR="3"
-MULLE_BOOTSTRAP_MIN_MINOR="14"
+MULLE_EXECUTABLE_VERSION_MAJOR=0
+MULLE_EXECUTABLE_VERSION_MINOR=0
+MULLE_EXECUTABLE_VERSION_PATCH=0
+
+MULLE_EXECUTABLE_VERSION="${MULLE_EXECUTABLE_VERSION_MAJOR}.${MULLE_EXECUTABLE_VERSION_MINOR}.${MULLE_EXECUTABLE_VERSION_PATCH}"
+
+
+trap_fail()
+{
+   exit 1
+}
 
 
 usage()
 {
-   cat <<EOF >&2
-usage:
-   ${MULLE_EXECUTABLE} [options] [url]
+   local verbose="${1:-NO}"
 
-   Options:
+   cat <<EOF
+Usage:
+   ${MULLE_EXECUTABLE_NAME} [flags]
+
+   Convert a mulle-bootstrap enabled to a build project.
+   This will work on files for ${UNAME} only.
+
+Flags:
 EOF
 
-   case "$1" in
-      analyze|build|install)
-         cat <<EOF >&2
-      -b <tag|branch> : specify tag or branch to fetch from URL
-      --debug         : build debug
-      --no-bootstrap  : skip mulle-bootstrap checks
-      --tests-path    : output tests folder location
-      --xcodeproj     : generate Xcode project (use --open-xcode to autoopen)
-      --sublime       : generate Sublime Text project (use --open-sublime to autoopen)
-      -f              : don't build dependencies with mulle-bootstrap
-                        Embedded_repositories will be fetched though.
-      -m <executable> : specify make program to use
+   options_technical_flags_usage
+
+   cat <<EOF
+
+   if [ "${verbose}" = "NO" ]
+   then
+      cat <<EOF
+      (use mulle-build -v help to show more flags)
 EOF
-         if [ "$1" = "install" ]
-         then
-
-            cat <<EOF >&2
-      -p <prefix>     : install prefix (default: ${DEFAULT_INSTALL})
-EOF
-         fi
-
-         cat <<EOF >&2
-      -s <scm>        : specify an SCM other than git (e.g. svn)
-EOF
-
-   bootstrap_technical_option_usage
-
-         if [ "$1" = "install" ]
-         then
-            cat <<EOF >&2
-   Arguments:
-      url             : If no URL is specified, install will use "local
-                        mode". The current directory is assumed to be the
-                        project directory.
-                        "Local mode" is limited to cmake projects.
-EOF
-         fi
-      ;;
-
-      clean)
-         cat <<EOF >&2
-      -m <executable> : specify make program to use
-EOF
-      ;;
-   esac
-
    exit 1
 }
 
 
 #
-# Local Mode
+# stolen from:
+# http://stackoverflow.com/questions/1055671/how-can-i-get-the-behavior-of-gnus-readlink-f-on-a-mac
+# ----
 #
-_do_fetch_dependencies()
+_prepend_path_if_relative()
 {
-   local rval
-
-   exekutor "${MULLE_BOOTSTRAP_EXE}" -s status
-   rval="$?"
-
-   # 2, 3 means fetch needed
-   if [ $rval -ge 2 ]
-   then
-      exekutor "${MULLE_BOOTSTRAP_EXE}" ${BOOTSTRAP_FLAGS} fetch \
-                                        ${BOOTSTRAP_FETCH_OPTIONS} \
-                                        ${BOOTSTRAP_OPTIONS} "$@" || exit 1 # --embedded-only
-      log_fluff "FINISHED: mulle-bootstrap fetch"
-
-      #
-      # after the first fetch don't warn about scripts again
-      #
-      if [ "${MULLE_EXECUTABLE}" = "mulle-build" ]
-      then
-         log_verbose "Don't warn about scripts next build"
-         exekutor "${MULLE_BOOTSTRAP_EXE}" config --on dont_warn_scripts || exit 1
-      fi
-   fi
-}
-
-
-do_fetch_dependencies()
-{
-   log_debug "${MULLE_EXECUTABLE}:do_fetch_dependencies" "$@"
-
-   local tmpdir
-   local git_mirror
-
-   if [ "${OPTION_SKIP_MULLE_BOOTSTRAP}" = "YES" ]
-   then
-      return
-   fi
-
-   #
-   # When installing and for homebrew, should always provide
-   # at least a temporary mirror
-   #
-   if [ "${OPTION_AUTO_MIRROR}" = "YES" ]
-   then
-      git_mirror="`exekutor mulle-bootstrap config "git_mirror"`"
-      if [ -z "${git_mirror}" ]
-      then
-         tmpdir="`make_tmp_directory "mirror"`"
-         exekutor mulle-bootstrap config "git_mirror" "${tmpdir}"
-      fi
-   fi
-
-   _do_fetch_dependencies "$@"
-
-   if [ -d "${tmpdir}" ]
-   then
-      exekutor rm -rf "${tmpdir}"
-   fi
-}
-
-
-do_build_dependencies()
-{
-   log_debug "${MULLE_EXECUTABLE}:do_build_dependencies" "$@"
-
-   local rval
-
-   if [ "${OPTION_SKIP_MULLE_BOOTSTRAP}" = "YES" ]
-   then
-      log_fluff "Skipped \"mulle-bootstrap build\" on request"
-      return
-   fi
-
-   exekutor "${MULLE_BOOTSTRAP_EXE}" -s status
-   rval="$?"
-
-   # 1 means build needed
-
-   if [ $rval -ge 1 ]
-   then
-      exekutor "${MULLE_BOOTSTRAP_EXE}" ${BOOTSTRAP_FLAGS} build ${BOOTSTRAP_OPTIONS} "$@" || exit 1
-      log_fluff "FINISHED: mulle-bootstrap build"
-   fi
-}
-
-
-do_install_dependencies()
-{
-   log_debug "${MULLE_EXECUTABLE}:do_install_dependencies" "$@"
-
-   if [ "${OPTION_SKIP_MULLE_BOOTSTRAP}" = "YES" ]
-   then
-      log_fluff "Skipped \"mulle-bootstrap systeminstall\" on request"
-      return
-   fi
-
-   if [ -z "${INSTALL_PREFIX}" ]
-   then
-      exekutor "${MULLE_BOOTSTRAP_EXE}" systeminstall ${BOOTSTRAP_OPTIONS} "$@" || exit 1
-   else
-      exekutor "${MULLE_BOOTSTRAP_EXE}" systeminstall ${BOOTSTRAP_OPTIONS} "$@" "${INSTALL_PREFIX}" || exit 1
-   fi
-   log_fluff "FINISHED: mulle-bootstrap systeminstall"
-}
-
-
-cmake_cache_clean()
-{
-   log_debug "${MULLE_EXECUTABLE}:cmake_cache_clean" "$@"
-
-   if [ -f "${BUILD_DIR}/CMakeCache.txt" ]
-   then
-      log_verbose "Deleting \"${BUILD_DIR}/CMakeCache.txt\""
-      exekutor rm "${BUILD_DIR}/CMakeCache.txt" 2> /dev/null || exit 1
-   fi
-}
-
-
-cmake_clean()
-{
-   log_debug "${MULLE_EXECUTABLE}:cmake_clean" "$@"
-
-   if [ -d "${BUILD_DIR}" ]
-   then
-      (
-         log_verbose "Removing \"${BUILD_DIR}\""
-         rmdir_safer "${BUILD_DIR}"
-      ) || exit 1
-   fi
-}
-
-
-need_cmake_cache_clean()
-{
-   local i
-   local old
-
-   if [ ! -f "${BUILD_DIR}/CMakeCache.txt" ]
-   then
-      return 1
-   fi
-
-   oldifs="${IFS}"
-   IFS="
-"
-   for i in `ls -1 CMake*.txt`
-   do
-      if [ "$i" -nt "${BUILD_DIR}/CMakeCache.txt" ]
-      then
-         return 0
-      fi
-   done
-
-   IFS="${OLDIFS}"
-
-   return 1
-}
-
-
-need_cmake_clean()
-{
-   if [ "${OPTION_CLEAN}" = "NO" ]
-   then
-      return 1
-   fi
-
-   if [ "${MULLE_FLAG_MAGNUM_FORCE}" != "NONE" ]
-   then
-      return 0
-   fi
-
-   if [ "${OPTION_INSTALL}" = "YES" ]
-   then
-      return 0
-   fi
-
-   if [ ! -e "${BUILD_DIR}/CMakeFiles" ] # ???
-   then
-      return 0
-   fi
-
-   if [ ".CC.${UNAME}" -nt "${BUILD_DIR}/CMakeFiles" ]
-   then
-      return 0
-   fi
-
-   if [ ".CXX.${UNAME}" -nt "${BUILD_DIR}/CMakeFiles" ]
-   then
-      return 0
-   fi
-
-   if [ .CC -nt "${BUILD_DIR}/CMakeFiles" ]
-   then
-      return 0
-   fi
-
-   if [ .CXX -nt "${BUILD_DIR}/CMakeFiles" ]
-   then
-      return 0
-   fi
-
-   log_fluff "cmake clean not needed"
-
-   return 1
-}
-
-
-need_cmake_build()
-{
-   if [ ! -e "${BUILD_DIR}/CMakeFiles" ]
-   then
-      return 0
-   fi
-
-   if [ ! -e "Makefile" ]
-   then
-      return 0
-   fi
-
-   if [ CMakeFiles.txt -nt "${BUILD_DIR}/CMakeFiles.txt" ]
-   then
-      return 0
-   fi
-
-   log_fluff "cmake build not needed"
-
-   return 1
-}
-
-
-modification_timestamp()
-{
-   case "${UNAME}" in
-      linux|mingw)
-         stat --printf "%Y\n" "$1"
+   case "$2" in
+      /*)
+         echo "$2"
       ;;
-
-      * )
-         stat -f "%m" "$1"
-      ;;
-   esac
-}
-
-
-_do_cmake()
-{
-   log_debug "${MULLE_EXECUTABLE}:_do_cmake" "$@"
-
-   [ -z "${CMAKE_GENERATOR}" ] && fail "empty CMAKE_GENERATOR"
-
-   #
-   # local flags
-   #
-   local cmakeflags
-
-   if [ -z "${DEBUG}" ]
-   then
-      cmakeflags="-DCMAKE_BUILD_TYPE='Release'"
-   else
-      cmakeflags="-DCMAKE_BUILD_TYPE='Debug'"
-   fi
-
-   if [ "${OPTION_DATABASE}" = "YES" ]
-   then
-      cmakeflags="`concat "${cmakeflags}" "-DCMAKE_EXPORT_COMPILE_COMMANDS='ON'"`"
-   fi
-
-   # local other
-   if [ ! -z "${C_COMPILER}" ]
-   then
-      cmakeflags="`concat "${cmakeflags}" "-DCMAKE_C_COMPILER='${C_COMPILER}'"`"
-   fi
-
-   if [ ! -z "${CXX_COMPILER}" ]
-   then
-      cmakeflags="`concat "${cmakeflags}" "-DCMAKE_CXX_COMPILER='${CXX_COMPILER}'"`"
-   fi
-
-   if [ ! -z "${LD}" ]
-   then
-      cmakeflags="`concat "${cmakeflags}" "-DCMAKE_LINKER='${LD}'"`"
-   fi
-
-   # other="`mulle-bootstrap paths -1 cmakeflags`"
-   # CMAKEFLAGS="`concat "${CMAKEFLAGS}" "${other}"`"
-
-   mkdir "${BUILD_DIR}" 2> /dev/null
-   (
-      # CMAKEFLAGS same as in mulle-bootstrap
-      exekutor cd "${BUILD_DIR}"
-
-      if [ ! -z "${MULLE_TRACE}" -o "${DUMP_ENVIRONMENT}" = "YES" ]
-      then
-         log_verbose "Environment:"
-         env | sort >&2
-      fi
-
-      # lameness, but want to allow spaces in prefix
-      if [ ! -z "${INSTALL_PREFIX}" ]
-      then
-         cmakeflags="`concat "${cmakeflags}" "-DCMAKE_INSTALL_PREFIX='${INSTALL_PREFIX}'"`"
-      fi
-
-
-      eval_exekutor "${CMAKE_WRAPPER}" "${WRAPPER_OPTIONS}" \
-                    "'${CMAKE}'" "-G" "'${CMAKE_GENERATOR}'" \
-                    "${cmakeflags}" \
-                    "${CMAKEFLAGS}" \
-                    "$@" \
-                    "${BUILD_RELATIVE}" || exit 1
-   ) || exit 1
-}
-
-
-do_cmake()
-{
-   log_debug "${MULLE_EXECUTABLE}:do_cmake" "$@"
-
-   local skip_build
-
-   skip_build="${OPTION_OPTIMISTIC}"
-
-   if need_cmake_cache_clean
-   then
-      cmake_cache_clean
-      skip_build="NO"
-   fi
-
-   if need_cmake_clean
-   then
-      cmake_clean
-      skip_build="NO"
-   fi
-
-
-   if [ skip_build = "NO" ] || need_cmake_build
-   then
-      _do_cmake "$@"
-   fi
-}
-
-
-do_make()
-{
-   log_debug "${MULLE_EXECUTABLE}:do_make" "$@"
-
-   (
-      exekutor cd "${BUILD_DIR}" ;
-
-      if [ -z "${MULLE_TRACE}" -o "${DUMP_ENVIRONMENT}" = "YES" ]
-      then
-         log_verbose "Environment:"
-         env | sort >&2
-      fi
-
-      eval_exekutor "${MAKE_WRAPPER}" "${WRAPPER_OPTIONS}" "'${MAKE}'" "${MAKEFLAGS}" "$@" || exit 1
-   )
-}
-
-
-#
-#
-#
-setup_make_environment()
-{
-   log_debug "${MULLE_EXECUTABLE}:setup_make_environment" "$@"
-
-   local filename
-
-   filename=".MAKE.${UNAME}"
-   MAKE="`cat "${filename}" 2> /dev/null`"
-   if [ -z "${MAKE}" ]
-   then
-      filename=".MAKE"
-      MAKE="`cat "${filename}" 2> /dev/null`"
-   fi
-
-   if [ -z "${MAKE}" ]
-   then
-      MAKE="`platform_make "${C_COMPILER}"`"
-   else
-      log_verbose "${C_RESET_BOLD}MAKE${C_VERBOSE} set to \
-${C_MAGENTA}${C_BOLD}${MAKE}${C_VERBOSE} found in \".MAKE\""
-   fi
-
-   if [ "${OPTION_VERBOSE_MAKE}" = "YES" ]
-   then
-      case "${MAKE%.*}" in
-         ninja)
-            MAKEFLAGS="`concat "${MAKEFLAGS}" "-v"`"
-         ;;
-
-         *)
-            MAKEFLAGS="`concat "${MAKEFLAGS}" "VERBOSE=1"`"
-         ;;
-      esac
-   fi
-
-   MAKE="`verify_binary "${MAKE}" "make" ""`" || exit 1
-}
-
-
-setup_cmake_environment()
-{
-   log_debug "${MULLE_EXECUTABLE}:setup_cmake_environment" "$@"
-
-   CMAKE="`verify_binary "cmake" "cmake" ""`" || exit 1
-   CMAKE_GENERATOR="`platform_cmake_generator "${MAKE}"`"
-}
-
-
-setup_cc_environment()
-{
-   log_debug "${MULLE_EXECUTABLE}:setup_cc_environment" "$@"
-
-   #
-   # Figure out C/CXX compiler (only for current) project
-   #
-   C_COMPILER="`cat ".CC.${UNAME}" 2> /dev/null`"
-   if [ -z "${C_COMPILER}" ]
-   then
-      C_COMPILER="`cat ".CC" 2> /dev/null`"
-   fi
-   if [ ! -z "${C_COMPILER}" ]
-   then
-      C_COMPILER="`verify_binary "${C_COMPILER}" "CC" ""`" || exit 1
-      log_verbose "Compiler ${C_RESET_BOLD}CC${C_VERBOSE} set to ${C_MAGENTA}${C_BOLD}${C_COMPILER}${C_VERBOSE} found in \".CC\""
-   fi
-
-   CXX_COMPILER="`cat ".CXX.${UNAME}" 2> /dev/null`"
-   if [ -z "${CXX_COMPILER}" ]
-   then
-      CXX_COMPILER="`cat ".CXX" 2> /dev/null`"
-   fi
-   if [ ! -z "${CXX_COMPILER}" ]
-   then
-      CXX_COMPILER="`verify_binary "${CXX_COMPILER}" "CXX" ""`" || exit 1
-      log_verbose "Compiler ${C_RESET_BOLD}CXX${C_VERBOSE} set to ${C_MAGENTA}${C_BOLD}${CXX_COMPILER}${C_VERBOSE} found in \".CXX\""
-   fi
-
-   case "${UNAME}" in
-      mingw*)
-         . mulle-bootstrap-mingw.sh
-
-         setup_mingw_buildenvironment
-      ;;
-   esac
-}
-
-
-setup_relative_environment()
-{
-   case "${BUILD_DIR}" in
-      */*)
-         BUILD_RELATIVE="`symlink_relpath "${PWD}" "${BUILD_DIR}"`"
-      ;;
-
       *)
-         BUILD_RELATIVE=".."
+         echo "$1/$2"
       ;;
    esac
 }
 
 
-setup_sublime_environment()
+resolve_symlinks()
 {
-   JQ="`verify_binary "jq" "jq" "jq"`"  || exit 1
-   SUBL="`verify_binary "subl" "subl" "subl"`"  || exit 1
-}
+   local dir_context
+   local linkpath
 
-
-
-mulle_bootstrap_version_too_old()
-{
-   local version
-   local major
-   local minor
-
-   version="`"${MULLE_BOOTSTRAP_EXE}" version | head -1`"
-   [ -z "${version}" ] && fail "mulle-bootstrap did not provide a version"
-
-   major="`echo "${version}" | cut -s -d. -f1`"
-   if [ "${major}" -lt "${MULLE_BOOTSTRAP_MIN_MAJOR}" ]
+   if linkpath="`readlink "$1"`"
    then
-      return 0
-   fi
-
-   if [ "${major}" -eq "${MULLE_BOOTSTRAP_MIN_MAJOR}" ]
-   then
-      minor="`echo "${version}" | cut -s -d. -f2`"
-      if [ "${minor}" -lt "${MULLE_BOOTSTRAP_MIN_MINOR}" ]
-      then
-         return 0
-      fi
-   fi
-
-   return 1
-}
-
-
-git_pull()
-{
-   local branch
-   local origin
-
-   branch="`git rev-parse --abbrev-ref HEAD`"
-   if [ -d ".git/refs/remotes/origin/${branch}" ]
-   then
-      origin="${ORIGIN:-origin}"
+      dir_context=`dirname -- "$1"`
+      resolve_symlinks "`_prepend_path_if_relative "${dir_context}" "${linkpath}"`"
    else
-      origin="`git remote | head -1`"
-   fi
-
-   if [ ! -z "${origin}" ]
-   then
-      git pull "${origin}" "${branch}"  # or what ?
+      echo "$1"
    fi
 }
 
 
-#
-# do this manually because ... reasons
-#
-homebrew_cmake_flags()
+build_libexec_path()
 {
-   local oldifs
-
-   oldifs="$IFS"
-
-   local cflags
-   local ldflags
-   local i
-
-   cflags=""
-   ldflags=""
-
-   if [ ! -z "${HOMEBREW_ISYSTEM_PATHS}" ]
-   then
-      IFS=":"
-      for i in $HOMEBREW_ISYSTEM_PATHS
-      do
-         cflags="`concat "${cflags}" "-isystem ${i}"`"
-      done
-      IFS="${oldifs}"
-   else
-      cflags="`concat "${cflags}" "-isystem ${HOMEBREW_PREFIX}/include"`"
-   fi
-
-   if [ ! -z "${HOMEBREW_LIBRARY_PATHS}" ]
-   then
-      IFS=":"
-      for i in $HOMEBREW_LIBRARY_PATHS
-      do
-         ldflags="`concat "${ldflags}" "-L${i}"`"
-      done
-      IFS="${oldifs}"
-   else
-      ldflags="`concat "${ldflags}" "-L${HOMEBREW_PREFIX}/lib"`"
-   fi
-
-   if [ ! -z "${HOMEBREW_FRAMEWORK_PATHS}" ]
-   then
-      IFS=":"
-      for i in $HOMEBREW_FRAMEWORK_PATHS
-      do
-         cflags="`concat "${cflags}" "-F${i}"`"
-         ldflags="`concat "${ldflags}" "-F${i}"`"
-      done
-      IFS="${oldifs}"
-   else
-      cflags="`concat "${cflags}" "-F${HOMEBREW_PREFIX}/Frameworks"`"
-      ldflags="`concat "${ldflags}" "-F${HOMEBREW_PREFIX}/Frameworks"`"
-   fi
-
-   CMAKEFLAGS="`concat "${CMAKEFLAGS}" "'-DCMAKE_FIND_FRAMEWORK=LAST'"`"
-   CMAKEFLAGS="`concat "${CMAKEFLAGS}" "'-DCMAKE_C_FLAGS_RELEASE=-DNDEBUG ${cflags}'"`"
-   CMAKEFLAGS="`concat "${CMAKEFLAGS}" "'-DCMAKE_SHARED_LINKER_FLAGS=${ldflags}'"`"
-   CMAKEFLAGS="`concat "${CMAKEFLAGS}" "'-DCMAKE_EXE_LINKER_FLAGS=${ldflags}'"`"
-}
-
-
-prefix_cmake_flags()
-{
-   log_debug "${MULLE_EXECUTABLE}:prefix_cmake_flags" "$@"
-
-   local cflags
-   local ldflags
-
-   #
-   # Would be nicer to pass this into cmake directly without -L -isystem
-   # but don't know how to
-   #
-   case "${C_COMPILER%.*}" in
-      cl|*-cl)
-         # doesn't work, because cmake mangles the leading '/'
-         # just have to live w/o it
-         # cflags="/DNDEBUG=1 /I${INSTALL_PREFIX:-/usr/local}/include"
-         # ldflags="/LIBPATH:${INSTALL_PREFIX:-/usr/local}/lib"
-         return
-      ;;
-
-      *)
-         cflags="-DNDEBUG -isystem ${INSTALL_PREFIX:-/usr/local}/include"
-         ldflags="-L${INSTALL_PREFIX:-/usr/local}/lib"
-      ;;
-   esac
-
-   CMAKEFLAGS="`concat "${CMAKEFLAGS}" "-DCMAKE_FIND_FRAMEWORK='LAST'"`"
-   CMAKEFLAGS="`concat "${CMAKEFLAGS}" "-DCMAKE_C_FLAGS_RELEASE='${cflags}'"`"
-   CMAKEFLAGS="`concat "${CMAKEFLAGS}" "-DCMAKE_SHARED_LINKER_FLAGS='${ldflags}'"`"
-   CMAKEFLAGS="`concat "${CMAKEFLAGS}" "-DCMAKE_EXE_LINKER_FLAGS='${ldflags}'"`"
-}
-
-
-local_clean()
-{
-   log_debug "${MULLE_EXECUTABLE}:local_clean" "$@"
-
-   log_fluff ":.:clean:.:"
-
-   case "$1" in
-      cmake)
-         cmake_cache_clean >&2
-         cmake_clean >&2
-         return
-      ;;
-
-
-      ""|*)
-         if [ -d "${BUILD_DIR}" ]
-         then
-            log_info "Deleting ${BUILD_DIR}"
-            exekutor rm -rf ${BUILD_DIR}
-         fi
-
-         if [ -d "tests/build" ]
-         then
-            log_info "Deleting tests/build"
-            exekutor rm -rf tests/build
-         fi
-         if [ -d "tests/include" ]
-         then
-            log_info "Deleting tests/include"
-            exekutor rm -rf tests/include
-         fi
-         if [ -d "tests/lib" ]
-         then
-            log_info "Deleting tests/lib"
-            exekutor rm -rf tests/lib
-         fi
-      ;;
-   esac
-}
-
-
-cd_to_cmakelists_directory()
-{
-   local orgpwd
-   local old
-
-   orgpwd="$PWD"
-
-   while [ ! -f "CMakeLists.txt" ]
-   do
-      old="$PWD"
-
-      # adjust relative build dir name
-      case "${BUILD_DIR}" in
-         /*)
-         ;;
-
-         *)
-            BUILD_DIR="`basename "${PWD}"`/${BUILD_DIR}"
-         ;;
-      esac
-
-      exekutor cd ..
-
-      if [ "$PWD" = "${old}" ]
-      then
-         fail "There is no CMakeLists.txt here ($orgpwd), can't continue"
-      fi
-   done
-}
-
-
-_local_mode()
-{
-   if [ "${OPTION_DONT_BUILD}" = "NO" ]
-   then
-      [ ! -f CMakeLists.txt ] && fail "Can only build cmake based projects, in local mode."
-
-      do_cmake "$@"
-
-      if [ "${OPTION_INSTALL}" = "YES" ]
-      then
-         if [ "${OPTION_LOCAL_INSTALL_DEPENDENCIES}" = "YES" ] && [ -d .bootstrap.local -o -d .bootstrap ]
-         then
-            do_install_dependencies || fail "failed to install dependencies"
-         else
-            log_fluff "Did not install dependencies as requested"
-         fi
-
-         do_make "install" "$@" || fail "failed to install"
-      else
-         do_make "" "$@" || fail "failed to make"
-      fi
-   else
-      log_fluff "Don't build set, so done"
-   fi
-}
-
-
-dependencies_inc_timestamps()
-{
-   local oldts
-   local incfile
-   local rebuild="NO"
-
-   if [ -f ".dependencies.inc" ]
-   then
-      incfiles="`cat .dependencies.inc`"
-   else
-      incfiles="src/dependencies.inc"
-   fi
-
-   IFS="
-"
-   for incfile in ${incfiles}
-   do
-      IFS="${DEFAULT_IFS}"
-
-      if [ -f "${incfile}" ]
-      then
-         echo "${incfile}:`modification_timestamp "${incfile}"`"
-      fi
-   done
-   IFS="${DEFAULT_IFS}"
-}
-
-
-local_mode()
-{
-   log_debug "${MULLE_EXECUTABLE}:local_mode" "$*"
-
-   [ -z "${BRANCH}" ] || fail "-b option is not compatible with local mode."
-   [ -z "${SCM}" ] || fail "-s option is not compatible with local mode."
-
-   setup_cc_environment
-   setup_make_environment
-   setup_cmake_environment
-   setup_relative_environment
-
-   if [ ! -z "${INSTALL_PREFIX}" ]
-   then
-      prefix_cmake_flags
-   fi
-
-   if [ -d .bootstrap ]
-   then
-      if [ "${OPTION_BUILD_DEPENDENCIES}" = "NO" ]
-      then
-         do_fetch_dependencies "--embedded-only" || fail "failed to fetch dependencies"
-         log_fluff "Did not build dependencies as requested"
-      else
-         do_fetch_dependencies || fail "Failed to fetch dependencies"
-         do_build_dependencies || fail "Failed to build dependencies"
-      fi
-   else
-      log_fluff "No .bootstrap found, so not bootstrapping"
-   fi
-
-   local incfile
-   local previous_timestamps
-   local timestamps
-
-   previous_timestamps="`dependencies_inc_timestamps`"
-
-   _local_mode "$@"
-
-   timestamps="`dependencies_inc_timestamps`"
-
-   if [ "${timestamps}" != "${previous_timestamps}" ]
-   then
-      incfile="`diff --line-format='%L' <(echo "${timestamps}") \
-                                        <(echo "${previous_timestamps}") | \
-                  head -1 | \
-                  cut -d ':' -f 1`"
-      log_info "Rebuilding because ${C_RESET}${C_BOLD}${incfile}${C_INFO} has changed"
-
-      _local_mode "$@"
-   fi
-}
-
-
-emit_sublime_project()
-{
-   local build_systems="$1"
-
-   case "${CMAKE_GENERATOR}" in
-      *Ninja*)
-         build_systems="`echo "${build_systems}" | jq '.[] += { "syntax": "Ninja.sublime-syntax" }'`"
-      ;;
-
-      *)
-         build_systems="`echo "${build_systems}" | jq '.[] += { "syntax": "Make.sublime-syntax" }'`"
-      ;;
-   esac
-
-   # todo read this stuff from config files or so
-   cat <<EOF
-{
-   "folders":
-   [
-      {
-         "path": "../",
-         "file_exclude_patterns":
-         [
-            ".*",
-            "*~",
-            "*~.*",
-            "*.bak",
-            "*.exe",
-            "*.so",
-            "*.o",
-            "*.dylib",
-            "*.debug",
-            "*.sublime-workspace",
-            "tmp.*",
-            "tests/**/^([^.]+)$"
-         ],
-         "folder_exclude_patterns":
-         [
-            ".*",
-            "*.dSYM",
-            "*.xcodeproj",
-            "*.xcworkspace",
-            "addictions",
-            "bin",
-            "build*",
-            "dependencies",
-            "old",
-            "stashes",
-            "mulle-configuration",
-            "tests/bin",
-            "tests/build*",
-            "tests/lib",
-            "tests/include",
-            "tests/mulle-tests"
-         ]
-      }
-   ],
-   "build_systems":
-   ${build_systems}
-}
-EOF
-}
-
-#
-# Xcode mode generates a sublime/nina project from CMakeLists.txt
-#
-sublime_mode()
-{
-   log_debug "${MULLE_EXECUTABLE}:sublime_mode" "$*"
-
-   BUILD_DIR="${SUBLIMEBUILD_DIR}"
-
-   setup_cc_environment
-   setup_make_environment
-   setup_cmake_environment
-   setup_relative_environment
-   setup_sublime_environment
-
-   (
-      CMAKE_GENERATOR="Sublime Text 2 - Ninja"
-
-      do_cmake "$@" || exit 1
-      log_info "Generated sublime project in `pwd -P`"
-
-      project="`echo "${BUILD_DIR}"/*.sublime-project`"
-
-      #
-      # ignore a lot of files we don't want to see by default
-      #
-      build_systems="`exekutor ${JQ} '.["build_systems"]' "${project}"`" || exit 1
-
-      emit_sublime_project "${build_systems}" > "${project}"
-
-      if [ "${OPTION_LINK_SUBLIME}" = "YES" ]
-      then
-         exekutor ln -sf "${BUILD_DIR}"/*.sublime-project || exit 1
-      fi
-
-      (
-         cd "${BUILD_DIR}"
-
-         if [ "${OPTION_OPEN}" = "YES" ]
-         then
-            exekutor open *.sublime-project
-         else
-            exekutor ninja
-         fi
-      )
-   ) || exit 1
-}
-
-
-check_for_mulle_xcode_settings()
-{
-   #
-   # OK
-   #
-   if [ -z "`command -v mulle-xcode-settings`" ]
-   then
-      user_say_yes "Need to install mulle-xcode-settings (via brew)
-Install mulle-xcode-settings now ?"
-      [ $? -eq 0 ] || return 1
-
-      [ -z "${MULLE_BOOTSTRAP_BREW_SH}" ] && . mulle-bootstrap-brew.sh
-
-      brew_install_brews install "mulle-kybernetik/software/mulle-xcode-settings"
-   fi
-   return 0
-}
-
-#
-# Xcode mode generates a xcodeproj from CMakeLists.txt
-#
-xcode_mode()
-{
-   log_debug "${MULLE_EXECUTABLE}:xcode_mode" "$*"
-
-   BUILD_DIR="${XCODEBUILD_DIR}"
-
-   setup_cc_environment
-   setup_make_environment
-   setup_cmake_environment
-   setup_relative_environment
-
-   (
-      CMAKE_GENERATOR="Xcode"
-      do_cmake "$@" || exit 1
-      log_info "Generated xcodeproj in `pwd -P`"
-
-      if [ "${OPTION_LINK_XCODEPROJ}" = "YES" ]
-      then
-         exekutor ln -sf "${BUILD_DIR}"/*.xcodeproj || exit 1
-      fi
-
-      #
-      # set mulle-clang if desired
-      #
-      local  cc
-
-      cc="`cat .CC 2> /dev/null`"
-
-      (
-         cd "${BUILD_DIR}"
-
-         case "${cc}" in
-            *mulle-clang*)
-               if check_for_mulle_xcode_settings
-               then
-                  for project in *.xcodeproj
-                  do
-                      exekutor mulle-xcode-settings set GCC_VERSION de.codeon.compilers.mulle-clang "${project}" || exit 1
-                  done
-               fi
-            ;;
-         esac
-
-         if [ "${OPTION_OPEN}" = "YES" ]
-         then
-            exekutor open *.xcodeproj
-         else
-            exekutor xcodebuild
-         fi
-      )
-   ) || exit 1
-}
-
-
-#
-# URL Mode
-#
-url_mode()
-{
-   log_debug "${MULLE_EXECUTABLE}:url_mode" "$*"
-
-   [ -z "${DONT_BUILD}" ] || fail "-nb option is not compatible with URL install."
-   [ -z "${MAKE}" ]       || fail "-m option is not compatible with URL install."
-
-   local url="$1"
-   local directory="$2"
-
-   [ -z "${url}" ] && fail "URL is empty"
-
-   #
-   # if url is local directory, make relative absolute
-   #
-   case "${url}" in
-      /*|*:*)
-      ;;
-
-      *)
-         if [ -d "${url}" ]
-         then
-            url="`pwd -P`/${url}"
-         fi
-      ;;
-   esac
-
-   setup_cc_environment
-   setup_make_environment
-   setup_cmake_environment
-   setup_relative_environment
-
-   local bootstrapoptions
-
-   bootstrapoptions=
-
-   if [ -z "${DEBUG}" ]
-   then
-      bootstrapoptions="`concat "${bootstrapoptions}" "--configuration Release"`"
-   else
-      bootstrapoptions="`concat "${bootstrapoptions}" "--configuration Debug"`"
-   fi
-
-   if [ "${OPTION_BUILD_DEPENDENCIES}" = "NO" ]
-   then
-      bootstrapoptions="`concat "${bootstrapoptions}" "--no-recursion"`"
-      if [ ! -z "${INSTALL_PREFIX}" ]
-      then
-         bootstrapoptions="`concat "${bootstrapoptions}" "--prefix ${INSTALL_PREFIX}"`"
-      fi
-   fi
-
-   #
-   # hackish, need to fix this
-   #
-   if [ -z "${directory}" ]
-   then
-      directory="`make_tmp_directory "install"`"
-   else
-      mkdir "${directory}" || exit 1
-      DONT_REMOVE="YES"
-      OPTION_URL_INSTALL_DEPENDENCIES="NO"
-   fi
-
-   set -x
-   (
-      exekutor cd "${directory}" || exit 1  &&
-      exekutor "${MULLE_BOOTSTRAP_EXE}" ${BOOTSTRAP_FLAGS} init -d -n &&
-      redirect_exekutor .bootstrap/repositories echo "${url};;${BRANCH};${SCM}" &&
-      exekutor "${MULLE_BOOTSTRAP_EXE}" ${BOOTSTRAP_FLAGS} -a bootstrap ${BOOTSTRAP_OPTIONS} ${bootstrapoptions} &&
-      if [ "${OPTION_URL_INSTALL_DEPENDENCIES}" = "YES" ]
-      then
-         if [ -z "${INSTALL_PREFIX}" ]
-         then
-            exekutor "${MULLE_BOOTSTRAP_EXE}" ${BOOTSTRAP_FLAGS} systeminstall
-         else
-            exekutor "${MULLE_BOOTSTRAP_EXE}" ${BOOTSTRAP_FLAGS} systeminstall "${INSTALL_PREFIX}"
-         fi
-      fi
-   ) || exit 1
-
-   if [ -z "${DONT_REMOVE}" ]
-   then
-      exekutor chmod -R ugo+w "${directory}"
-      exekutor rm -rf "${directory}"
-   else
-      log_info "Project is in \"${directory}\""
-   fi
-}
-
-
-locate_tests()
-{
-   log_debug "${MULLE_EXECUTABLE}:locate_tests" "$*"
-
-   local testdir
-   local rootdir
-
-   # ez shortcut
-   testdir="${TESTS:-tests}"
-   if [ -x "${testdir}/run-test.sh" ]
-   then
-      echo "${testdir}"
-      return
-   fi
-
-   #
-   # this can lead to "mulle-bootstrap" escaping
-   # the project though, if it has no .bootstrap folder
-   # Solution: add an empty .bootstrap folder
-   #
-   rootdir="`mulle-bootstrap project-path 2> /dev/null`"
-   rootdir="${rootdir:-`pwd -P`}"
-   testdir="${TESTS:-${rootdir}}"
-
-   if [ -x "${testdir}/run-test.sh" ]
-   then
-      echo "${testdir}"
-      return
-   fi
-
-   local old
-
-   old="${IFS}"
-   IFS="
-"
-   #
-   # find the nearest tests folder, with a run-test.sh
-   # executable. The awk emits "#pathComponents path"
-   # and then it get sorted. We run breadth first
-   # search this way
-   #
-   for testdir in `find "${rootdir}" -name tests -type d -print | \
-                     awk -F'/' '{print NF " " $0}' | \
-                     sort -n | \
-                     sed 's/[0-9]* \(.*\)/\1/'`
-   do
-      IFS="${old}"
-
-      case "${testdir}" in
-         ${rootdir}/stashes/*)
-            # ignore "top level" stashes
-         ;;
-
-         *)
-            if [ -x "${testdir}/run-test.sh" ]
-            then
-               echo "${testdir}"
-               return
-            fi
-         ;;
-      esac
-   done
-
-   IFS="${old}"
-}
-
-
-run_install()
-{
-   log_debug "${MULLE_EXECUTABLE}:run_install" "$*" "($PWD)"
-
-   local url="$1"
-
-   #
-   # when installing it doesn't make sense to skip it,
-   # which is the default
-   #
-
-   case "${url}" in
-      */*|*:*)
-         url_mode "$@"
-      ;;
-
-      ""|*)
-         cd_to_cmakelists_directory
-
-         cmake_cache_clean
-         local_mode "$@"
-      ;;
-   esac
-}
-
-
-run_build()
-{
-   log_debug "${MULLE_EXECUTABLE}:run_build" "$*" "($PWD)"
-
-   local url="$1"
-
-   local directory
-
-   case "${url}" in
- 	   *:*)
-         directory="`basename "${url}"`"
-         directory="${directory%%.*}"
-
-         local gitoptions
-
-         if [ ! -z "${BRANCH}" ]
-         then
-            gitoptions="-b ${BRANCH}"
-         fi
-
-         exekutor git clone ${gitoptions} "${url}" "${directory}" || exit 1
-         (
-            exekutor cd "${directory}" &&
-            exekutor mulle-build --bootstrap
-         )
-         return $?
-      ;;
-   esac
-
-   cd_to_cmakelists_directory
-   local_mode "$@"
-}
-
-
-run_analyze()
-{
-   log_debug "${MULLE_EXECUTABLE}:run_analyze" "$*" "($PWD)"
-
-   run_build "$@"
-}
-
-
-run_test()
-{
-   log_debug "${MULLE_EXECUTABLE}:run_test" "$*"
-
-   # check this first
-   local testdir
-   local userrel
-
-   testdir="`locate_tests`"
-   userrel="`symlink_relpath "${testdir}" "$PWD"`/"
-
-   if [ -z "${testdir}" ]
-   then
-      fail "Don't know how to run tests (tests/run-test.sh is missing)"
-   fi
-
-   if [ "${OPTION_DONT_BUILD}" = "NO" ]
-   then
-      if [ -x "${testdir}/build-test.sh" ]
-      then
-         (
-            exekutor cd "${testdir}"
-            TEST_PATH_PREFIX="${userrel}" eval_exekutor "./build-test.sh" ${BUILD_TEST_OPTIONS} "$@"
-         ) || exit 1
-      else
-         if [ -f "${testdir}/build-test.sh" ]
-         then
-            fail "build-test.sh is not executable"
-         fi
-         log_verbose "No build-test.sh found"
-      fi
-   else
-      log_fluff "Build skipped on demand"
-   fi
-
-   local cmdline
-   local relative
-
-   #
-   # improve relative paths for change to "${testdir}"
-   #
-   while [ $# -ne 0 ]
-   do
-      # grab off options
-      case "$1" in
-         -j)
-            cmdline="`concat "${cmdline}" "$1"`"
-            shift
-            cmdline="`concat "${cmdline}" "$1"`"
-         ;;
-
-         -*)
-            cmdline="`concat "${cmdline}" "$1"`"
-         ;;
-
-         *)
-            relative="`symlink_relpath "${PWD}/$1" "${testdir}"`"
-            cmdline="`concat "${cmdline}" "'${relative}'"`"
-         ;;
-      esac
-      shift
-   done
-
-   (
-      exekutor cd "${testdir}"
-      eval_exekutor TEST_PATH_PREFIX="${userrel}" './run-test.sh' "${TEST_OPTIONS}" "${cmdline}"
-   ) || exit 1
-}
-
-
-build_init()
-{
-   #
-   # shell export commands with minimal
-   # trap setup
-   #
-   case "${1}" in
-      version)
-         echo "${MULLE_EXECUTABLE_VERSION}"
-         exit 0
-      ;;
-
-      minimum-bootstrap-version)
-         echo "${MULLE_BOOTSTRAP_MIN_MAJOR}.${MULLE_BOOTSTRAP_MIN_MINOR}.0"
-         exit 0
-      ;;
-   esac
-
-   #
-   # look for mulle-bootstrap in the place where mulle-build is, they
-   # belong together
-   #
-
-   MULLE_BOOTSTRAP_EXE="`dirname -- "$0"`/mulle-bootstrap"
-   if [ ! -x "${MULLE_BOOTSTRAP_EXE}" ]
-   then
-      MULLE_BOOTSTRAP_EXE="`command -v mulle-bootstrap`"
-      if [ ! -x "${MULLE_BOOTSTRAP_EXE}" ]
-      then
-         echo "mulle-bootstrap not installed in $PATH. Can't continue!" >&2
-         exit 1
-      fi
-   fi
-
+   local executablepath="$1"
+
+   local exedir
+   local exedirpath
+   local prefix
    local libexecpath
 
-   libexecpath="`${MULLE_BOOTSTRAP_EXE} library-path`"
-   if [ -z "${libexecpath}" ]
+   case "${executablepath}" in
+      \.*|/*|~*)
+      ;;
+
+      *)
+         executablepath="`command -v "${executablepath}"`"
+      ;;
+   esac
+
+   executablepath="`resolve_symlinks "${executablepath}"`"
+   exedirpath="`dirname "${executablepath}"`"
+   prefix="`dirname "${exedirpath}"`"
+   libexecpath="${prefix}/libexec/mulle-build"
+
+   if [ ! -x "${libexecpath}/mulle-build-execute.sh" ]
    then
-      echo "mulle-bootstrap does not return library-path. Can't continue" >&2
-      exit 1
+      libexecpath="${exedirpath}/src"
    fi
 
-   PATH="${libexecpath}:$PATH"
-   export PATH
+   case "$libexecpath" in
+      /*|~*)
+      ;;
 
-   if [ ! -z "${MULLE_BOOTSTRAP_LIBEXEC_TRACE}" ]
+      *)
+         libexecpath="$PWD/$libexecpath"
+      ;;
+   esac
+
+   if [ -x "${libexecpath}/mulle-build-execute.sh" ]
    then
-      echo "PATH=$PATH" >&2
+      echo "${libexecpath}"
    fi
-
-   . mulle-bootstrap-logging.sh
-   . mulle-bootstrap-local-environment.sh || fail "not loaded"
-   . mulle-bootstrap-functions.sh
 }
 
 
 main()
 {
-   local cmd
+   local MULLE_FLAG_MAGNUM_FORCE="NONE"
+   local MULLE_FLAG_IGNORE_GRAVEYARD="NO"
 
-   #
-   # allow variations, mulle-build, mulle-install mulle-clean
-   # mulle-tag etc
-   #
-   cmd="`echo "${MULLE_EXECUTABLE}" | cut -d- -f2`"
-
-   #
-   # if your system don't have symbolic links this can be useful
-   # if you don't want to duplicate this file 10 times or so
-   # pass command as first parameter
-   #
-   if [ "${cmd}" = "build" ]
-   then
-      case "$1" in
-         -analyze|-build|-clean|-git|-install|-sublime|-status|-test|-tag|-xcode)
-            cmd="${1:1}"
-            shift;
-         ;;
-      esac
-   fi
-
-   #
    # technical flags
    local MULLE_FLAG_EXEKUTOR_DRY_RUN="NO"
-   local MULLE_FLAG_LOG_CACHE="NO"
+   local MULLE_FLAG_LOG_LOCAL="NO"
    local MULLE_FLAG_LOG_DEBUG="NO"
    local MULLE_FLAG_LOG_EXEKUTOR="NO"
    local MULLE_FLAG_LOG_FLUFF="NO"
    local MULLE_FLAG_LOG_SCRIPTS="NO"
    local MULLE_FLAG_LOG_SETTINGS="NO"
    local MULLE_FLAG_LOG_VERBOSE="NO"
-   local MULLE_FLAG_MERGE_LOG="NO"
-   local MULLE_FLAG_MAGNUM_FORCE="NONE"
-   local MULLE_TRACE_PATHS_FLIP_X="NO"
+   local MULLE_FLAG_LOG_MERGE="NO"
    local MULLE_TRACE_POSTPONE="NO"
-   local MULLE_TRACE_RESOLVER_FLIP_X="NO"
-   local MULLE_TRACE_SETTINGS_FLIP_X="NO"
 
-   local BOOTSTRAP_FLAGS=
-   local BOOTSTRAP_OPTIONS=
-   local BUILD_DIR="${BUILD_DIR:-build}"
-   local TEST_OPTIONS=
-   local BUILD_TEST_OPTIONS=
-   local XCODEBUILD_DIR="${XCODEBUILD_DIR:-build-xcode.d}"
-   local SUBLIMEBUILD_DIR="${SUBLIMEBUILD_DIR:-build-sublime.d}"
-
-   local OPTION_BUILD_DEPENDENCIES="YES"
-   local OPTION_DATABASE="YES"
-   local OPTION_INSTALL="NO"
-   local OPTION_CLEAN="YES"
-   local OPTION_URL_INSTALL_DEPENDENCIES="YES"
-   local OPTION_LOCAL_INSTALL_DEPENDENCIES="NO"
-   local OPTION_OPEN="YES"
-   local OPTION_OPTIMISTIC="YES"
-   local OPTION_XCODEPROJ="NO"
-   local OPTION_LINK_XCODEPROJ="NO"
-   local OPTION_LINK_SUBLIME="NO"
-   local OPTION_FAST_TEST="NO"   # useful for homebrew, to skip slow tests
-   local OPTION_SKIP_MULLE_BOOTSTRAP="YES"
-   local OPTION_AUTO_MIRROR="NO"
-   local OPTION_VERBOSE_MAKE="NO"
-   local OPTION_DONT_BUILD="NO"
-
-   local OPTION_SKIP_MULLE_BOOTSTRAP="YES"
+   local MULLE_FLAG_DEFER="DEFAULT"
+   local FLAG_OUTSIDE_ENV="NO"
 
    #
-   # if it looks totally clean, make bootstrapping the default
-   if [ -d .bootstrap -o -d .bootstrap.local ] && [ ! -d .bootstrap.auto ]
-   then
-      OPTION_SKIP_MULLE_BOOTSTRAP="NO"
-   fi
-
-   #
-   # per command different defaults
-   #
-   case "${cmd}" in
-      "install")
-         log_fluff "Set different default values for install"
-
-         OPTION_INSTALL="YES"
-         OPTION_AUTO_MIRROR="YES"
-         OPTION_SKIP_MULLE_BOOTSTRAP="NO"
-      ;;
-   esac
-
-   case "`uname`" in
-      MINGW*)
-         DEFAULT_INSTALL="~"
-      ;;
-
-      *)
-         DEFAULT_INSTALL="/usr/local"
-      ;;
-   esac
-
-   #
-   #  option handling
+   # simple option handling
    #
    while [ $# -ne 0 ]
    do
-      if bootstrap_technical_flags "$1"
+      if options_technical_flags "$1"
       then
-         BOOTSTRAP_FLAGS="`concat "${BOOTSTRAP_FLAGS}" "$1"`"
-
-         case "$1" in
-            -t|-ld|-v*|--debug)
-               BUILD_TEST_OPTIONS="`concat "${BUILD_TEST_OPTIONS}" $1`"
-               TEST_OPTIONS="`concat "${TEST_OPTIONS}" $1`"
-            ;;
-         esac
-
          shift
          continue
       fi
 
-      case "$1"  in
-         --auto-mirror)
-            OPTION_AUTO_MIRROR="YES"
-         ;;
-
-         --no-auto-mirror)
-            OPTION_AUTO_MIRROR="NO"
-         ;;
-
-         -b|--tag|--branch)
-            [ $# -eq 1 ] && fail "missing argument to $1"
-            shift
-
-            BRANCH="$1"
-         ;;
-
-         -D*|-W*)
-            CMAKEFLAGS="`concat "${CMAKEFLAGS}" "'$1'"`"
-         ;;
-
-         -d|--debug)
-            DEBUG="YES"
-            BUILD_TEST_OPTIONS="`concat "${BUILD_TEST_OPTIONS}" "$1"`"
-            TEST_OPTIONS="`concat "${TEST_OPTIONS}" "$1"`"
-         ;;
-
-         --dump-environment)
-            DUMP_ENVIRONMENT="YES"
-         ;;
-
-         -e|--embedded-only)
-            OPTION_BUILD_DEPENDENCIES="NO"
-            OPTION_LOCAL_INSTALL_DEPENDENCIES="NO"
-            OPTION_URL_INSTALL_DEPENDENCIES="NO"
+      case "$1" in
+         -e)
+            FLAG_OUTSIDE_ENV="YES"
          ;;
 
          -f|--force)
             MULLE_FLAG_MAGNUM_FORCE="BOTH"
-            TEST_OPTIONS="`concat "${TEST_OPTIONS}" $1`"
-         ;;
-
-         --fast-test)
-            OPTION_FAST_TEST="YES"
-         ;;
-
-         --homebrew)
-            [ -z "${HOMEBREW_PREFIX}" ] && fail "not called from homebrew"
-            [ -z "${INSTALL_PREFIX}" ] && fail "$1 needs preceeding --prefix"
-
-            homebrew_cmake_flags
-
-            OPTION_LOCAL_INSTALL_DEPENDENCIES="NO"
-            OPTION_SKIP_MULLE_BOOTSTRAP="NO"
-            OPTION_AUTO_MIRROR="YES"
          ;;
 
          -h|--help)
-            usage "${cmd}"
-         ;;
-
-         --link-sublime)
-            OPTION_LINK_SUBLIME="YES"
-         ;;
-
-         --link-xcodeproj)
-            OPTION_LINK_XCODEPROJ="YES"
-         ;;
-
-         -m|--make)
-            [ $# -eq 1 ] && fail "missing argument to $1"
-            shift
-
-            MAKE="$1"
-         ;;
-
-         --no-build)
-            OPTION_DONT_BUILD="YES"
-            OPTION_BUILD_DEPENDENCIES="NO"
-         ;;
-
-         --build-dependencies)
-            OPTION_BUILD_DEPENDENCIES="YES"
-         ;;
-
-         --no-build-dependencies)
-            OPTION_BUILD_DEPENDENCIES="NO"
-         ;;
-
-         --bootstrap)
-            OPTION_SKIP_MULLE_BOOTSTRAP="NO"
-         ;;
-
-         --no-bootstrap)
-            OPTION_SKIP_MULLE_BOOTSTRAP="YES"
-         ;;
-
-         --database)
-            OPTION_DATABASE="YES"
-         ;;
-
-         --no-database)
-            OPTION_DATABASE="NO"
-         ;;
-
-         --no-clean)
-            TEST_OPTIONS="`concat "${TEST_OPTIONS}" "$1"`"
-            BUILD_TEST_OPTIONS="`concat "${BUILD_TEST_OPTIONS}" "$1"`"
-            OPTION_CLEAN="NO"
-         ;;
-
-         --install)
-            OPTION_INSTALL="YES"
-         ;;
-
-         --no-install)
-            OPTION_INSTALL="NO"
-         ;;
-
-         --install-dependencies)
-            OPTION_LOCAL_INSTALL_DEPENDENCIES="YES"
-            OPTION_URL_INSTALL_DEPENDENCIES="YES"
-         ;;
-
-         --no-install-dependencies)
-            OPTION_LOCAL_INSTALL_DEPENDENCIES="NO"
-            OPTION_URL_INSTALL_DEPENDENCIES="NO"
-         ;;
-
-         --no-remove)
-            DONT_REMOVE="YES"
-         ;;
-
-         --build-dir)
-            [ $# -eq 1 ] && fail "missing argument to $1"
-            shift
-
-            BUILD_DIR="$1"
-         ;;
-
-         --sublime-build-dir)
-            [ $# -eq 1 ] && fail "missing argument to $1"
-            shift
-
-            SUBLIMEBUILD_DIR="$1"
-         ;;
-
-
-         --xcode-build-dir)
-            [ $# -eq 1 ] && fail "missing argument to $1"
-            shift
-
-            XCODEBUILD_DIR="$1"
-         ;;
-
-         -p|--prefix)
-            [ $# -eq 1 ] && fail "missing argument to $1"
-            shift
-
-            INSTALL_PREFIX="$1"
-         ;;
-
-         -s|--scm)
-            case "${cmd}" in
-               status)
-                  STATUS_OPTIONS="`concat "${STATUS_OPTIONS}" "$1"`"
-               ;;
-
-               *)
-                  shift
-                  [ $# -eq 0 ] && usage "${cmd}"
-
-                  SCM="$1"
-               ;;
-            esac
-         ;;
-
-         -u|--pessimistic|--unlucky)
-            STATUS_OPTIONS="`concat "${STATUS_OPTIONS}" "$1"`"
-            OPTION_OPTIMISTIC="NO"
-         ;;
-
-         --tests-path)
-            locate_tests
-            exit 0
-         ;;
-
-         --open|--open-sublime|--open-xcode)
-            OPTION_OPEN="YES"
-         ;;
-
-         --no-open|--no-open-sublime|--no-open-xcode)
-            OPTION_OPEN="NO"
-         ;;
-
-         --sublime)
-            OPTION_SUBLIME="YES"
-         ;;
-
-         --xcodeproj)
-            OPTION_XCODEPROJ="YES"
+            usage "${MULLE_TRACE}"
          ;;
 
          --version)
@@ -1764,188 +201,171 @@ main()
             exit 0
          ;;
 
-         # more common flags of mulle-bootstrap and mulle-build, that get passed through
+         -N|--no-defer)
+            MULLE_FLAG_DEFER="NONE";
+         ;;
+
+         -*)
+            log_error "${MULLE_EXECUTABLE_FAIL_PREFIX}: Unknown option \"$1\""
+            usage "${MULLE_TRACE}"
+         ;;
+
          *)
-            case "$1" in
-               -V)
-                  BOOTSTRAP_FLAGS="`concat "${BOOTSTRAP_FLAGS}" "$1"`"
-                  TEST_OPTIONS="`concat "${TEST_OPTIONS}" "$1"`"
-                  OPTION_VERBOSE_MAKE="YES"
-               ;;
-
-               --cores|-j)
-                  BOOTSTRAP_FLAGS="`concat "${BOOTSTRAP_FLAGS}" "$1"`"
-                  TEST_OPTIONS="`concat "${TEST_OPTIONS}" "$1"`"
-                  STATUS_OPTIONS="`concat "${STATUS_OPTIONS}" "$1"`"
-                  [ $# -eq 0 ] && usage "${cmd}"
-                  shift
-
-                  BOOTSTRAP_FLAGS="`concat "${BOOTSTRAP_FLAGS}" "$1"`"
-                  TEST_OPTIONS="`concat "${TEST_OPTIONS}" "$1"`"
-                  STATUS_OPTIONS="`concat "${STATUS_OPTIONS}" "$1"`"
-               ;;
-
-               -*)
-                  BOOTSTRAP_FLAGS="`concat "${BOOTSTRAP_FLAGS}" "$1"`"
-                  STATUS_OPTIONS="`concat "${STATUS_OPTIONS}" "$1"`"
-                  WRAPPER_OPTIONS="`concat "${WRAPPER_OPTIONS}" "$1"`"
-               ;;
-
-               *)
-                  break
-               ;;
-            esac
+            break
          ;;
       esac
 
       shift
    done
 
-   if mulle_bootstrap_version_too_old
+
+   options_setup_trace "${MULLE_TRACE}"
+
+   if [ -z "${MULLE_SDE_VIRTUAL_ROOT}" ]
    then
-      fail "Installed mulle-bootstrap version is incompatible with version ${MULLE_BOOTSTRAP_MIN_MAJOR}.x.x"
+      if [ "${FLAG_OUTSIDE_ENV}" = "NO" ]
+      then
+         fail "To run mulle-build outside of mulle-sde, pass the -e flag"
+      fi
+      MULLE_SDE_VIRTUAL_ROOT="${PWD}"
+      export MULLE_SDE_VIRTUAL_ROOT
    fi
 
-   bootstrap_setup_trace "${MULLE_TRACE}"
+   local cmd
 
-   case "${MULLE_TRACE}" in
-      VERBOSE)
-      ;;
+   cmd="${1:-build}"
 
-      FLUFF)
-         OPTION_VERBOSE_MAKE="YES"
-      ;;
+   MULLE_EXECUTABLE_FAIL_PREFIX="${MULLE_EXECUTABLE_NAME} ${cmd}"
+   [ $# -eq 0 ] || shift
 
-      TRACE)
-         OPTION_VERBOSE_MAKE="YES"
-         DUMP_ENVIRONMENT="YES"
-      ;;
-
-      1848)
-         OPTION_VERBOSE_MAKE="YES"
-         DUMP_ENVIRONMENT="YES"
-      ;;
-   esac
-
-   . mulle-bootstrap-command.sh || exit 1
+   if [ -z "${MULLE_MAKE}" ]
+   then
+      MULLE_MAKE="mulle-make"
+   fi
+   if [ -z "${MULLE_SOURCETREE}" ]
+   then
+      MULLE_SOURCETREE="mulle-sourcetree"
+   fi
+   if [ -z "${MULLE_DISPENSE}" ]
+   then
+      MULLE_DISPENSE="mulle-dispense"
+   fi
 
    case "${cmd}" in
-      analyze)
-         MAKE_WRAPPER="mulle-scan-build"
-         CMAKE_WRAPPER="mulle-scan-build"
+      build|execute)
+         # shellcheck source=src/mulle-build-execute.sh
+         . "${MULLE_BUILD_LIBEXEC_DIR}/mulle-build-execute.sh"
 
-         case "${CC}" in
-            mulle*)
-               # keep default for mulle-clang
-            ;;
-
-            *)
-               # try native scan-build if available
-               if [ ! -z "`command -v scan-build`" ]
-               then
-                  MAKE_WRAPPER="scan-build"
-                  CMAKE_WRAPPER="scan-build"
-               fi
-            ;;
-         esac
-
-         run_analyze "$@"
+         build_execute_main "$@"
       ;;
 
-      build)
-         if [ "${OPTION_XCODEPROJ}" = "YES" ]
-         then
-            xcode_mode "$@"
-         else
-            if [ "${OPTION_SUBLIME}" = "YES" ]
-            then
-               sublime_mode "$@"
-            else
-               run_build "$@"
-            fi
-         fi
+      help)
+         usage "${MULLE_TRACE}"
       ;;
 
-      install)
-         run_install "$@"
+      library-path)
+         echo "${MULLE_BUILD_LIBEXEC_DIR}"
       ;;
 
-      clean)
-         local_clean "$@"
+      pwd)
+         echo "$PWD"
       ;;
 
-      git)
-         if "${MULLE_BOOTSTRAP_EXE}" project-path > /dev/null
-         then
-            "${MULLE_BOOTSTRAP_EXE}" ${BOOTSTRAP_FLAGS} "${cmd}" ${BOOTSTRAP_OPTIONS} "$@" || exit 1
-         fi
-
-         log_info "### `basename ${PWD}`:"
-         git "$@" || exit 1
+      uname)
+         echo "${UNAME}"
       ;;
 
-      status)
-         if "${MULLE_BOOTSTRAP_EXE}" project-path > /dev/null
-         then
-            "${MULLE_BOOTSTRAP_EXE}" ${BOOTSTRAP_FLAGS} "git" ${BOOTSTRAP_OPTIONS} "${cmd}" ${STATUS_OPTIONS} "$@" || exit 1
-         fi
-
-         log_info "### `basename ${PWD}`:"
-         git "${cmd}" ${STATUS_OPTIONS} "$@" || exit 1
-      ;;
-
-      tag)
-         if "${MULLE_BOOTSTRAP_EXE}" project-path > /dev/null
-         then
-            "${MULLE_BOOTSTRAP_EXE}" ${BOOTSTRAP_FLAGS} "${cmd}" ${BOOTSTRAP_OPTIONS} "$@" || exit 1
-         fi
-
-         # tag it after succesfully tagging dependencies
-         log_info "Tagging ${C_MAGENTA}${C_BOLD}`basename -- "${PWD}"`${C_INFO} with ${C_RESET_BOLD}${1}${C_INFO}"
-         git tag "$@" || exit 1
-      ;;
-
-      test)
-         run_test "$@"
-      ;;
-
-
-      sublime)
-         sublime_mode "$@"
-      ;;
-
-      xcode)
-         xcode_mode "$@"
+      version)
+         echo "${MULLE_EXECUTABLE_VERSION}"
+         return 0
       ;;
 
       *)
-         usage "${cmd}"
+         log_error "${MULLE_EXECUTABLE_FAIL_PREFIX}: Unknown command \"${cmd}\""
+         usage "${MULLE_TRACE}"
       ;;
-
    esac
 }
 
 
-#
-# leading backslash ? looks like we're getting called from
-# mingw via a .BAT or so
-#
-case "$PATH" in
-   '\\'*)
-      PATH="`tr '\\' '/' <<< "${PATH}"`"
-   ;;
-esac
+_init()
+{
+   #
+   # minimal setup exit
+   #
+   if [ "$1" = "version" ]
+   then
+      echo "${MULLE_EXECUTABLE_VERSION}"
+      exit 0
+   fi
+
+   MULLE_BUILD_LIBEXEC_DIR="`build_libexec_path "$0"`"
+   if [ -z "${MULLE_BUILD_LIBEXEC_DIR}" ]
+   then
+      echo "$0 fatal error: Could not find libexec ($PWD)" >&2
+      exit 1
+   fi
+
+   #
+   # minimal setup exit
+   #
+   if [ "$1" = "library-path" ]
+   then
+      echo "${MULLE_BUILD_LIBEXEC_DIR}"
+      exit 0
+   fi
+
+   MULLE_BASHFUNCTIONS_LIBEXEC_DIR="`mulle-bashfunctions-env library-path 2> /dev/null`"
+   if [ -z "${MULLE_BASHFUNCTIONS_LIBEXEC_DIR}" ]
+   then
+      if [ -z "`command -v "${executablepath}"`" ]
+      then
+          echo "Fatal Error: Could not find mulle-bashfunctions-env in PATH (not installed ?)" >&2
+      else
+         echo "Fatal Error: Could not find libexec of mulle-bashfunctions-env ($PWD)" >&2
+      fi
+      exit 1
+   fi
+
+   PATH="${MULLE_BASHFUNCTIONS_LIBEXEC_DIR}:$PATH"
+   PATH="${MULLE_BUILD_LIBEXEC_DIR}:$PATH"
+   export PATH
+
+   if [ ! -z "${MULLE_BUILD_LIBEXEC_TRACE}" ]
+   then
+      echo "PATH=$PATH" >&2
+   fi
+
+   #
+   # to make these includes faster don't search via PATH
+   # but have PATH as fallback
+   #
+   local failmsg
+
+   failmsg="failed to load bashfunctions from ${MULLE_BASHFUNCTIONS_LIBEXEC_DIR}"
+
+      # shellcheck source=../mulle-bashfunctions/src/mulle-string.sh
+   . "${MULLE_BASHFUNCTIONS_LIBEXEC_DIR}/mulle-string.sh"   || fail "${failmsg}"
+      # shellcheck source=../mulle-bashfunctions/src/mulle-logging.sh
+   . "${MULLE_BASHFUNCTIONS_LIBEXEC_DIR}/mulle-logging.sh"  || fail "${failmsg}"
+      # shellcheck source=../mulle-bashfunctions/src/mulle-exekutor.sh
+   . "${MULLE_BASHFUNCTIONS_LIBEXEC_DIR}/mulle-exekutor.sh" || fail "${failmsg}"
+      # shellcheck source=../mulle-bashfunctions/src/mulle-options.sh
+   . "${MULLE_BASHFUNCTIONS_LIBEXEC_DIR}/mulle-options.sh"  || fail "${failmsg}"
+      # shellcheck source=../mulle-bashfunctions/src/mulle-path.sh
+   . "${MULLE_BASHFUNCTIONS_LIBEXEC_DIR}/mulle-path.sh"     || fail "${failmsg}"
+      # shellcheck source=../mulle-bashfunctions/src/mulle-file.sh
+   . "${MULLE_BASHFUNCTIONS_LIBEXEC_DIR}/mulle-file.sh"     || fail "${failmsg}"
 
 
-MULLE_EXECUTABLE="`basename -- "$0"`"
-MULLE_ARGUMENTS="$@"
-MULLE_EXECUTABLE_FAIL_PREFIX="${MULLE_EXECUTABLE}"
-MULLE_EXECUTABLE_PID="$$"
-export MULLE_EXECUTABLE_PID
+   #  set -e # more pain then gain in the end
+   #  set -u # doesn't work with my style
 
+   trap trap_fail INT
+   set -o pipefail
 
-build_init "$@"
+   MULLE_ARGUMENTS="$*"
+}
 
+_init "$@" # needs params
 main "$@"
-
-trap - TERM EXIT
