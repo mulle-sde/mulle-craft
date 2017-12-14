@@ -54,10 +54,9 @@ usage()
 
    cat <<EOF
 Usage:
-   ${MULLE_EXECUTABLE_NAME} [flags]
+   ${MULLE_EXECUTABLE_NAME} [flags] [command]
 
-   Convert a mulle-bootstrap enabled to a build project.
-   This will work on files for ${UNAME} only.
+   Build projects that may or may not have a mulle-sourcetreee.
 
 Flags:
 EOF
@@ -66,11 +65,20 @@ EOF
 
    cat <<EOF
 
+Commands:
+   analyze   :  analyze (clang) a project
+   build     :  build a project (default)
+   clean     :  clean output
+EOF
+
    if [ "${verbose}" = "NO" ]
    then
       cat <<EOF
-      (use mulle-build -v help to show more flags)
+
+      (use mulle-build -v help to show more commands and flags)
 EOF
+   fi
+
    exit 1
 }
 
@@ -152,6 +160,37 @@ build_libexec_path()
 }
 
 
+check_executables()
+{
+   if [ -z "${MULLE_MAKE}" ]
+   then
+      MULLE_MAKE="mulle-make"
+   fi
+   if [ -z "`command -v "${MULLE_MAKE}" `" ]
+   then
+      fail "${MULLE_MAKE} not found or in PATH"
+   fi
+
+   if [ -z "${MULLE_SOURCETREE}" ]
+   then
+      MULLE_SOURCETREE="mulle-sourcetree"
+   fi
+   if [ -z "`command -v "${MULLE_SOURCETREE}" `" ]
+   then
+      fail "${MULLE_SOURCETREE} not found or in PATH"
+   fi
+
+   if [ -z "${MULLE_DISPENSE}" ]
+   then
+      MULLE_DISPENSE="mulle-dispense"
+   fi
+   if [ -z "`command -v "${MULLE_DISPENSE}" `" ]
+   then
+      fail "${MULLE_DISPENSE} not found or in PATH"
+   fi
+}
+
+
 main()
 {
    local MULLE_FLAG_MAGNUM_FORCE="NONE"
@@ -221,15 +260,20 @@ main()
 
    options_setup_trace "${MULLE_TRACE}"
 
-   if [ -z "${MULLE_SDE_VIRTUAL_ROOT}" ]
-   then
-      if [ "${FLAG_OUTSIDE_ENV}" = "NO" ]
-      then
-         fail "To run mulle-build outside of mulle-sde, pass the -e flag"
-      fi
-      MULLE_SDE_VIRTUAL_ROOT="${PWD}"
-      export MULLE_SDE_VIRTUAL_ROOT
-   fi
+   case "${MULLE_SDE_VIRTUAL_ROOT}" in
+      "")
+         if [ "${FLAG_OUTSIDE_ENV}" = "NO" ]
+         then
+            fail "To run mulle-build outside of mulle-sde, pass the -e flag"
+         fi
+         MULLE_SDE_VIRTUAL_ROOT="${PWD}"
+         export MULLE_SDE_VIRTUAL_ROOT
+      ;;
+
+      */)
+         fail "MULLE_SDE_VIRTUAL_ROOT \"${MULLE_SDE_VIRTUAL_ROOT}\" must not end with /"
+      ;;
+   esac
 
    local cmd
 
@@ -238,18 +282,7 @@ main()
    MULLE_EXECUTABLE_FAIL_PREFIX="${MULLE_EXECUTABLE_NAME} ${cmd}"
    [ $# -eq 0 ] || shift
 
-   if [ -z "${MULLE_MAKE}" ]
-   then
-      MULLE_MAKE="mulle-make"
-   fi
-   if [ -z "${MULLE_SOURCETREE}" ]
-   then
-      MULLE_SOURCETREE="mulle-sourcetree"
-   fi
-   if [ -z "${MULLE_DISPENSE}" ]
-   then
-      MULLE_DISPENSE="mulle-dispense"
-   fi
+   check_executables
 
    case "${cmd}" in
       build|execute)
@@ -257,6 +290,13 @@ main()
          . "${MULLE_BUILD_LIBEXEC_DIR}/mulle-build-execute.sh"
 
          build_execute_main "$@"
+      ;;
+
+      clean)
+         # shellcheck source=src/mulle-build-clean.sh
+         . "${MULLE_BUILD_LIBEXEC_DIR}/mulle-build-clean.sh"
+
+         build_clean_main "$@"
       ;;
 
       help)
@@ -327,19 +367,6 @@ _init()
       exit 1
    fi
 
-   PATH="${MULLE_BASHFUNCTIONS_LIBEXEC_DIR}:$PATH"
-   PATH="${MULLE_BUILD_LIBEXEC_DIR}:$PATH"
-   export PATH
-
-   if [ ! -z "${MULLE_BUILD_LIBEXEC_TRACE}" ]
-   then
-      echo "PATH=$PATH" >&2
-   fi
-
-   #
-   # to make these includes faster don't search via PATH
-   # but have PATH as fallback
-   #
    local failmsg
 
    failmsg="failed to load bashfunctions from ${MULLE_BASHFUNCTIONS_LIBEXEC_DIR}"

@@ -41,12 +41,16 @@ Usage:
    Build the current project or sourcetree.
 
 Options:
-   ...
+   --lenient                : do not stop on errors
+   --no-build-dependencies  : don't build dependencies
+   --no-build-project       : don't build the current project
+   --no-sourcetree          : ignore the mulle-sourcetree
 
 Environment:
-   MULLE_BUILD_INFO_DIR  : place to find .mulle-buildinfo (fallback, optional)
-   DEPENDENCIES_DIR     : place to put dependencies (usually required)
-   ADDICTIONS_DIR       : place to get addictions from (optional)
+   ADDICTIONS_DIR   : place to get addictions from (optional)
+   BUILD_DIR        : place for build products and by-products
+   BUILDINFO_PATH   : places to find mulle-buildinfos
+   DEPENDENCIES_DIR : place to put dependencies into (generally required)
 EOF
   exit 1
 }
@@ -92,13 +96,13 @@ determine_dependencies_subdir()
 
    local configuration="$1"
    local sdk="$2"
-   local style="$3"
+   local style="${3:-auto}"
 
    [ -z "${configuration}" ] && internal_fail "configuration must not be empty"
    [ -z "${sdk}" ]           && internal_fail "sdk must not be empty"
    [ -z "${SDKS}" ]          && internal_fail "SDKS must not be empty"
 
-   sdk=`echo "${sdk}" | "${SED}" 's/^\([a-zA-Z]*\).*$/\1/g'`
+   sdk=`echo "${sdk}" | "${SED:-sed}" 's/^\([a-zA-Z]*\).*$/\1/g'`
 
    if [ "${style}" = "auto" ]
    then
@@ -153,41 +157,42 @@ determine_buildinfo_dir()
 {
    log_entry "determine_buildinfo_dir" "$@"
 
-   local name="$1"
-   local projectdir="$2"
+   #
+   # upper case for the sake of sameness for ppl setting BUILDINFO_PATH#
+   # in the environment
+   #
+   local NAME="$1"
+   local PROJECT_DIR="$2"
 
    local buildinfodir
+   local searchpath
 
-   buildinfodir="${OPTION_INFO_DIR}"
-   if [ -z "${buildinfodir}" ] && [ ! -d "${buildinfodir}" ]
+   if [ -z "${BUILDINFO_PATH}" ]
    then
-      buildinfodir="${DEPENDENCIES_DIR}/share/mulle-build/${name}.${UNAME}"
-      if [ ! -d "${buildinfodir}" ]
-      then
-         buildinfodir="${DEPENDENCIES_DIR}/share/mulle-build/${name}"
-         if [ ! -d "${buildinfodir}" ]
-         then
-            buildinfodir="${projectdir}/.mulle-build.${UNAME}"
-            if [ ! -d "${buildinfodir}" ]
-            then
-               buildinfodir="${projectdir}/.mulle-build"
-               if [ ! -d "${buildinfodir}" ]
-               then
-                  buildinfodir="${MULLE_BUILD_INFO_DIR}/${name}.${UNAME}"
-                  if [ ! -d "${buildinfodir}" ]
-                  then
-                     buildinfodir="${MULLE_BUILD_INFO_DIR}/${name}"
-                     if [ ! -d "${buildinfodir}" ]
-                     then
-                        return 1
-                     fi
-                  fi
-               fi
-            fi
-         fi
-      fi
+      searchpath="`colon_concat "${searchpath}" "${OPTION_INFO_DIR}" `"
+      searchpath="`colon_concat "${searchpath}" "${DEPENDENCIES_DIR}/share/mulle-build/${NAME}.${UNAME}" `"
+      searchpath="`colon_concat "${searchpath}" "${DEPENDENCIES_DIR}/share/mulle-build/${NAME}" `"
+      searchpath="`colon_concat "${searchpath}" "${PROJECT_DIR}/.mulle-build.${UNAME}" `"
+      searchpath="`colon_concat "${searchpath}" "${PROJECT_DIR}/.mulle-build" `"
+      searchpath="`colon_concat "${searchpath}" "${BUILDINFO_PATH}/${NAME}.${UNAME}" `"
+      searchpath="`colon_concat "${searchpath}" "${BUILDINFO_PATH}/${NAME}" `"
+   else
+      searchpath="`eval echo "${BUILDINFO_PATH}"`"
    fi
-   echo "${buildinfodir}"
+
+   IFS=":"
+   for buildinfodir in ${searchpath}
+   do
+      IFS="${DEFAULT_IFS}"
+      if [ ! -z "${buildinfodir}" ] && [ -d "${buildinfodir}" ]
+      then
+         echo "${buildinfodir}"
+         return 0
+      fi
+   done
+   IFS="${DEFAULT_IFS}"
+
+   return 1
 }
 
 
@@ -235,7 +240,7 @@ build_project()
    #
    # dependencies/share/mulle-buildinfo/<name>.txt
    # <project>/.mulle-buildinfo
-   # ${MULLE_BUILD_INFO_DIR}/<name>.txt
+   # ${BUILDINFO_PATH}/<name>.txt
    #
    local name
    local buildinfodir
@@ -243,19 +248,25 @@ build_project()
    name="`extensionless_basename "${project}"`"
    buildinfodir="`determine_buildinfo_dir "${name}" "${project}"`"
 
+   # subdir for configuration / sdk
+
+   local stylesubdir
+
+   stylesubdir="`determine_build_subdir "${configuration}" "${sdk}" `"
+
    #
    # find proper build directory
-   #
-   local builddir
-
-   builddir="${MULLE_BUILD_DIR:-build}"
-
-   #
    # find proper log directory
    #
+   local builddir
    local logdir
 
-   logdir="${builddir/.logs}"
+   builddir="${BUILD_DIR:-build}"
+   builddir="`filepath_concat "${builddir}" "${name}" `"
+   logdir="${builddir}/.logs"
+
+   builddir="`filepath_concat "${builddir}" "${stylesubdir}" `"
+   logdir="`filepath_concat "${logdir}" "${stylesubdir}" `"
 
    #
    # call mulle-make with all we've got now
@@ -296,8 +307,18 @@ build_project()
    then
       args="`concat "${args}" "--frameworks-path '${frameworkspath}'" `"
    fi
+   if [ ! -z "${destination}" ]
+   then
+      args="`concat "${args}" "--prefix '${destination}'" `"
+   fi
 
-   eval_exekutor "'${MULLE_MAKE}'" "${cmd}" "${args}"
+   if [ "${cmd}" != "install" ]
+   then
+      destination=""
+   fi
+
+   eval_exekutor "'${MULLE_MAKE}'" "${MULLE_MAKE_FLAGS}" \
+                    "${cmd}" "${args}" "${project}" "${destination}"
 }
 
 
@@ -306,6 +327,7 @@ build_dependency_directly()
    log_entry "build_dependency_directly" "$@"
 
    local project="$1"
+   local rval
 
    dependencies_begin_update || return 1
 
@@ -314,6 +336,9 @@ build_dependency_directly()
    #
    local configuration
    local sdk
+   local rval
+
+   rval=0
 
    IFS=","
    for configuration in ${CONFIGURATIONS}
@@ -323,18 +348,26 @@ build_dependency_directly()
       do
          IFS="${DEFAULT_IFS}"
 
-         build_project "${project}" \
-                       "install" \
-                       "${DEPENDENCIES_DIR}" \
-                       "${configuration}" \
-                       "${sdk}"
-         return $?
+         if ! build_project "${project}" \
+                            "install" \
+                            "${DEPENDENCIES_DIR}" \
+                            "${configuration}" \
+                            "${sdk}"
+         then
+            if [ "${OPTION_LENIENT}" = "NO" ]
+            then
+               return 1
+            fi
+            rval=1
+         fi
       done
    done
    IFS="${DEFAULT_IFS}"
 
    dependencies_end_update || return 1
 
+   # signal failures downward, even if lenient
+   return $rval
 }
 
 
@@ -343,6 +376,9 @@ build_dependency_with_dispense()
    log_entry "build_dependency_with_dispense" "$@"
 
    local project="$1"
+   local rval
+
+   rval=0
 
    IFS=","
    for configuration in ${CONFIGURATIONS}
@@ -360,23 +396,29 @@ build_dependency_with_dispense()
 
          rmdir_safer "${DEPENDENCIES_DIR}.tmp" || return 1
 
-         build_project "${project}" \
-                       "install" \
-                       "${DEPENDENCIES_DIR}.tmp" \
-                       "${configuration}" \
-                       "${sdk}"
-
-         dependencies_begin_update &&
-         "${MULLE_DISPENSE}" "${DEPENDENCIES_DIR}.tmp" "${DEPENDENCIES_DIR}${subdir}"  &&
-         dependencies_end_update
-
-         if [ $? -ne 0 -a "${OPTION_LENIENT}" = "NO" ]
+         if build_project "${project}" \
+                          "install" \
+                          "${DEPENDENCIES_DIR}.tmp" \
+                          "${configuration}" \
+                          "${sdk}"
          then
-            return 1
+            dependencies_begin_update &&
+            exekutor "${MULLE_DISPENSE}" ${MULLE_DISPENSE_FLAGS} dispense \
+                        "${DEPENDENCIES_DIR}.tmp" "${DEPENDENCIES_DIR}${subdir}"  &&
+            dependencies_end_update
+         else
+            log_fluff "build_project \"${project}\" failed"
+            if [ "${OPTION_LENIENT}" = "NO" ]
+            then
+               return 1
+            fi
+            rval=1
          fi
       done
    done
    IFS="${DEFAULT_IFS}"
+
+   return $rval
 }
 
 
@@ -387,17 +429,17 @@ build_dependency()
    local project="$1"
    local marks="$2"
 
+   local buildfunction
+
+   buildfunction="build_dependency_with_dispense"
+
    case "${marks}" in
       *nodispense*)
-         build_dependency_directly "${project}"
-      ;;
-
-      *)
-         build_dependency_with_dispense "${project}"
+         buildfunction="build_dependency_directly"
       ;;
    esac
 
-   return 0
+   "${buildfunction}" "${project}"
 }
 
 
@@ -496,7 +538,7 @@ build_with_buildorder()
       else
          if [ "${OPTION_LENIENT}" = "NO" ]
          then
-            log_fluff "Build of \"${project}\" failed, so quite"
+            log_fluff "Build of \"${project}\" failed, so quit"
             return 1
          fi
          log_fluff "Ignore failure of \"${project}\" due to leniency option"
@@ -512,9 +554,25 @@ do_build_sourcetree()
 
    [ -z "${MULLE_BUILD_DEPENDENCIES_SH}" ] && . "${MULLE_BUILD_LIBEXEC_DIR}/mulle-build-dependencies.sh"
 
+
+   local sourcetree_update_options
+
+   #
+   # these are environment variables
+   #
+   sourcetree_update_options="${MULLE_SOURCETREE_UPDATE_OPTIONS}"
+
+   if [ "${MULLE_SYMLINK}" = "YES" ]
+   then
+      sourcetree_update_options="`concat "${sourcetree}" "--symlink" `"
+   fi
+
    if ! exekutor "${MULLE_SOURCETREE}" ${MULLE_SOURCETREE_FLAGS} status --is-uptodate
    then
-      eval_exekutor "'${MULLE_SOURCETREE}'" "${MULLE_SOURCETREE_FLAGS}" "${OPTION_MODE}" "update"  || exit 1
+      eval_exekutor "'${MULLE_SOURCETREE}'" \
+                        "${MULLE_SOURCETREE_FLAGS}" "${OPTION_MODE}" \
+                        "update" \
+                          "${sourcetree_update_options}" || exit 1
    fi
 
    local buildorder
@@ -527,33 +585,51 @@ do_build_sourcetree()
       return
    fi
 
-   if [ ! -z "${DEPENDENCIES_DIR}" ]
+   local rval
+
+   rval=0
+   if [ "${OPTION_BUILD_DEPENDENCIES}" != "NO" ]
    then
-      log_verbose "Building dependencies..."
-
-      builddir="${OPTION_DEPENDENCIES_BUILD_DIR:-${BUILD_DIR}}"
-      build_with_buildorder "${buildorder}" \
-                            "dependencies" \
-                            "install" \
-                            "build_dependency" \
-                            "${builddir}" \
-                            "${builddir}/.mulle-built"
-
-      if [ $? -ne 0 -a "${OPTION_LENIENT}" = "NO" ]
+      if [ ! -z "${DEPENDENCIES_DIR}" ]
       then
-         return 1
+         log_verbose "Building dependencies..."
+
+         builddir="${OPTION_DEPENDENCIES_BUILD_DIR:-${BUILD_DIR}}"
+         if ! build_with_buildorder "${buildorder}" \
+                                    "dependencies" \
+                                    "install" \
+                                    "build_dependency" \
+                                    "${builddir}" \
+                                    "${builddir}/.mulle-built"
+         then
+            if [ "${OPTION_LENIENT}" = "NO" ]
+            then
+               return 1
+            fi
+            rval=1
+         fi
+      else
+         log_verbose "Not building dependencies as DEPENDENCIES_DIR is undefined"
       fi
-   else
-      log_verbose "Not building dependencies as DEPENDENCIES_DIR is undefined"
+   fi
+
+   if [ "${OPTION_BUILD_MAIN}" = "NO" ]
+   then
+      return $rval
    fi
 
    log_verbose "Building the rest..."
 
-   build_with_buildorder "${buildorder}" \
-                         "normal" \
-                         "build" \
-                         "build_project" \
-                         "${BUILD_DIR:-build}"
+   if ! build_with_buildorder "${buildorder}" \
+                              "normal" \
+                              "build" \
+                              "build_project" \
+                              "${BUILD_DIR:-build}"
+   then
+      return 1
+   fi
+
+   return $rval
 }
 
 
@@ -561,18 +637,29 @@ do_build_execute()
 {
    log_entry "do_build_execute" "$@"
 
+   local rval
+
+   rval=0
    if [ "${OPTION_USE_SOURCETREE}" = "YES" ]
    then
-      do_build_sourcetree
-      if [ $? -ne 0 -a "${OPTION_LENIENT}" = "YES" ]
+      if ! do_build_sourcetree
       then
-         return 0
+         if [ "${OPTION_LENIENT}" = "NO" ]
+         then
+            return 1
+         fi
+         rval=1
       fi
       log_verbose "Done with sourcetree built"
    fi
 
-   eval_exekutor "'${MULLE_MAKE}'" "${MULLE_MAKE_FLAGS}" build "${OPTIONS_MULLE_MAKE}" "$@"
-   return $?
+   log_debug: "PWD: ${PWD}"
+   if ! eval_exekutor "'${MULLE_MAKE}'" "${MULLE_MAKE_FLAGS}" build "${OPTIONS_MULLE_MAKE}" "$@"
+   then
+      return 1
+   fi
+
+   return $rval
 }
 
 
@@ -588,7 +675,8 @@ build_execute_main()
    local OPTION_USE_SOURCETREE="DEFAULT"
    local OPTION_MODE="--share"
    local OPTION_LENIENT="NO"
-   local OPTION_BUILD_STYLE="DEFAULT"
+   local OPTION_BUILD_MAIN="DEFAULT"
+   local OPTION_BUILD_DEPENDENCIES="DEFAULT"
    local OPTIONS_MULLE_MAKE=
 
    local OPTION_DEPENDENCIES_BUILD_DIR
@@ -609,6 +697,22 @@ build_execute_main()
             OPTION_LENIENT="NO"
          ;;
 
+         --build-dependencies)
+            OPTION_BUILD_DEPENDENCIES="YES"
+         ;;
+
+         --no-build-dependencies)
+            OPTION_BUILD_DEPENDENCIES="NO"
+         ;;
+
+         --build-project)
+            OPTION_BUILD_MAIN="YES"
+         ;;
+
+         --no-build-project)
+            OPTION_BUILD_MAIN="NO"
+         ;;
+
          --sourcetree)
             OPTION_USE_SOURCETREE="YES"
          ;;
@@ -622,7 +726,7 @@ build_execute_main()
             OPTIONS_MULLE_MAKE="`concat "${OPTIONS_MULLE_MAKE}" "$1"`"
             shift
 
-            MULLE_BUILD_DIR="$1"
+            BUILD_DIR="$1"
             OPTIONS_MULLE_MAKE="`concat "${OPTIONS_MULLE_MAKE}" "'$1'"`"
          ;;
 

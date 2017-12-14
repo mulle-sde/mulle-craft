@@ -247,7 +247,7 @@ dependencies_existing_dirs_path()
 
       if [ -d "${DEPENDENCIES_DIR}/${subdir}" ]
       then
-         path="`add_path "${path}" "${DEPENDENCIES_DIR}/${subdir}"`"
+         path="`colon_concat "${path}" "${DEPENDENCIES_DIR}/${subdir}"`"
       fi
    done
 
@@ -313,9 +313,9 @@ dependencies_lib_path()
 
    local subdirectories
 
-   subdirectories="`dependencies_directory_locations "lib" \
-                                                     "${configuration}" \
-                                                     "${sdk}"`"
+   subdirectories="`dependencies_dir_locations "lib" \
+                                               "${configuration}" \
+                                               "${sdk}"`"
    dependencies_existing_dirs_path "${subdirectories}"
 }
 
@@ -329,9 +329,9 @@ dependencies_frameworks_path()
 
    local subdirectories
 
-   subdirectories="`dependencies_directory_locations "Frameworks" \
-                                                     "${configuration}" \
-                                                     "${sdk}"`"
+   subdirectories="`dependencies_dir_locations "Frameworks" \
+                                               "${configuration}" \
+                                               "${sdk}"`"
    dependencies_existing_dirs_path "${subdirectories}"
 }
 
@@ -345,9 +345,9 @@ dependencies_share_path()
 
    local subdirectories
 
-   subdirectories="`dependencies_directory_locations "share" \
-                                                     "${configuration}" \
-                                                     "${sdk}"`"
+   subdirectories="`dependencies_dir_locations "share" \
+                                               "${configuration}" \
+                                               "${sdk}"`"
    dependencies_existing_dirs_path "${subdirectories}"
 }
 
