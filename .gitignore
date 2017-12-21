@@ -10,7 +10,7 @@ build/
 tmp.*
 bin/publisher-info.sh
 
-mulle-build.sublime-workspace
+mulle-craft.sublime-workspace
 mulle-analyze
 mulle-clean
 mulle-git

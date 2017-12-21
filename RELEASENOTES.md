@@ -25,7 +25,7 @@
 
 ## 3.13.0
 
-* add mulle-sublime (mulle-build -sublime) to the commands
+* add mulle-sublime (mulle-craft -sublime) to the commands
 
 
 ### 3.12.3
@@ -72,7 +72,7 @@ if only temporary for the sake of faster fetches
 tests output
 * wipe the cmake cache, if any CMake*.txt files have been edited. Hopefully
 this avoids a lot of grief I am suffering... :)
-* add --no-bootstrap --build-dir options to use mulle-build to be run in
+* add --no-bootstrap --build-dir options to use mulle-craft to be run in
 build-test.sh
 
 
@@ -110,7 +110,7 @@ build-test.sh
 =====
 
 * Improve finding of the tests folder.
-* mulle-build --tests-path will output the tests folder path
+* mulle-craft --tests-path will output the tests folder path
 * Improve output of paths from ./run-test.sh
 * mulle-update is too dangerous and it's a goner
 
@@ -202,7 +202,7 @@ to the search path.
 0.8.0
 =====
 
-* mulle-build assumes mulle-bootstrap is installed besides it, if it is, that
+* mulle-craft assumes mulle-bootstrap is installed besides it, if it is, that
 becomes its preferential path for it
 * allow to specify cmake commandline flags with -DCMAKE (will not get passed
 to mulle_bootstrap)
@@ -222,7 +222,7 @@ to mulle_bootstrap)
 =====
 
 * added mulle-status, because I use it so often
-* adapt to changes in mulle-build
+* adapt to changes in mulle-craft
 
 
 0.5.3
@@ -261,7 +261,7 @@ Mostly changes how flags are interpreted and passed to mulle-bootstrap.
 * base code on mulle-bootstrap library functions for exekutor and logging
 * add multiple options
 * check for mulle-bootstrap version
-* rename project from mulle-install to mulle-build
+* rename project from mulle-install to mulle-craft
 * do local command first, mulle-bootstrap later (f.e. for tagging). That way
 more numerous local failures don't dirty dependencies.
 * this version needs to be pushed out now, because I need it in travis.yml

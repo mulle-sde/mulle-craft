@@ -29,19 +29,27 @@
 #   ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
 #   POSSIBILITY OF SUCH DAMAGE.
 #
-MULLE_BUILD_CLEAN_SH="included"
+MULLE_CRAFT_CLEAN_SH="included"
 
 
 build_clean_usage()
 {
     cat <<EOF >&2
 Usage:
-   ${MULLE_EXECUTABLE_NAME} clean [options]
+   ${MULLE_EXECUTABLE_NAME} clean [options] [style]
 
-   Remove the current build and dependencies directory.
+   Remove build directory. You can specify a variety of clean styles. The
+   default is sourcetree.
 
 Options:
    --no-dependencies : do not remove dependencies
+
+Styles:
+   all
+   dependencies
+   nodependencies
+   project
+   sourcetree
 
 Environment:
    BUILD_DIR        : place for build products and by-products
@@ -50,6 +58,20 @@ EOF
   exit 1
 }
 
+
+remove_directory()
+{
+   log_entry "remove_directory" "$@"
+
+   if [ -d "$1" ]
+   then
+      log_verbose "Deleting ${C_RESET_BOLD}$1${C_VERBOSE}"
+
+      rmdir_safer "$1"
+   else
+      log_fluff "Removal candidate \"$1\" is not present"
+   fi
+}
 
 
 remove_directories()
@@ -60,14 +82,7 @@ remove_directories()
    do
       if [ ! -z "$1" ]
       then
-         if [ -d "$1" ]
-         then
-            log_verbose "Deleting ${C_RESET_BOLD}$1${C_VERBOSE}"
-
-            rmdir_safer "$1"
-         else
-            log_fluff "Removal candidate \"$1\" is not present"
-         fi
+         remove_directory "$1"
       fi
       shift
    done
@@ -75,7 +90,7 @@ remove_directories()
 
 
 #
-# mulle-build isn't rules so much by command line arguments
+# mulle-craft isn't rules so much by command line arguments
 # but uses mostly ENVIRONMENT variables
 # These are usually provided with mulle-sde
 #
@@ -100,6 +115,11 @@ build_clean_main()
          --no-dependencies)
             OPTION_DEPENDENCIES="NO"
          ;;
+
+         --dependencies-only)
+            OPTION_DEPENDENCIES="ONLY"
+         ;;
+
 
          -b|--build-dir)
             [ $# -eq 1 ] && fail "missing argument to \"$1\""
@@ -128,15 +148,58 @@ build_clean_main()
       shift
    done
 
+   local style
+
+   style="$1"
+   [ $# -ne 0 ] && shift
+
    [ $# -eq 0 ] || fail "superflous arguments \"$*\""
 
-   if [ "${OPTION_DEPENDENCIES}" = "NO" ]
+
+   local OPTION_USE_PROJECT
+   local OPTION_USE_SOURCETREE
+
+   OPTION_USE_PROJECT="NO"
+   OPTION_USE_SOURCETREE="YES"
+
+   case "${style}" in
+      ""|"sourcetree")
+      ;;
+
+      "all")
+         OPTION_USE_PROJECT="YES"
+         OPTION_USE_SOURCETREE="YES"
+      ;;
+
+      "project")
+         OPTION_USE_PROJECT="YES"
+         OPTION_USE_SOURCETREE="NO"
+      ;;
+
+      "dependencies")
+         OPTION_DEPENDENCIES="ONLY"
+      ;;
+
+      "nodependencies")
+         OPTION_DEPENDENCIES="NO"
+      ;;
+
+      *)
+         fail "unknown clean style \"$1\""
+      ;;
+   esac
+
+   if [ "${OPTION_USE_PROJECT}" = "YES" -a "${OPTION_DEPENDENCIES}" != "ONLY" ]
    then
-      remove_directories "${BUILD_DIR}" \
-                         "${OPTION_DEPENDENCIES_BUILD_DIR}"
-   else
-      remove_directories "${BUILD_DIR}" \
-                         "${OPTION_DEPENDENCIES_BUILD_DIR}" \
-                         "${DEPENDENCIES_DIR}"
+      remove_directory "${BUILD_DIR}"
+   fi
+
+   if [ "${OPTION_USE_SOURCETREE}" = "YES" ]
+   then
+      if [ "${OPTION_DEPENDENCIES}" != "NO" ]
+      then
+         remove_directory "${OPTION_DEPENDENCIES_BUILD_DIR}"
+         remove_directory "${DEPENDENCIES_DIR}"
+      fi
    fi
 }

@@ -1,9 +1,9 @@
 #! /bin/sh
 #
-# (c) 2016, coded by Nat!, Mulle KybernetiK, Codeon GmbH
+# (c) 2015, coded by Nat!, Mulle KybernetiK
 #
 
-if [ "${MULLE_BOOTSTRAP_NO_COLOR}" != "YES" ]
+if [ "${MULLE_SOURCETREE_NO_COLOR}" != "YES" ]
 then
    # Escape sequence and resets
    C_RESET="\033[0m"
@@ -19,13 +19,13 @@ then
    #
    # restore colors if stuff gets wonky
    #
-   trap 'printf "${C_RESET}"' TERM EXIT
+   trap 'printf "${C_RESET} >&2 ; exit 1"' TERM INT
 fi
 
 
 fail()
 {
-   printf "${C_BR_RED}$*${C_RESET}\n" >&2
+   printf "${C_BR_RED}Error: $*${C_RESET}\n" >&2
    exit 1
 }
 
@@ -33,35 +33,150 @@ fail()
 # https://github.com/hoelzro/useful-scripts/blob/master/decolorize.pl
 #
 
-prefix=${1:-"/usr/local"}
-[ $# -eq 0 ] || shift
-mode=${1:-755}
-[ $# -eq 0 ] || shift
-bin="${1:-${prefix}/bin}"
-[ $# -eq 0 ] || shift
+#
+# stolen from:
+# http://stackoverflow.com/questions/1055671/how-can-i-get-the-behavior-of-gnus-readlink-f-on-a-mac
+# ----
+#
+_prepend_path_if_relative()
+{
+   case "$2" in
+      /*)
+         echo "$2"
+      ;;
+
+      *)
+         echo "$1/$2"
+      ;;
+   esac
+}
 
 
-if [ "$prefix" = "" ] || [ "$bin" = "" ] || [ "$mode" = "" ]
-then
-   echo "usage: mulle-install [prefix] [mode] [binpath]" >&2
-   exit 1
-fi
+resolve_symlinks()
+{
+   local dir_context path
+
+   path="`readlink "$1"`"
+   if [ $? -eq 0 ]
+   then
+      dir_context=`dirname -- "$1"`
+      resolve_symlinks "`_prepend_path_if_relative "$dir_context" "$path"`"
+   else
+      echo "$1"
+   fi
+}
 
 
-[ -z "`which "mulle-bootstrap" 2> /dev/null`" ] && fail "mulle-bootstrap not installed (https://github.com/mulle-nat/mulle-bootstrap)"
+canonicalize_path()
+{
+   if [ -d "$1" ]
+   then
+   (
+      cd "$1" 2>/dev/null && pwd -P
+   )
+   else
+      local dir
+      local file
+
+      dir="`dirname "$1"`"
+      file="`basename -- "$1"`"
+      (
+         cd "${dir}" 2>/dev/null &&
+         echo "`pwd -P`/${file}"
+      )
+   fi
+}
 
 
-if [ ! -d "${bin}" ]
-then
-   mkdir -p "${bin}" || fail "could not create ${bin}"
-fi
+realpath()
+{
+   canonicalize_path "`resolve_symlinks "$1"`"
+}
 
-install -m "${mode}" mulle-build "${bin}" || fail "failed install into ${bin}"
-printf "install: ${C_MAGENTA}${C_BOLD}mulle-build${C_RESET}\n" >&2
 
-for i in analyze clean git install status tag sublime test xcode
-do
-   ln -sf mulle-build "${bin}/mulle-${i}" || fail "failed install into ${bin}"
-   printf "install: ${C_MAGENTA}${C_BOLD}mulle-${i}${C_RESET}\n" >&2
-done
+get_windows_path()
+{
+   local directory
 
+   directory="$1"
+   if [ -z "${directory}" ]
+   then
+      return 1
+   fi
+
+   ( cd "$directory" ; pwd -PW ) || fail "failed to get pwd"
+   return 0
+}
+
+
+get_sh_windows_path()
+{
+   local directory
+
+   directory="`which sh`"
+   directory="`dirname -- "${directory}"`"
+   directory="`get_windows_path "${directory}"`"
+
+   if [ -z "${directory}" ]
+   then
+      fail "could not find sh.exe"
+   fi
+   echo "${directory}/sh.exe"
+}
+
+
+sed_mangle_escape_slashes()
+{
+   sed -e 's|/|\\\\|g'
+}
+
+
+main()
+{
+   local prefix
+   local mode
+
+   prefix=${1:-"/usr/local"}
+   [ $# -eq 0 ] || shift
+   mode=${1:-755}
+   [ $# -eq 0 ] || shift
+
+   if [ -z "${prefix}" ] || [ -z "${mode}" ]
+   then
+      fail "usage: install.sh [prefix] [mode]"
+   fi
+
+   prefix="`realpath "${prefix}" 2> /dev/null`"
+   if [ ! -d "${prefix}" ]
+   then
+      fail "\"${prefix}\" does not exist"
+   fi
+
+   local bin
+   local libexec
+
+   bin="${prefix}/bin"
+   libexec="${prefix}/libexec/mulle-craft"
+
+   if [ ! -d "${bin}" ]
+   then
+      mkdir -p "${bin}" || fail "could not create ${bin}"
+   fi
+
+   if [ ! -d "${libexec}" ]
+   then
+      mkdir -p "${libexec}" || fail "could not create ${libexec}"
+   fi
+
+   install -m "${mode}" "mulle-craft" "${bin}/mulle-craft" || exit 1
+   printf "install: ${C_MAGENTA}${C_BOLD}%s${C_RESET}\n" "${bin}/mulle-craft" >&2
+
+   for i in src/mulle*.sh
+   do
+      mkdir -p "${libexec}" 2> /dev/null
+      install -v -m "${mode}" "${i}" "${libexec}" || exit 1
+   done
+}
+
+
+main "$@"

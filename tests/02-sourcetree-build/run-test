@@ -3,13 +3,13 @@
 [ "${TRACE}" = "YES" ] && set -x
 
 
-run_mulle_build()
+run_mulle_craft()
 {
    log_fluff "####################################"
-   log_fluff ${MULLE_BUILD} ${MULLE_BUILD_FLAGS} "$@"
+   log_fluff ${MULLE_CRAFT} ${MULLE_CRAFT_FLAGS} "$@"
    log_fluff "####################################"
 
-   exekutor ${MULLE_BUILD} -e ${MULLE_BUILD_FLAGS} "$@"
+   exekutor ${MULLE_CRAFT} -e ${MULLE_CRAFT_FLAGS} "$@"
 }
 
 
@@ -78,8 +78,8 @@ run_test()
    MAKE_REDIRECT_FILE="${directory}/make-args.txt" \
    CMAKE="${PWD}/../mock-cmake" \
    MAKE="${PWD}/../mock-make" \
-   MULLE_BUILD_DIR="${directory}/build" \
-      run_mulle_build build "$@"
+   MULLE_CRAFT_DIR="${directory}/build" \
+      run_mulle_craft build "$@"
 
    if [ "$?" -ne 0 ]
    then
@@ -97,7 +97,7 @@ run_test()
 
 main()
 {
-   MULLE_BUILD_FLAGS="$@"
+   MULLE_CRAFT_FLAGS="$@"
 
    _options_mini_main "$@"
 
@@ -128,7 +128,7 @@ init()
 
    . "${MULLE_BASHFUNCTIONS_LIBEXEC_DIR}/mulle-bashfunctions.sh" || exit 1
 
-   MULLE_BUILD="${MULLE_BUILD:-${PWD}/../../mulle-build}"
+   MULLE_CRAFT="${MULLE_CRAFT:-${PWD}/../../mulle-craft}"
 }
 
 

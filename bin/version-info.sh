@@ -4,6 +4,6 @@
 # enough for you. If you don't have this file, there will be
 # not git operations.
 #
-VERSIONFILE=mulle-build
+VERSIONFILE=mulle-craft
 VERSIONNAME=MULLE_EXECUTABLE_VERSION
 

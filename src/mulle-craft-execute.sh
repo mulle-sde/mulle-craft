@@ -29,27 +29,32 @@
 #   ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
 #   POSSIBILITY OF SUCH DAMAGE.
 #
-MULLE_BUILD_EXECUTE_SH="included"
+MULLE_CRAFT_EXECUTE_SH="included"
 
 
 build_execute_usage()
 {
     cat <<EOF >&2
 Usage:
-   ${MULLE_EXECUTABLE_NAME} execute [options]
+   ${MULLE_EXECUTABLE_NAME} ${BUILD_STYLE} [options]
 
-   Build the current project or sourcetree.
+${USAGE_INFO}
 
 Options:
-   --lenient                : do not stop on errors
-   --no-build-dependencies  : don't build dependencies
-   --no-build-project       : don't build the current project
-   --no-sourcetree          : ignore the mulle-sourcetree
+   --build-dir <dir>         : set BUILD_DIR
+   --debug                   : compile for debug only
+   --info-dir <dir>          : specify the buildinfo for mulle-make
+   --lenient                 : do not stop on errors
+   --dependencies-only       : build dependencies only
+   --no-dependencies         : don't build dependencies
+   --recurse|flat|share      : specify mode to update sourcetree with
+   --release                 : compile for release only
+   --sdk
 
 Environment:
    ADDICTIONS_DIR   : place to get addictions from (optional)
    BUILD_DIR        : place for build products and by-products
-   BUILDINFO_PATH   : places to find mulle-buildinfos
+   BUILDINFO_PATH   : places to find mulle-craftinfos
    DEPENDENCIES_DIR : place to put dependencies into (generally required)
 EOF
   exit 1
@@ -170,10 +175,10 @@ determine_buildinfo_dir()
    if [ -z "${BUILDINFO_PATH}" ]
    then
       searchpath="`colon_concat "${searchpath}" "${OPTION_INFO_DIR}" `"
-      searchpath="`colon_concat "${searchpath}" "${DEPENDENCIES_DIR}/share/mulle-build/${NAME}.${UNAME}" `"
-      searchpath="`colon_concat "${searchpath}" "${DEPENDENCIES_DIR}/share/mulle-build/${NAME}" `"
-      searchpath="`colon_concat "${searchpath}" "${PROJECT_DIR}/.mulle-build.${UNAME}" `"
-      searchpath="`colon_concat "${searchpath}" "${PROJECT_DIR}/.mulle-build" `"
+      searchpath="`colon_concat "${searchpath}" "${DEPENDENCIES_DIR}/share/mulle-craft/${NAME}.${UNAME}" `"
+      searchpath="`colon_concat "${searchpath}" "${DEPENDENCIES_DIR}/share/mulle-craft/${NAME}" `"
+      searchpath="`colon_concat "${searchpath}" "${PROJECT_DIR}/.mulle-craft.${UNAME}" `"
+      searchpath="`colon_concat "${searchpath}" "${PROJECT_DIR}/.mulle-craft" `"
       searchpath="`colon_concat "${searchpath}" "${BUILDINFO_PATH}/${NAME}.${UNAME}" `"
       searchpath="`colon_concat "${searchpath}" "${BUILDINFO_PATH}/${NAME}" `"
    else
@@ -238,8 +243,8 @@ build_project()
    # locate proper buildinfo path
    # searchpath:
    #
-   # dependencies/share/mulle-buildinfo/<name>.txt
-   # <project>/.mulle-buildinfo
+   # dependencies/share/mulle-craftinfo/<name>.txt
+   # <project>/.mulle-craftinfo
    # ${BUILDINFO_PATH}/<name>.txt
    #
    local name
@@ -523,7 +528,7 @@ build_with_buildorder()
          ;;
       esac
 
-      log_fluff "Build \"${project}\""
+      log_verbose "Build ${C_MAGENTA}${C_BOLD}${project}${C_VERBOSE}"
 
       (
          BUILD_DIR="${builddir}" "${functionname}" "${project}" "${cmd}" "${marks}"
@@ -552,7 +557,7 @@ do_build_sourcetree()
 {
    log_entry "do_build_sourcetree" "$@"
 
-   [ -z "${MULLE_BUILD_DEPENDENCIES_SH}" ] && . "${MULLE_BUILD_LIBEXEC_DIR}/mulle-build-dependencies.sh"
+   [ -z "${MULLE_CRAFT_DEPENDENCIES_SH}" ] && . "${MULLE_CRAFT_LIBEXEC_DIR}/mulle-craft-dependencies.sh"
 
 
    local sourcetree_update_options
@@ -592,9 +597,11 @@ do_build_sourcetree()
    then
       if [ ! -z "${DEPENDENCIES_DIR}" ]
       then
-         log_verbose "Building dependencies..."
+         log_verbose "Building the dependencies of the sourcetree ..."
 
-         builddir="${OPTION_DEPENDENCIES_BUILD_DIR:-${BUILD_DIR}}"
+         builddir="${BUILD_DIR:-build}"
+         builddir="${OPTION_DEPENDENCIES_BUILD_DIR:-${builddir}}"
+
          if ! build_with_buildorder "${buildorder}" \
                                     "dependencies" \
                                     "install" \
@@ -613,12 +620,12 @@ do_build_sourcetree()
       fi
    fi
 
-   if [ "${OPTION_BUILD_MAIN}" = "NO" ]
+   if [ "${OPTION_BUILD_DEPENDENCIES}" = "ONLY" ]
    then
       return $rval
    fi
 
-   log_verbose "Building the rest..."
+   log_verbose "Building the rest of the sourcetree ..."
 
    if ! build_with_buildorder "${buildorder}" \
                               "normal" \
@@ -650,13 +657,18 @@ do_build_execute()
          fi
          rval=1
       fi
-      log_verbose "Done with sourcetree built"
+      log_fluff "Done with sourcetree built"
    fi
 
-   log_debug: "PWD: ${PWD}"
-   if ! eval_exekutor "'${MULLE_MAKE}'" "${MULLE_MAKE_FLAGS}" build "${OPTIONS_MULLE_MAKE}" "$@"
+   if [ "${OPTION_USE_PROJECT}" = "YES" ]
    then
-      return 1
+      log_verbose "Building the project (outside of the sourcetree) ..."
+      log_verbose "Build ${C_MAGENTA}${C_BOLD}${PWD}${C_VERBOSE}"
+
+      if ! eval_exekutor "'${MULLE_MAKE}'" "${MULLE_MAKE_FLAGS}" build "${OPTIONS_MULLE_MAKE}" "$@"
+      then
+         return 1
+      fi
    fi
 
    return $rval
@@ -664,22 +676,20 @@ do_build_execute()
 
 
 #
-# mulle-build isn't rules so much by command line arguments
+# mulle-craft isn't rules so much by command line arguments
 # but uses mostly ENVIRONMENT variables
 # These are usually provided with mulle-sde
 #
-build_execute_main()
+build_common()
 {
-   log_entry "build_execute_main" "$@"
+   log_entry "build_common" "$@"
 
    local OPTION_USE_SOURCETREE="DEFAULT"
    local OPTION_MODE="--share"
    local OPTION_LENIENT="NO"
-   local OPTION_BUILD_MAIN="DEFAULT"
    local OPTION_BUILD_DEPENDENCIES="DEFAULT"
    local OPTIONS_MULLE_MAKE=
 
-   local OPTION_DEPENDENCIES_BUILD_DIR
    local OPTION_INFO_DIR
 
    while [ $# -ne 0 ]
@@ -697,28 +707,16 @@ build_execute_main()
             OPTION_LENIENT="NO"
          ;;
 
-         --build-dependencies)
+         --dependencies)
             OPTION_BUILD_DEPENDENCIES="YES"
          ;;
 
-         --no-build-dependencies)
+         --dependencies-only)
+            OPTION_BUILD_DEPENDENCIES="ONLY"
+         ;;
+
+         --no-dependencies)
             OPTION_BUILD_DEPENDENCIES="NO"
-         ;;
-
-         --build-project)
-            OPTION_BUILD_MAIN="YES"
-         ;;
-
-         --no-build-project)
-            OPTION_BUILD_MAIN="NO"
-         ;;
-
-         --sourcetree)
-            OPTION_USE_SOURCETREE="YES"
-         ;;
-
-         --no-sourcetree)
-            OPTION_USE_SOURCETREE="NO"
          ;;
 
          -b|--build-dir)
@@ -728,13 +726,6 @@ build_execute_main()
 
             BUILD_DIR="$1"
             OPTIONS_MULLE_MAKE="`concat "${OPTIONS_MULLE_MAKE}" "'$1'"`"
-         ;;
-
-         --dependencies-build-dir)
-            [ $# -eq 1 ] && fail "missing argument to \"$1\""
-            shift
-
-            OPTION_DEPENDENCIES_BUILD_DIR="$1"
          ;;
 
          -i|--info-dir)
@@ -812,4 +803,75 @@ build_execute_main()
    fi
 
    do_build_execute "$@"
+}
+
+
+build_all_main()
+{
+   BUILD_STYLE="all"
+
+   USAGE_INFO="    Build the sourcetree, containing the dependencies.
+   Then build the project.
+"
+
+   local OPTION_USE_PROJECT
+   local OPTION_USE_SOURCETREE
+
+   OPTION_USE_PROJECT="YES"
+   OPTION_USE_SOURCETREE="YES"
+
+   # since we build the sourcetree, find it
+   local projectdir
+
+   projectdir="`${MULLE_SOURCETREE} ${MULLE_FLAG_DEFER} pwd `"
+   if [ ! -z "${projectdir}" ]
+   then
+      log_info "Found sourcetree in \"${projectdir}\""
+      cd "${projectdir}"
+   fi
+
+   build_common "$@"
+}
+
+
+build_project_main()
+{
+   BUILD_STYLE="project"
+
+   USAGE_INFO="    Build the project only.
+"
+   local OPTION_USE_PROJECT
+   local OPTION_USE_SOURCETREE
+
+   OPTION_USE_PROJECT="YES"
+   OPTION_USE_SOURCETREE="NO"
+
+   build_common "$@"
+}
+
+
+build_sourcetree_main()
+{
+   BUILD_STYLE="sourcetree"
+
+   USAGE_INFO="    Build the sourcetree only.
+"
+
+   local OPTION_USE_PROJECT
+   local OPTION_USE_SOURCETREE
+
+   OPTION_USE_PROJECT="NO"
+   OPTION_USE_SOURCETREE="YES"
+
+   # since we build the sourcetree, find it
+   local projectdir
+
+   projectdir="`${MULLE_SOURCETREE} ${MULLE_FLAG_DEFER} pwd `"
+   if [ ! -z "${projectdir}" ]
+   then
+      log_info "Found sourcetree in \"${projectdir}\""
+      cd "${projectdir}"
+   fi
+
+   build_common "$@"
 }

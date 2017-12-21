@@ -56,7 +56,7 @@ usage()
 Usage:
    ${MULLE_EXECUTABLE_NAME} [flags] [command]
 
-   Build projects that may or may not have a mulle-sourcetreee.
+   Build projects taking mulle-sourcetree into consideration.
 
 Flags:
 EOF
@@ -66,16 +66,19 @@ EOF
    cat <<EOF
 
 Commands:
-   analyze   :  analyze (clang) a project
-   build     :  build a project (default)
-   clean     :  clean output
+   all             :  build sourcetreee and project (default)
+   clean           :  clean output
+   dependencies    :  build the sourcetree dependencies only
+   nodependencies  :  build the sourcetree skipping the dependencies
+   project         :  build the project (outside sourcetree) only
+   sourcetree      :  build the sourcetree only
 EOF
 
    if [ "${verbose}" = "NO" ]
    then
       cat <<EOF
 
-      (use mulle-build -v help to show more commands and flags)
+      (use mulle-craft -v help to show more commands and flags)
 EOF
    fi
 
@@ -137,9 +140,9 @@ build_libexec_path()
    executablepath="`resolve_symlinks "${executablepath}"`"
    exedirpath="`dirname "${executablepath}"`"
    prefix="`dirname "${exedirpath}"`"
-   libexecpath="${prefix}/libexec/mulle-build"
+   libexecpath="${prefix}/libexec/mulle-craft"
 
-   if [ ! -x "${libexecpath}/mulle-build-execute.sh" ]
+   if [ ! -x "${libexecpath}/mulle-craft-execute.sh" ]
    then
       libexecpath="${exedirpath}/src"
    fi
@@ -153,7 +156,7 @@ build_libexec_path()
       ;;
    esac
 
-   if [ -x "${libexecpath}/mulle-build-execute.sh" ]
+   if [ -x "${libexecpath}/mulle-craft-execute.sh" ]
    then
       echo "${libexecpath}"
    fi
@@ -208,7 +211,7 @@ main()
    local MULLE_FLAG_LOG_MERGE="NO"
    local MULLE_TRACE_POSTPONE="NO"
 
-   local MULLE_FLAG_DEFER="DEFAULT"
+   local MULLE_FLAG_DEFER="--defer-this"
    local FLAG_OUTSIDE_ENV="NO"
 
    #
@@ -240,8 +243,8 @@ main()
             exit 0
          ;;
 
-         -N|--no-defer)
-            MULLE_FLAG_DEFER="NONE";
+         -R|--defer-root|-T|--defer-this|-P|--defer-parent|-N|--no-defer)
+            MULLE_FLAG_DEFER="$1"
          ;;
 
          -*)
@@ -257,44 +260,78 @@ main()
       shift
    done
 
-
    options_setup_trace "${MULLE_TRACE}"
 
-   case "${MULLE_SDE_VIRTUAL_ROOT}" in
+   case "${MULLE_VIRTUAL_ROOT}" in
       "")
          if [ "${FLAG_OUTSIDE_ENV}" = "NO" ]
          then
-            fail "To run mulle-build outside of mulle-sde, pass the -e flag"
+            fail "To run mulle-craft outside of mulle-sde, pass the -e flag"
          fi
-         MULLE_SDE_VIRTUAL_ROOT="${PWD}"
-         export MULLE_SDE_VIRTUAL_ROOT
+         MULLE_VIRTUAL_ROOT="${PWD}"
+         export MULLE_VIRTUAL_ROOT
       ;;
 
       */)
-         fail "MULLE_SDE_VIRTUAL_ROOT \"${MULLE_SDE_VIRTUAL_ROOT}\" must not end with /"
+         fail "MULLE_VIRTUAL_ROOT \"${MULLE_VIRTUAL_ROOT}\" must not end with /"
       ;;
    esac
 
    local cmd
 
-   cmd="${1:-build}"
+   cmd="$1"
 
    MULLE_EXECUTABLE_FAIL_PREFIX="${MULLE_EXECUTABLE_NAME} ${cmd}"
    [ $# -eq 0 ] || shift
 
    check_executables
 
-   case "${cmd}" in
-      build|execute)
-         # shellcheck source=src/mulle-build-execute.sh
-         . "${MULLE_BUILD_LIBEXEC_DIR}/mulle-build-execute.sh"
+   #
+   # project can give the default way to build this
+   #
+   if [ -z "${cmd}" ]
+   then
+      cmd="`cat .mulle-craft 2> /dev/null`"
+   fi
 
-         build_execute_main "$@"
+   case "${cmd:-sourcetree}" in
+      all)
+         . "${MULLE_CRAFT_LIBEXEC_DIR}/mulle-craft-execute.sh"
+
+         build_all_main "$@"
+      ;;
+
+      project)
+         # shellcheck source=src/mulle-craft-execute.sh
+         . "${MULLE_CRAFT_LIBEXEC_DIR}/mulle-craft-execute.sh"
+
+         build_project_main "$@"
+      ;;
+
+      sourcetree)
+         # shellcheck source=src/mulle-craft-execute.sh
+         . "${MULLE_CRAFT_LIBEXEC_DIR}/mulle-craft-execute.sh"
+
+         build_sourcetree_main "$@"
+      ;;
+
+      dependencies)
+         # shellcheck source=src/mulle-craft-execute.sh
+         . "${MULLE_CRAFT_LIBEXEC_DIR}/mulle-craft-execute.sh"
+
+         build_sourcetree_main --dependencies-only "$@"
+      ;;
+
+      nodependencies)
+         # shellcheck source=src/mulle-craft-execute.sh
+         . "${MULLE_CRAFT_LIBEXEC_DIR}/mulle-craft-execute.sh"
+
+         build_sourcetree_main --no-dependencies "$@"
       ;;
 
       clean)
-         # shellcheck source=src/mulle-build-clean.sh
-         . "${MULLE_BUILD_LIBEXEC_DIR}/mulle-build-clean.sh"
+         # shellcheck source=src/mulle-craft-clean.sh
+         . "${MULLE_CRAFT_LIBEXEC_DIR}/mulle-craft-clean.sh"
 
          build_clean_main "$@"
       ;;
@@ -303,8 +340,8 @@ main()
          usage "${MULLE_TRACE}"
       ;;
 
-      library-path)
-         echo "${MULLE_BUILD_LIBEXEC_DIR}"
+      libexec-path|library-path)
+         echo "${MULLE_CRAFT_LIBEXEC_DIR}"
       ;;
 
       pwd)
@@ -339,8 +376,8 @@ _init()
       exit 0
    fi
 
-   MULLE_BUILD_LIBEXEC_DIR="`build_libexec_path "$0"`"
-   if [ -z "${MULLE_BUILD_LIBEXEC_DIR}" ]
+   MULLE_CRAFT_LIBEXEC_DIR="`build_libexec_path "$0"`"
+   if [ -z "${MULLE_CRAFT_LIBEXEC_DIR}" ]
    then
       echo "$0 fatal error: Could not find libexec ($PWD)" >&2
       exit 1
@@ -349,13 +386,18 @@ _init()
    #
    # minimal setup exit
    #
-   if [ "$1" = "library-path" ]
-   then
-      echo "${MULLE_BUILD_LIBEXEC_DIR}"
-      exit 0
-   fi
+   #
+   # minimal setup exit
+   #
+   case "$1" in
+      "libexec-path"|"library-path")
+         echo "${MULLE_CRAFT_LIBEXEC_DIR}"
+         exit 0
+      ;;
+   esac
 
-   MULLE_BASHFUNCTIONS_LIBEXEC_DIR="`mulle-bashfunctions-env library-path 2> /dev/null`"
+
+   MULLE_BASHFUNCTIONS_LIBEXEC_DIR="`mulle-bashfunctions-env libexec-path 2> /dev/null`"
    if [ -z "${MULLE_BASHFUNCTIONS_LIBEXEC_DIR}" ]
    then
       if [ -z "`command -v "${executablepath}"`" ]

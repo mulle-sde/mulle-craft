@@ -5,7 +5,7 @@
 #
 
 #######
-# If you are using mulle-build, you don't hafta change anything
+# If you are using mulle-craft, you don't hafta change anything
 #######
 
 #

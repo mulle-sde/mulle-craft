@@ -1,7 +1,7 @@
 cmake_minimum_required (VERSION 3.0)
 
 # use C, because otherwise a CXX compiler is required
-project( mulle-build C)
+project( mulle-craft C)
 
 #
 # Primarily used for packaging on Linux
@@ -16,24 +16,24 @@ project( mulle-build C)
 # ```
 #
 
-execute_process( COMMAND ./mulle-build version
+execute_process( COMMAND ./mulle-craft version
                  WORKING_DIRECTORY "${PROJECT_SOURCE_DIR}"
-                 OUTPUT_VARIABLE MULLE_BUILD_VERSION
+                 OUTPUT_VARIABLE MULLE_CRAFT_VERSION
                  OUTPUT_STRIP_TRAILING_WHITESPACE)
-message( STATUS "MULLE_BUILD_VERSION is ${MULLE_BUILD_VERSION} according to mulle-build")
+message( STATUS "MULLE_CRAFT_VERSION is ${MULLE_CRAFT_VERSION} according to mulle-craft")
 
-execute_process( COMMAND ./mulle-build minimum-bootstrap-version
+execute_process( COMMAND ./mulle-craft minimum-bootstrap-version
                  WORKING_DIRECTORY "${PROJECT_SOURCE_DIR}"
                  OUTPUT_VARIABLE MULLE_BOOTSTRAP_REQ_VERSION
                  OUTPUT_STRIP_TRAILING_WHITESPACE)
-message( STATUS "Required MULLE_BOOTSTRAP_VERSION is ${MULLE_BOOTSTRAP_REQ_VERSION} according to mulle-build")
+message( STATUS "Required MULLE_BOOTSTRAP_VERSION is ${MULLE_BOOTSTRAP_REQ_VERSION} according to mulle-craft")
 
 
-set( PROJECT_VERSION "${MULLE_BUILD_VERSION}")
+set( PROJECT_VERSION "${MULLE_CRAFT_VERSION}")
 
 
 set( SCRIPTS
-mulle-build
+mulle-craft
 )
 
 #
@@ -49,13 +49,13 @@ if( CMAKE_HOST_UNIX)
 "${CMAKE_BINARY_DIR}/mulle-tag"
 "${CMAKE_BINARY_DIR}/mulle-test"
 )
-  execute_process(COMMAND ln -s mulle-build "${CMAKE_BINARY_DIR}/mulle-analyze")
-  execute_process(COMMAND ln -s mulle-build "${CMAKE_BINARY_DIR}/mulle-clean")
-  execute_process(COMMAND ln -s mulle-build "${CMAKE_BINARY_DIR}/mulle-git")
-  execute_process(COMMAND ln -s mulle-build "${CMAKE_BINARY_DIR}/mulle-install")
-  execute_process(COMMAND ln -s mulle-build "${CMAKE_BINARY_DIR}/mulle-status")
-  execute_process(COMMAND ln -s mulle-build "${CMAKE_BINARY_DIR}/mulle-tag")
-  execute_process(COMMAND ln -s mulle-build "${CMAKE_BINARY_DIR}/mulle-test")
+  execute_process(COMMAND ln -s mulle-craft "${CMAKE_BINARY_DIR}/mulle-analyze")
+  execute_process(COMMAND ln -s mulle-craft "${CMAKE_BINARY_DIR}/mulle-clean")
+  execute_process(COMMAND ln -s mulle-craft "${CMAKE_BINARY_DIR}/mulle-git")
+  execute_process(COMMAND ln -s mulle-craft "${CMAKE_BINARY_DIR}/mulle-install")
+  execute_process(COMMAND ln -s mulle-craft "${CMAKE_BINARY_DIR}/mulle-status")
+  execute_process(COMMAND ln -s mulle-craft "${CMAKE_BINARY_DIR}/mulle-tag")
+  execute_process(COMMAND ln -s mulle-craft "${CMAKE_BINARY_DIR}/mulle-test")
 endif(CMAKE_HOST_UNIX)
 
 

@@ -1,8 +1,5 @@
-# mulle-build
+# mulle-craft, 🚬 Build projects using cmake, configure or some other meta-build tools
 
-... simplifies the use of mulle-bootstrap and cmake.
-
-> Caveat: It's very much a 0.x project yet.
 
 Use it to build
 [mulle-bootstrap](//www.mulle-kybernetik.com/software/git/mulle-bootstrap)
@@ -11,15 +8,15 @@ and
 based projects conveniently on multiple platforms (OSX, Linux, Windows)
 
 Where **mulle-bootstrap** solves the dependency problems of your project.
-**mulle-build** combines it with cmake to build your complete project. It is
+**mulle-craft** combines it with cmake to build your complete project. It is
 useful to quickly build and test a project. It simplifies interfacing your
 project with package managers like [homebrew](//brew.sh) or continous
 integration services like [Travis CI](//travis-ci.org/).
 
 
-### What mulle-build does in a nutshell
+### What mulle-craft does in a nutshell
 
-Essentially, `mulle-build` is a shortcut for typing:
+Essentially, `mulle-craft` is a shortcut for typing:
 
 
 ```
@@ -33,17 +30,17 @@ make
 ```
 
 So it's conceptually fairly simple. But then there are options :) Check the
-[examples](examples) folder for two simple mulle-build projects.
+[examples](examples) folder for two simple mulle-craft projects.
 
 
 ## Commands
 
-**mulle-build** comes in several guises as:
+**mulle-craft** comes in several guises as:
 
 
 Command       | Description                                   | Usage
 --------------|-----------------------------------------------|---------------
-mulle-build   | build project and dependencies                | [mulle-build](dox/mulle-build.md)
+mulle-craft   | build project and dependencies                | [mulle-craft](dox/mulle-craft.md)
 mulle-clean   | run clean on project and dependencies         | [mulle-clean](dox/mulle-clean.md)
 mulle-git     | run git operation on project and dependencies | [mulle-git](dox/mulle-git.md)
 mulle-install | install libraries and binaries somewhere      | [mulle-install](dox/mulle-install.md)
@@ -52,7 +49,7 @@ mulle-test    | run tests (see below)                         | [mulle-test](dox
 mulle-update  | pull changes on project and dependencies      | [mulle-update](dox/mulle-update.md)
 
 
-## Install mulle-build
+## Install mulle-craft
 
 ### Windows: Install "Git for Windows" bash
 
@@ -80,15 +77,15 @@ Check that you have the proper environment for VisualStudio compilation with
 `env`.
 
 
-### OSX: Install mulle-build using homebrew
+### OSX: Install mulle-craft using homebrew
 
 Install the [homebrew](//brew.sh/) package manager, then
 
 ```
-brew install mulle-kybernetik/software/mulle-build
+brew install mulle-kybernetik/software/mulle-craft
 ```
 
-### Linux: Install mulle-build using apt-get
+### Linux: Install mulle-craft using apt-get
 
 Run with sudo:
 
@@ -96,31 +93,31 @@ Run with sudo:
 curl -sS "https://www.mulle-kybernetik.com/dists/admin-pub.asc" | apt-key add -
 echo "deb [arch=all] http://www.mulle-kybernetik.com `lsb_release -c -s` main" \
 > "/etc/apt/sources.list.d/mulle-kybernetik.com-main.list"
-apt-get -y --allow-unauthenticated install mulle-build
+apt-get -y --allow-unauthenticated install mulle-craft
 ```
 
-### Linux: Install mulle-build using linuxbrew
+### Linux: Install mulle-craft using linuxbrew
 
 Install the [linuxbrew](//linuxbrew.sh/) package manager, then
 
 ```
-brew install mulle-kybernetik/software/mulle-build
+brew install mulle-kybernetik/software/mulle-craft
 ```
 
-### All Platforms: Install mulle-build using git
+### All Platforms: Install mulle-craft using git
 
 ```
 git clone --branch release https://www.mulle-kybernetik.com/repositories/mulle-bootstrap
 ( cd mulle-bootstrap ; ./install.sh )
-git clone --branch release https://www.mulle-kybernetik.com/repositories/mulle-build
-( cd mulle-build ; ./install.sh )
+git clone --branch release https://www.mulle-kybernetik.com/repositories/mulle-craft
+( cd mulle-craft ; ./install.sh )
 ```
 
 
-## Example Travis-CI integration with linux using mulle-build
+## Example Travis-CI integration with linux using mulle-craft
 
 Travis CI integration simplifies to a uniform `.travis.yml` file that one
-can use unchanged in all `mulle-build` aware C projects. The main effort is
+can use unchanged in all `mulle-craft` aware C projects. The main effort is
 getting a recent `cmake` installed on "precise" :
 
 
@@ -146,19 +143,19 @@ before_install:
    - git clone https://github.com/Linuxbrew/brew.git ~/.linuxbrew
    - PATH="$HOME/.linuxbrew/bin:$PATH"
    - brew update
-   - brew install mulle-kybernetik/software/mulle-build
+   - brew install mulle-kybernetik/software/mulle-craft
 
 
 script:
-   - mulle-build
+   - mulle-craft
    - mulle-test
 ```
 
-## Example Homebrew / Linuxbrew integreation using mulle-build
+## Example Homebrew / Linuxbrew integreation using mulle-craft
 
 Homebrew integration has to be customized by project. Instead of using
-**mulle-build** to resolve the dependencies, you want **brew** to install them
-for you. Installing and testing is provided by mulle-build. This works on OS X
+**mulle-craft** to resolve the dependencies, you want **brew** to install them
+for you. Installing and testing is provided by mulle-craft. This works on OS X
 and Linux!
 
 
@@ -172,7 +169,7 @@ class MyFormula < Formula
 
   depends_on <dependencies>
 
-  depends_on 'mulle-kybernetik/software/mulle-build' => :build
+  depends_on 'mulle-kybernetik/software/mulle-craft' => :build
 
   def install
      system "mulle-install", "--prefix", "#{prefix}", "--homebrew"
