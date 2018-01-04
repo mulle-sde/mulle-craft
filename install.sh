@@ -3,7 +3,7 @@
 # (c) 2015, coded by Nat!, Mulle KybernetiK
 #
 
-if [ "${MULLE_SOURCETREE_NO_COLOR}" != "YES" ]
+if [ "${MULLE_NO_COLOR}" != "YES" ]
 then
    # Escape sequence and resets
    C_RESET="\033[0m"
@@ -173,10 +173,9 @@ main()
 
    for i in src/mulle*.sh
    do
-      mkdir -p "${libexec}" 2> /dev/null
       install -v -m "${mode}" "${i}" "${libexec}" || exit 1
    done
 }
 
-
 main "$@"
+

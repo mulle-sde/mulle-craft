@@ -77,8 +77,8 @@ run_test()
    MAKE_REDIRECT_FILE="${directory}/make-args.txt" \
    CMAKE="${PWD}/../mock-cmake" \
    MAKE="${PWD}/../mock-make" \
-   MULLE_CRAFT_DIR="${directory}/build" \
-      run_mulle_craft build "$@"
+   BUILD_DIR="${directory}/build" \
+      run_mulle_craft all "$@"
 
    if [ "$?" -ne 0 ]
    then
@@ -108,7 +108,7 @@ main()
    #
    # Check that some simple pass through stuff works
    #
-   run_test "cmake.txt" "make.txt" --debug --info-dir "${PWD}/infodir.mulle-craft"
+   run_test "cmake.txt" "make.txt" --debug --info-dir "${PWD}/infodir.mulle-make"
    log_verbose "----- #1 PASSED -----"
 
    log_info "----- ALL PASSED -----"

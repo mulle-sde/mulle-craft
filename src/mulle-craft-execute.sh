@@ -43,7 +43,7 @@ ${USAGE_INFO}
 Options:
    --build-dir <dir>         : set BUILD_DIR
    --debug                   : compile for debug only
-   --info-dir <dir>          : specify the buildinfo for mulle-make
+   --info-dir <dir>          : specify the buildinfo for mulle-make (project)
    --lenient                 : do not stop on errors
    --dependencies-only       : build dependencies only
    --no-dependencies         : don't build dependencies
@@ -163,7 +163,7 @@ determine_buildinfo_dir()
    log_entry "determine_buildinfo_dir" "$@"
 
    #
-   # upper case for the sake of sameness for ppl setting BUILDINFO_PATH#
+   # upper case for the sake of sameness for ppl setting BUILDINFO_PATH
    # in the environment
    #
    local NAME="$1"
@@ -174,16 +174,15 @@ determine_buildinfo_dir()
 
    if [ -z "${BUILDINFO_PATH}" ]
    then
-      searchpath="`colon_concat "${searchpath}" "${OPTION_INFO_DIR}" `"
-      searchpath="`colon_concat "${searchpath}" "${DEPENDENCIES_DIR}/share/mulle-craft/${NAME}.${UNAME}" `"
-      searchpath="`colon_concat "${searchpath}" "${DEPENDENCIES_DIR}/share/mulle-craft/${NAME}" `"
-      searchpath="`colon_concat "${searchpath}" "${PROJECT_DIR}/.mulle-craft.${UNAME}" `"
-      searchpath="`colon_concat "${searchpath}" "${PROJECT_DIR}/.mulle-craft" `"
-      searchpath="`colon_concat "${searchpath}" "${BUILDINFO_PATH}/${NAME}.${UNAME}" `"
-      searchpath="`colon_concat "${searchpath}" "${BUILDINFO_PATH}/${NAME}" `"
+      searchpath="`colon_concat "${searchpath}" "${DEPENDENCIES_DIR}/share/mulle-make/${NAME}.${UNAME}" `"
+      searchpath="`colon_concat "${searchpath}" "${DEPENDENCIES_DIR}/share/mulle-make/${NAME}" `"
+      searchpath="`colon_concat "${searchpath}" "${PROJECT_DIR}/.mulle-make.${UNAME}" `"
+      searchpath="`colon_concat "${searchpath}" "${PROJECT_DIR}/.mulle-make" `"
    else
       searchpath="`eval echo "${BUILDINFO_PATH}"`"
    fi
+
+   log_fluff "Build info searchpath: ${searchpath}"
 
    IFS=":"
    for buildinfodir in ${searchpath}
@@ -196,6 +195,8 @@ determine_buildinfo_dir()
       fi
    done
    IFS="${DEFAULT_IFS}"
+
+   log_fluff "No buildinfo found"
 
    return 1
 }
@@ -245,12 +246,13 @@ build_project()
    #
    # dependencies/share/mulle-craftinfo/<name>.txt
    # <project>/.mulle-craftinfo
-   # ${BUILDINFO_PATH}/<name>.txt
    #
    local name
-   local buildinfodir
 
    name="`extensionless_basename "${project}"`"
+
+   local buildinfodir
+
    buildinfodir="`determine_buildinfo_dir "${name}" "${project}"`"
 
    # subdir for configuration / sdk
@@ -349,9 +351,19 @@ build_dependency_directly()
    for configuration in ${CONFIGURATIONS}
    do
       IFS=","
+      if [ -z "${configuration}" ]
+      then
+         continue
+      fi
+
       for sdk in ${SDKS}
       do
          IFS="${DEFAULT_IFS}"
+
+         if [ -z "${sdk}" ]
+         then
+            continue
+         fi
 
          if ! build_project "${project}" \
                             "install" \
@@ -531,7 +543,9 @@ build_with_buildorder()
       log_verbose "Build ${C_MAGENTA}${C_BOLD}${project}${C_VERBOSE}"
 
       (
-         BUILD_DIR="${builddir}" "${functionname}" "${project}" "${cmd}" "${marks}"
+         BUILD_DIR="${builddir}" "${functionname}" "${project}" \
+                                                   "${cmd}" \
+                                                   "${marks}"
       )
 
       if [ $? -eq 0 ]
@@ -653,11 +667,14 @@ do_build_execute()
       then
          if [ "${OPTION_LENIENT}" = "NO" ]
          then
+            log_fluff "Sourcetree build failed and we aren't lenient"
             return 1
          fi
          rval=1
       fi
       log_fluff "Done with sourcetree built"
+   else
+      log_fluff "Not building sourcetree"
    fi
 
    if [ "${OPTION_USE_PROJECT}" = "YES" ]
@@ -669,6 +686,8 @@ do_build_execute()
       then
          return 1
       fi
+   else
+      log_fluff "Not building project"
    fi
 
    return $rval
@@ -733,6 +752,7 @@ build_common()
             OPTIONS_MULLE_MAKE="`concat "${OPTIONS_MULLE_MAKE}" "$1"`"
             shift
 
+            # not really used, OPTIONS_MULLE_MAKE is used
             OPTION_INFO_DIR="$1"
             OPTIONS_MULLE_MAKE="`concat "${OPTIONS_MULLE_MAKE}" "'$1'"`"
          ;;
@@ -778,7 +798,7 @@ build_common()
    #
    if [ "${OPTION_USE_SOURCETREE}" != "NO" ]
    then
-      if [ -f ".mulle-sourcetree" ]
+      if [ -d ".mulle-sourcetree" ]
       then
          OPTION_USE_SOURCETREE="YES"
       else

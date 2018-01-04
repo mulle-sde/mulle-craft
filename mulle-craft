@@ -36,7 +36,7 @@ fi
 
 
 MULLE_EXECUTABLE_VERSION_MAJOR=0
-MULLE_EXECUTABLE_VERSION_MINOR=0
+MULLE_EXECUTABLE_VERSION_MINOR=1
 MULLE_EXECUTABLE_VERSION_PATCH=0
 
 MULLE_EXECUTABLE_VERSION="${MULLE_EXECUTABLE_VERSION_MAJOR}.${MULLE_EXECUTABLE_VERSION_MINOR}.${MULLE_EXECUTABLE_VERSION_PATCH}"
@@ -56,7 +56,7 @@ usage()
 Usage:
    ${MULLE_EXECUTABLE_NAME} [flags] [command]
 
-   Build projects taking mulle-sourcetree into consideration.
+   Build projects by taking mulle-sourcetree into consideration.
 
 Flags:
 EOF
@@ -64,14 +64,16 @@ EOF
    options_technical_flags_usage
 
    cat <<EOF
+   -e              : use mulle-craft outside of mulle-env
+   -[RTPN]         : flags passed to mulle-sourcetree
 
 Commands:
-   all             :  build sourcetreee and project (default)
-   clean           :  clean output
-   dependencies    :  build the sourcetree dependencies only
-   nodependencies  :  build the sourcetree skipping the dependencies
-   project         :  build the project (outside sourcetree) only
-   sourcetree      :  build the sourcetree only
+   all             : build sourcetreee and project (default)
+   clean           : clean output
+   dependencies    : build the sourcetree dependencies only
+   nodependencies  : build the sourcetree skipping the dependencies
+   project         : build the project (outside sourcetree) only
+   sourcetree      : build the sourcetree only
 EOF
 
    if [ "${verbose}" = "NO" ]
@@ -266,9 +268,9 @@ main()
       "")
          if [ "${FLAG_OUTSIDE_ENV}" = "NO" ]
          then
-            fail "To run mulle-craft outside of mulle-sde, pass the -e flag"
+            fail "To run mulle-craft outside of mulle-env, pass the -e flag"
          fi
-         MULLE_VIRTUAL_ROOT="${PWD}"
+         MULLE_VIRTUAL_ROOT="`pwd -P`"
          export MULLE_VIRTUAL_ROOT
       ;;
 
@@ -291,7 +293,7 @@ main()
    #
    if [ -z "${cmd}" ]
    then
-      cmd="`cat .mulle-craft 2> /dev/null`"
+      cmd="`cat .mulle-craft/default 2> /dev/null`"
    fi
 
    case "${cmd:-sourcetree}" in
@@ -340,7 +342,7 @@ main()
          usage "${MULLE_TRACE}"
       ;;
 
-      libexec-path|library-path)
+      libexec-dir|library-path)
          echo "${MULLE_CRAFT_LIBEXEC_DIR}"
       ;;
 
@@ -390,14 +392,14 @@ _init()
    # minimal setup exit
    #
    case "$1" in
-      "libexec-path"|"library-path")
+      "libexec-dir"|"library-path")
          echo "${MULLE_CRAFT_LIBEXEC_DIR}"
          exit 0
       ;;
    esac
 
 
-   MULLE_BASHFUNCTIONS_LIBEXEC_DIR="`mulle-bashfunctions-env libexec-path 2> /dev/null`"
+   MULLE_BASHFUNCTIONS_LIBEXEC_DIR="`mulle-bashfunctions-env libexec-dir 2> /dev/null`"
    if [ -z "${MULLE_BASHFUNCTIONS_LIBEXEC_DIR}" ]
    then
       if [ -z "`command -v "${executablepath}"`" ]
