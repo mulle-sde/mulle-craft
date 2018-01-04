@@ -1,25 +1,10 @@
 .DS_Store
 
 build/
-.repos/
-.bootstrap.local/
-.bootstrap.auto/
-
 *.old
 *.bak
 tmp.*
-bin/publisher-info.sh
 
-mulle-craft.sublime-workspace
-mulle-analyze
-mulle-clean
-mulle-git
-mulle-install
-mulle-status
-mulle-tag
-mulle-test
-mulle-update
-mulle-xcodeproj
-mulle-xcode
+*.sublime-workspace
 package/
 mulle-project/publisher-info.sh
