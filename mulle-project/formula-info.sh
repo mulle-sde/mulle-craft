@@ -3,7 +3,7 @@
 # formula operations.
 #
 PROJECT="mulle-craft"      # your project/repository uuid
-DESC="🚬 Build projects using cmake, configure or some other meta-build tools"
+DESC="🚬 Build projects using mulle-make and mulle-sourcetre"
 LANGUAGE="bash"                # c,cpp, objc, bash ...
 # NAME="${PROJECT}"        # formula filename without .rb extension
 
@@ -12,4 +12,4 @@ ${TOOLS_TAP}mulle-make
 ${TOOLS_TAP}mulle-dispense
 '
 
-DEBIAN_DEPENDENCIES="mulle-sourcetree mulle-make mulle-dispense"
+DEBIAN_DEPENDENCIES="mulle-sourcetree, mulle-make, mulle-dispense"

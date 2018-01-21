@@ -116,7 +116,7 @@ build_clean_main()
             OPTION_DEPENDENCIES="NO"
          ;;
 
-         --dependencies-only)
+         --only-dependencies)
             OPTION_DEPENDENCIES="ONLY"
          ;;
 

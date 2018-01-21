@@ -37,7 +37,7 @@ fi
 
 MULLE_EXECUTABLE_VERSION_MAJOR=0
 MULLE_EXECUTABLE_VERSION_MINOR=1
-MULLE_EXECUTABLE_VERSION_PATCH=0
+MULLE_EXECUTABLE_VERSION_PATCH=1
 
 MULLE_EXECUTABLE_VERSION="${MULLE_EXECUTABLE_VERSION_MAJOR}.${MULLE_EXECUTABLE_VERSION_MINOR}.${MULLE_EXECUTABLE_VERSION_PATCH}"
 
@@ -61,19 +61,19 @@ Usage:
 Flags:
 EOF
 
-   options_technical_flags_usage
+   options_technical_flags_usage "           : "
 
    cat <<EOF
-   -e              : use mulle-craft outside of mulle-env
-   -[RTPN]         : flags passed to mulle-sourcetree
+   -e                 : use mulle-craft outside of mulle-env
+   -[RTPN]            : flags passed to mulle-sourcetree
 
 Commands:
-   all             : build sourcetreee and project (default)
-   clean           : clean output
-   dependencies    : build the sourcetree dependencies only
-   nodependencies  : build the sourcetree skipping the dependencies
-   project         : build the project (outside sourcetree) only
-   sourcetree      : build the sourcetree only
+   all                : build sourcetreee and project (default)
+   clean              : clean output
+   only-dependencies  : build the sourcetree dependencies only
+   no-dependencies    : build the sourcetree skipping the dependencies
+   project            : build the project (outside sourcetree) only
+   sourcetree         : build the sourcetree only
 EOF
 
    if [ "${verbose}" = "NO" ]
@@ -214,6 +214,7 @@ main()
    local MULLE_TRACE_POSTPONE="NO"
 
    local MULLE_FLAG_DEFER="--defer-this"
+   local MULLE_FLAG_MOTD="DEFAULT"
    local FLAG_OUTSIDE_ENV="NO"
 
    #
@@ -238,6 +239,14 @@ main()
 
          -h|--help)
             usage "${MULLE_TRACE}"
+         ;;
+
+         --motd)
+            MULLE_FLAG_MOTD="YES"
+         ;;
+
+         --no-motd)
+            MULLE_FLAG_MOTD="NO"
          ;;
 
          --version)
@@ -296,8 +305,8 @@ main()
       cmd="`cat .mulle-craft/default 2> /dev/null`"
    fi
 
-   case "${cmd:-sourcetree}" in
-      all)
+   case "${cmd:-all}" in
+      all|build)
          . "${MULLE_CRAFT_LIBEXEC_DIR}/mulle-craft-execute.sh"
 
          build_all_main "$@"
@@ -317,14 +326,14 @@ main()
          build_sourcetree_main "$@"
       ;;
 
-      dependencies)
+      only-dependencies)
          # shellcheck source=src/mulle-craft-execute.sh
          . "${MULLE_CRAFT_LIBEXEC_DIR}/mulle-craft-execute.sh"
 
-         build_sourcetree_main --dependencies-only "$@"
+         build_sourcetree_main --only-dependencies "$@"
       ;;
 
-      nodependencies)
+      no-dependencies)
          # shellcheck source=src/mulle-craft-execute.sh
          . "${MULLE_CRAFT_LIBEXEC_DIR}/mulle-craft-execute.sh"
 

@@ -45,7 +45,7 @@ Options:
    --debug                   : compile for debug only
    --info-dir <dir>          : specify the buildinfo for mulle-make (project)
    --lenient                 : do not stop on errors
-   --dependencies-only       : build dependencies only
+   --only-dependencies       : build dependencies only
    --no-dependencies         : don't build dependencies
    --recurse|flat|share      : specify mode to update sourcetree with
    --release                 : compile for release only
@@ -325,8 +325,9 @@ build_project()
    fi
 
    eval_exekutor "'${MULLE_MAKE}'" "${MULLE_MAKE_FLAGS}" \
-                    "${cmd}" "${args}" "${project}" "${destination}"
-}
+                          "${cmd}" "${args}" "${project}" "${destination}"
+
+ }
 
 
 build_dependency_directly()
@@ -680,11 +681,25 @@ do_build_execute()
    if [ "${OPTION_USE_PROJECT}" = "YES" ]
    then
       log_verbose "Building the project (outside of the sourcetree) ..."
-      log_verbose "Build ${C_MAGENTA}${C_BOLD}${PWD}${C_VERBOSE}"
+      log_verbose "Build ${C_MAGENTA}${C_BOLD}${PWD}${C_VERBOSE} with ${MULLE_MAKE}"
 
       if ! eval_exekutor "'${MULLE_MAKE}'" "${MULLE_MAKE_FLAGS}" build "${OPTIONS_MULLE_MAKE}" "$@"
       then
+         log_fluff "project build failed"
          return 1
+      fi
+
+      if [ "${MULLE_FLAG_MOTD}" = "YES" ]
+      then
+         if [ -f "${BUILD_DIR}/.motd" ]
+         then
+            log_fluff "Showing \"${BUILD_DIR}/.motd\""
+            exekutor cat "${BUILD_DIR}/.motd"
+         else
+            log_fluff "No \"${BUILD_DIR}/.motd\" was produced"
+         fi
+      else
+         log_fluff "Not showing motd on request"
       fi
    else
       log_fluff "Not building project"
@@ -730,7 +745,7 @@ build_common()
             OPTION_BUILD_DEPENDENCIES="YES"
          ;;
 
-         --dependencies-only)
+         --only-dependencies)
             OPTION_BUILD_DEPENDENCIES="ONLY"
          ;;
 
@@ -793,6 +808,23 @@ build_common()
       shift
    done
 
+   # for consistency always find the sourcetree
+   local projectdir
+
+   projectdir="`exekutor ${MULLE_SOURCETREE} ${MULLE_FLAG_DEFER} "sourcetree-dir" `"
+   if [ ! -z "${projectdir}" ]
+   then
+      log_info "Found sourcetree in \"${projectdir}\""
+      cd "${projectdir}"
+   else
+      if [ "${OPTION_MUST_HAVE_SOURCETREE}" = "YES" ]
+      then
+         fail "There is no sourcetree here ($PWD)"
+      else
+         log_fluff "No sourcetree found ($PWD)"
+      fi
+   fi
+
    #
    # check sourcetree existance and handle DEFAULT
    #
@@ -828,6 +860,8 @@ build_common()
 
 build_all_main()
 {
+   log_entry "build_all_main" "$@"
+
    BUILD_STYLE="all"
 
    USAGE_INFO="    Build the sourcetree, containing the dependencies.
@@ -836,19 +870,11 @@ build_all_main()
 
    local OPTION_USE_PROJECT
    local OPTION_USE_SOURCETREE
+   local OPTION_MUST_HAVE_SOURCETREE
 
    OPTION_USE_PROJECT="YES"
    OPTION_USE_SOURCETREE="YES"
-
-   # since we build the sourcetree, find it
-   local projectdir
-
-   projectdir="`${MULLE_SOURCETREE} ${MULLE_FLAG_DEFER} pwd `"
-   if [ ! -z "${projectdir}" ]
-   then
-      log_info "Found sourcetree in \"${projectdir}\""
-      cd "${projectdir}"
-   fi
+   OPTION_MUST_HAVE_SOURCETREE="NO"
 
    build_common "$@"
 }
@@ -856,15 +882,19 @@ build_all_main()
 
 build_project_main()
 {
+   log_entry "build_project_main" "$@"
+
    BUILD_STYLE="project"
 
    USAGE_INFO="    Build the project only.
 "
    local OPTION_USE_PROJECT
    local OPTION_USE_SOURCETREE
+   local OPTION_MUST_HAVE_SOURCETREE
 
    OPTION_USE_PROJECT="YES"
    OPTION_USE_SOURCETREE="NO"
+   OPTION_MUST_HAVE_SOURCETREE="NO"
 
    build_common "$@"
 }
@@ -872,6 +902,8 @@ build_project_main()
 
 build_sourcetree_main()
 {
+   log_entry "build_sourcetree_main" "$@"
+
    BUILD_STYLE="sourcetree"
 
    USAGE_INFO="    Build the sourcetree only.
@@ -879,19 +911,12 @@ build_sourcetree_main()
 
    local OPTION_USE_PROJECT
    local OPTION_USE_SOURCETREE
+   local OPTION_MUST_HAVE_SOURCETREE
 
    OPTION_USE_PROJECT="NO"
    OPTION_USE_SOURCETREE="YES"
+   OPTION_MUST_HAVE_SOURCETREE="YES"
 
-   # since we build the sourcetree, find it
-   local projectdir
-
-   projectdir="`${MULLE_SOURCETREE} ${MULLE_FLAG_DEFER} pwd `"
-   if [ ! -z "${projectdir}" ]
-   then
-      log_info "Found sourcetree in \"${projectdir}\""
-      cd "${projectdir}"
-   fi
 
    build_common "$@"
 }

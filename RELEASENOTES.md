@@ -1,3 +1,10 @@
+### 0.1.1
+
+* initial stuff
+* renamed to mulle-craft so that it can cooexist with the ancestor mulle-build
+* add TEST_PATH_PREFIX environment for run-test
+* check for presence of mulle-xcode-settings when in xcode_mode
+
 ## 0.1.0
 
 * initial stuff

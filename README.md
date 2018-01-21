@@ -4,14 +4,17 @@
 
 ... for Linux, OS X, FreeBSD, Windows
 
-**mulle-craft** builds your project and it's dependencies. The dependencies are specified using [mulle-sourcetree](https://github.com/mulle-sde/mulle-sourcetree). 
+![Overview](mulle-craft-overview.png)
 
-> **mulle-craft** is the successor to [mulle-build](https://github.com/mulle-nat/mulle-build).
+**mulle-craft** builds your project and it's dependencies. The dependencies are specified using [mulle-sourcetree](https://github.com/mulle-sde/mulle-sourcetree). 
 
 
 Executable    | Description
 --------------|--------------------------------
 `mulle-craft` | Build projects and their dependencies
+
+
+> **mulle-craft** is the successor to [mulle-build](https://github.com/mulle-nat/mulle-build).
 
 
 ## Install
