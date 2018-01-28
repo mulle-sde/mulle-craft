@@ -814,7 +814,7 @@ build_common()
    projectdir="`exekutor ${MULLE_SOURCETREE} ${MULLE_FLAG_DEFER} "sourcetree-dir" `"
    if [ ! -z "${projectdir}" ]
    then
-      log_info "Found sourcetree in \"${projectdir}\""
+      log_verbose "Found a sourcetree in \"${projectdir}\""
       cd "${projectdir}"
    else
       if [ "${OPTION_MUST_HAVE_SOURCETREE}" = "YES" ]
