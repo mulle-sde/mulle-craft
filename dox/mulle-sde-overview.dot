@@ -1,0 +1,11 @@
+digraph G {
+    graph [rankdir = TD];
+
+    node[shape=record];
+
+    "mulle-sde" -> "mulle-craft"         [ label="runs", style="dotted"]
+    "mulle-craft" -> "mulle-make"        [ label="runs", style="dotted"]
+    "mulle-craft" -> "mulle-dispense"    [ label="runs", style="dotted"]
+    "mulle-craft" -> "mulle-sourcetree"  [ label="runs", style="dotted"]
+    "mulle-craft"                        [ color="blue", fontcolor="blue"]
+}

@@ -30,12 +30,14 @@ other | ./install.sh  (Requires: [mulle-sourcetree](https://github.com/mulle-sde
 Essentially, `mulle-craft` is a shortcut for typing:
 
 ```
+# Build the dependencies
 for i in `mulle-sourcetree buildorder`
 do
    mulle-make install --prefix "${tmpdir}" "$i"
    mulle-dispense "${tmpdir}" "${DEPENDENCIES_DIR}
 done
 
+# Build the project
 mulle-make build "${PWD}"
 ```
 
@@ -43,6 +45,18 @@ So it's conceptually fairly simple, if you know how [mulle-sourcetree](https://g
 
 But then there are also variations and options :) 
 
+
+## How mulle-craft searches for the `mulle-make --info-dir`
+
+Firs the `dependencies/share/mulle-craft/mulle-make` folder will be searched for any matches.
+
+Non matching "uname" extensions are ignored. Matching extensions are preferred though.
+
+Then the projects own `.mulle-make` folders will be considered.
+
+Assume that you are on **darwin** in the following picture, the `.linux` folder will be ignored:
+
+![Searching](dox/searchpath.png)
 
 ## GitHub and Mulle kybernetiK
 

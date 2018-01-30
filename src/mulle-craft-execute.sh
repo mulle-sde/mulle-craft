@@ -38,7 +38,7 @@ build_execute_usage()
 Usage:
    ${MULLE_EXECUTABLE_NAME} ${BUILD_STYLE} [options]
 
-${USAGE_INFO}
+   ${USAGE_INFO}
 
 Options:
    --build-dir <dir>         : set BUILD_DIR
@@ -174,8 +174,8 @@ determine_buildinfo_dir()
 
    if [ -z "${BUILDINFO_PATH}" ]
    then
-      searchpath="`colon_concat "${searchpath}" "${DEPENDENCIES_DIR}/share/mulle-make/${NAME}.${UNAME}" `"
-      searchpath="`colon_concat "${searchpath}" "${DEPENDENCIES_DIR}/share/mulle-make/${NAME}" `"
+      searchpath="`colon_concat "${searchpath}" "${DEPENDENCIES_DIR}/share/mulle-craft/mulle-make/${NAME}.${UNAME}" `"
+      searchpath="`colon_concat "${searchpath}" "${DEPENDENCIES_DIR}/share/mulle-craft/mulle-make/${NAME}" `"
       searchpath="`colon_concat "${searchpath}" "${PROJECT_DIR}/.mulle-make.${UNAME}" `"
       searchpath="`colon_concat "${searchpath}" "${PROJECT_DIR}/.mulle-make" `"
    else
@@ -864,7 +864,7 @@ build_all_main()
 
    BUILD_STYLE="all"
 
-   USAGE_INFO="    Build the sourcetree, containing the dependencies.
+   USAGE_INFO="Build the sourcetree, containing the dependencies.
    Then build the project.
 "
 
@@ -886,7 +886,7 @@ build_project_main()
 
    BUILD_STYLE="project"
 
-   USAGE_INFO="    Build the project only.
+   USAGE_INFO="Build the project only.
 "
    local OPTION_USE_PROJECT
    local OPTION_USE_SOURCETREE
@@ -906,7 +906,7 @@ build_sourcetree_main()
 
    BUILD_STYLE="sourcetree"
 
-   USAGE_INFO="    Build the sourcetree only.
+   USAGE_INFO="Build the sourcetree only.
 "
 
    local OPTION_USE_PROJECT
