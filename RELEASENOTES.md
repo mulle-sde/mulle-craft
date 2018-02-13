@@ -1,3 +1,9 @@
+## 0.2.0
+
+* adapt to new mulle-bashfunctions 1.3
+* change info searchpaths and document it
+
+
 ### 0.1.1
 
 * initial stuff

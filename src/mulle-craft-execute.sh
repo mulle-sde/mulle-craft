@@ -633,11 +633,13 @@ do_build_sourcetree()
       else
          log_verbose "Not building dependencies as DEPENDENCIES_DIR is undefined"
       fi
-   fi
-
-   if [ "${OPTION_BUILD_DEPENDENCIES}" = "ONLY" ]
-   then
-      return $rval
+      if [ "${OPTION_BUILD_DEPENDENCIES}" = "ONLY" ]
+      then
+         log_fluff "Building dependencies only, so done here"
+         return $rval
+      fi
+   else
+      log_fluff "Not building dependencies (complying with user wish)"
    fi
 
    log_verbose "Building the rest of the sourcetree ..."
@@ -675,7 +677,7 @@ do_build_execute()
       fi
       log_fluff "Done with sourcetree built"
    else
-      log_fluff "Not building sourcetree"
+      log_fluff "Not building sourcetree (complying with user wish)"
    fi
 
    if [ "${OPTION_USE_PROJECT}" = "YES" ]
@@ -702,7 +704,7 @@ do_build_execute()
          log_fluff "Not showing motd on request"
       fi
    else
-      log_fluff "Not building project"
+      log_fluff "Not building project (complying with user wish)"
    fi
 
    return $rval
@@ -811,7 +813,8 @@ build_common()
    # for consistency always find the sourcetree
    local projectdir
 
-   projectdir="`exekutor ${MULLE_SOURCETREE} ${MULLE_FLAG_DEFER} "sourcetree-dir" `"
+   projectdir="`exekutor ${MULLE_SOURCETREE} ${MULLE_SOURCETREE_FLAGS} \
+                              ${MULLE_FLAG_DEFER} "sourcetree-dir" `"
    if [ ! -z "${projectdir}" ]
    then
       log_verbose "Found a sourcetree in \"${projectdir}\""

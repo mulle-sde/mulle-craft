@@ -1,8 +1,9 @@
 #! /usr/bin/env bash
 
-[ "${TRACE}" = YES ] && set -x
+[ "${TRACE}" = YES ] && set -x && : "$0" "$@"
 
-emit_defines()
+
+_emit_defines()
 {
    while [ "$#" -ne 0 ]
    do
@@ -28,6 +29,21 @@ emit_defines()
    done
 }
 
+
+emit_defines()
+{
+   local escaped_path
+
+   if [ ! -z "${MULLE_TEST_DIR}" ]
+   then
+      escaped_path="`escaped_sed_pattern "${MULLE_TEST_DIR}"`"
+      _emit_defines "$@"| sed "s/${escaped_path}//"
+   else
+      _emit_defines "$@"
+   fi
+}
+
+
 main()
 {
    local envvar
@@ -50,7 +66,7 @@ init()
 {
    MULLE_BASHFUNCTIONS_LIBEXEC_DIR="`mulle-bashfunctions-env library-path`"
 
-   . "${MULLE_BASHFUNCTIONS_LIBEXEC_DIR}/mulle-bashfunctions.sh" || exit 1
+   . "${MULLE_BASHFUNCTIONS_LIBEXEC_DIR}/mulle-bashfunctions.sh" "minimal" || exit 1
 }
 
 
