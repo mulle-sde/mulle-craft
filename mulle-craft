@@ -32,7 +32,7 @@
 [ "${TRACE}" = "YES" ] && set -x && : "$0" "$@"
 
 
-MULLE_EXECUTABLE_VERSION=0.2.0
+MULLE_EXECUTABLE_VERSION=0.2.1
 
 
 trap_fail()
@@ -279,7 +279,7 @@ main()
       ;;
 
       uname)
-         echo "${UNAME}"
+         echo "${MULLE_UNAME}"
       ;;
 
       version)

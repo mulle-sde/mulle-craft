@@ -174,9 +174,9 @@ determine_buildinfo_dir()
 
    if [ -z "${BUILDINFO_PATH}" ]
    then
-      searchpath="`colon_concat "${searchpath}" "${DEPENDENCIES_DIR}/share/mulle-craft/mulle-make/${NAME}.${UNAME}" `"
+      searchpath="`colon_concat "${searchpath}" "${DEPENDENCIES_DIR}/share/mulle-craft/mulle-make/${NAME}.${MULLE_UNAME}" `"
       searchpath="`colon_concat "${searchpath}" "${DEPENDENCIES_DIR}/share/mulle-craft/mulle-make/${NAME}" `"
-      searchpath="`colon_concat "${searchpath}" "${PROJECT_DIR}/.mulle-make.${UNAME}" `"
+      searchpath="`colon_concat "${searchpath}" "${PROJECT_DIR}/.mulle-make.${MULLE_UNAME}" `"
       searchpath="`colon_concat "${searchpath}" "${PROJECT_DIR}/.mulle-make" `"
    else
       searchpath="`eval echo "${BUILDINFO_PATH}"`"
@@ -220,7 +220,7 @@ build_project()
    then
       includepath="`dependencies_include_path "${configuration}" "${sdk}"`"
       libpath="`dependencies_lib_path "${configuration}" "${sdk}"`"
-      case "${UNAME}" in
+      case "${MULLE_UNAME}" in
          darwin)
             frameworkspath="`dependencies_frameworks_path "${configuration}" "${sdk}"`"
          ;;

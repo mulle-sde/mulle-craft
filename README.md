@@ -6,7 +6,7 @@
 
 ![Overview](mulle-craft-overview.png)
 
-**mulle-craft** builds your project and it's dependencies. The dependencies are specified using [mulle-sourcetree](https://github.com/mulle-sde/mulle-sourcetree). 
+**mulle-craft** builds your project and it's dependencies. The dependencies are specified using [mulle-sourcetree](https://github.com/mulle-sde/mulle-sourcetree).
 
 
 Executable    | Description
@@ -41,20 +41,37 @@ done
 mulle-make build "${PWD}"
 ```
 
-So it's conceptually fairly simple, if you know how [mulle-sourcetree](https://github.com/mulle-sde/mulle-sourcetree) and [mulle-make](https://github.com/mulle-sde/mulle-make) and [mulle-dispense](https://github.com/mulle-sde/mulle-dispense) work. 
+So it's conceptually fairly simple, if you know how [mulle-sourcetree](https://github.com/mulle-sde/mulle-sourcetree) and [mulle-make](https://github.com/mulle-sde/mulle-make) and [mulle-dispense](https://github.com/mulle-sde/mulle-dispense) work.
 
-But then there are also variations and options :) 
+But then there are also variations and options :)
+
+## The *info folder*
+
+**mulle-make** accepts a so called *info-folder*, which contains compile
+flags and environment variables to build a project.
+
+These can be platform specific, but don't have to be. It is one of
+**mulle-craft** tasks to pick the right *info-folder* and feed it to
+**mulle-make**.
 
 
-## How mulle-craft searches for the `mulle-make --info-dir`
+## How mulle-craft searches for the *info-folder*
 
-Firs the `dependencies/share/mulle-craft/mulle-make` folder will be searched for any matches.
+First the `dependencies/share/mulle-craft/mulle-make` folder will be searched
+for any matches. A match is made if the name of the to-be-built
+project is the same as the *info-folder* name (without extension).
 
-Non matching "uname" extensions are ignored. Matching extensions are preferred though.
+An *info-folder* may have an extension, which can be one of the simplified
+**mulle-craft uname** outputs, which are platform specificy.
 
-Then the projects own `.mulle-make` folders will be considered.
+A non matching "uname" extension is ignored. An *info-folder* with a matching
+extension is preferred over a matching name with no extension.
 
-Assume that you are on **darwin** in the following picture, the `.linux` folder will be ignored:
+Finally, if no match has been made,  the projects own `.mulle-make` and
+`.mulle-make.${uname}` folders  will be considered.
+
+Assume that you are on **darwin** in the following picture, the `.linux`
+folder will be ignored:
 
 ![Searching](dox/searchpath.png)
 
