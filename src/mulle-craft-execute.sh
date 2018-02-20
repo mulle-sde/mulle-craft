@@ -720,7 +720,6 @@ build_common()
 {
    log_entry "build_common" "$@"
 
-   local OPTION_USE_SOURCETREE="DEFAULT"
    local OPTION_MODE="--share"
    local OPTION_LENIENT="NO"
    local OPTION_BUILD_DEPENDENCIES="DEFAULT"
