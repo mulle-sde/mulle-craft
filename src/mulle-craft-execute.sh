@@ -824,6 +824,7 @@ build_common()
          fail "There is no sourcetree here ($PWD)"
       else
          log_fluff "No sourcetree found ($PWD)"
+         OPTION_USE_SOURCETREE="NO"
       fi
    fi
 
