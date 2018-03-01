@@ -36,7 +36,7 @@ build_clean_usage()
 {
     cat <<EOF >&2
 Usage:
-   ${MULLE_EXECUTABLE_NAME} clean [options] [style]
+   ${MULLE_USAGE_NAME} clean [options] [style]
 
    Remove build directory. You can specify a variety of clean styles. The
    default is sourcetree.
@@ -163,7 +163,7 @@ build_clean_main()
    OPTION_USE_SOURCETREE="YES"
 
    case "${style}" in
-      ""|"sourcetree")
+      "sourcetree")
       ;;
 
       "all")
@@ -171,7 +171,7 @@ build_clean_main()
          OPTION_USE_SOURCETREE="YES"
       ;;
 
-      "project")
+      ""|"project")
          OPTION_USE_PROJECT="YES"
          OPTION_USE_SOURCETREE="NO"
       ;;

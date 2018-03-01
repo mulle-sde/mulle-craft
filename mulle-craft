@@ -32,7 +32,7 @@
 [ "${TRACE}" = "YES" ] && set -x && : "$0" "$@"
 
 
-MULLE_EXECUTABLE_VERSION=0.3.0
+MULLE_EXECUTABLE_VERSION=0.3.1
 
 
 trap_fail()
@@ -43,11 +43,9 @@ trap_fail()
 
 usage()
 {
-   local verbose="${1:-NO}"
-
    cat <<EOF
 Usage:
-   ${MULLE_EXECUTABLE_NAME} [flags] [command]
+   ${MULLE_USAGE_NAME} [flags] [command]
 
    Build projects by taking mulle-sourcetree into consideration.
 
@@ -69,7 +67,7 @@ Commands:
    sourcetree         : build the sourcetree only
 EOF
 
-   if [ "${verbose}" = "NO" ]
+   if [ "${MULLE_FLAG_LOG_VERBOSE}" = "NO" ]
    then
       cat <<EOF
 
@@ -140,21 +138,22 @@ main()
    do
       if options_technical_flags "$1"
       then
+         MULLE_MAKE_FLAGS="`concat ${MULLE_MAKE_FLAGS} $1`"
          shift
          continue
       fi
 
       case "$1" in
+         -h|--help|help)
+            usage
+         ;;
+
          -e)
             FLAG_OUTSIDE_ENV="YES"
          ;;
 
          -f|--force)
             MULLE_FLAG_MAGNUM_FORCE="BOTH"
-         ;;
-
-         -h|--help)
-            usage "${MULLE_TRACE}"
          ;;
 
          --motd)
@@ -174,9 +173,13 @@ main()
             MULLE_FLAG_DEFER="$1"
          ;;
 
+         -V)
+           MULLE_MAKE_FLAGS="`concat ${MULLE_MAKE_FLAGS} $1`"
+         ;;
+
          -*)
             log_error "${MULLE_EXECUTABLE_FAIL_PREFIX}: Unknown option \"$1\""
-            usage "${MULLE_TRACE}"
+            usage
          ;;
 
          *)
@@ -231,6 +234,35 @@ main()
          build_all_main "$@"
       ;;
 
+      clean)
+         # shellcheck source=src/mulle-craft-clean.sh
+         . "${MULLE_CRAFT_LIBEXEC_DIR}/mulle-craft-clean.sh"
+
+         build_clean_main "$@"
+      ;;
+
+      help)
+         usage
+      ;;
+
+      libexec-dir|library-path)
+         echo "${MULLE_CRAFT_LIBEXEC_DIR}"
+      ;;
+
+      no-dependencies)
+         # shellcheck source=src/mulle-craft-execute.sh
+         . "${MULLE_CRAFT_LIBEXEC_DIR}/mulle-craft-execute.sh"
+
+         build_sourcetree_main --no-dependencies "$@"
+      ;;
+
+      only-dependencies)
+         # shellcheck source=src/mulle-craft-execute.sh
+         . "${MULLE_CRAFT_LIBEXEC_DIR}/mulle-craft-execute.sh"
+
+         build_sourcetree_main --only-dependencies "$@"
+      ;;
+
       project)
          # shellcheck source=src/mulle-craft-execute.sh
          . "${MULLE_CRAFT_LIBEXEC_DIR}/mulle-craft-execute.sh"
@@ -245,51 +277,22 @@ main()
          build_sourcetree_main "$@"
       ;;
 
-      only-dependencies)
-         # shellcheck source=src/mulle-craft-execute.sh
-         . "${MULLE_CRAFT_LIBEXEC_DIR}/mulle-craft-execute.sh"
-
-         build_sourcetree_main --only-dependencies "$@"
-      ;;
-
-      no-dependencies)
-         # shellcheck source=src/mulle-craft-execute.sh
-         . "${MULLE_CRAFT_LIBEXEC_DIR}/mulle-craft-execute.sh"
-
-         build_sourcetree_main --no-dependencies "$@"
-      ;;
-
-      clean)
-         # shellcheck source=src/mulle-craft-clean.sh
-         . "${MULLE_CRAFT_LIBEXEC_DIR}/mulle-craft-clean.sh"
-
-         build_clean_main "$@"
-      ;;
-
-      help)
-         usage "${MULLE_TRACE}"
-      ;;
-
-      libexec-dir|library-path)
-         echo "${MULLE_CRAFT_LIBEXEC_DIR}"
-      ;;
-
       pwd)
-         echo "$PWD"
+         exekutor echo "$PWD"
       ;;
 
       uname)
-         echo "${MULLE_UNAME}"
+         exekutor echo "${MULLE_UNAME}"
       ;;
 
       version)
-         echo "${MULLE_EXECUTABLE_VERSION}"
+         exekutor echo "${MULLE_EXECUTABLE_VERSION}"
          return 0
       ;;
 
       *)
          log_error "${MULLE_EXECUTABLE_FAIL_PREFIX}: Unknown command \"${cmd}\""
-         usage "${MULLE_TRACE}"
+         usage
       ;;
    esac
 }

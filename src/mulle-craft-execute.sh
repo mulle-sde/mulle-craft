@@ -36,7 +36,7 @@ build_execute_usage()
 {
     cat <<EOF >&2
 Usage:
-   ${MULLE_EXECUTABLE_NAME} ${BUILD_STYLE} [options]
+   ${MULLE_USAGE_NAME} ${BUILD_STYLE} [options]
 
    ${USAGE_INFO}
 
@@ -691,8 +691,10 @@ do_build_execute()
          return 1
       fi
 
-      if [ "${MULLE_FLAG_MOTD}" = "YES" ]
+      if [ "${MULLE_FLAG_MOTD}" = "NO" ]
       then
+         log_fluff "Not showing motd on request"
+      else
          if [ -f "${BUILD_DIR}/.motd" ]
          then
             log_fluff "Showing \"${BUILD_DIR}/.motd\""
@@ -700,8 +702,6 @@ do_build_execute()
          else
             log_fluff "No \"${BUILD_DIR}/.motd\" was produced"
          fi
-      else
-         log_fluff "Not showing motd on request"
       fi
    else
       log_fluff "Not building project (complying with user wish)"

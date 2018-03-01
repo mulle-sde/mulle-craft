@@ -8,3 +8,5 @@ tmp.*
 *.sublime-workspace
 package/
 mulle-project/publisher-info.sh
+NARRATIVE.md
+tests/*build/
