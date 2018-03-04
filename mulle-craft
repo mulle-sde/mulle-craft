@@ -32,7 +32,7 @@
 [ "${TRACE}" = "YES" ] && set -x && : "$0" "$@"
 
 
-MULLE_EXECUTABLE_VERSION=0.3.1
+MULLE_EXECUTABLE_VERSION=0.3.2
 
 
 trap_fail()
@@ -47,7 +47,7 @@ usage()
 Usage:
    ${MULLE_USAGE_NAME} [flags] [command]
 
-   Build projects by taking mulle-sourcetree into consideration.
+   Build projects taking mulle-sourcetree dependencies into consideration.
 
 Flags:
 EOF
@@ -61,8 +61,8 @@ EOF
 Commands:
    all                : build sourcetreee and project (default)
    clean              : clean output
-   only-dependencies  : build the sourcetree dependencies only
    no-dependencies    : build the sourcetree skipping the dependencies
+   only-dependencies  : build the sourcetree dependencies only
    project            : build the project (outside sourcetree) only
    sourcetree         : build the sourcetree only
 EOF
@@ -76,37 +76,6 @@ EOF
    fi
 
    exit 1
-}
-
-
-check_executables()
-{
-   if [ -z "${MULLE_MAKE}" ]
-   then
-      MULLE_MAKE="mulle-make"
-   fi
-   if [ -z "`command -v "${MULLE_MAKE}" `" ]
-   then
-      fail "${MULLE_MAKE} not found or in PATH"
-   fi
-
-   if [ -z "${MULLE_SOURCETREE}" ]
-   then
-      MULLE_SOURCETREE="mulle-sourcetree"
-   fi
-   if [ -z "`command -v "${MULLE_SOURCETREE}" `" ]
-   then
-      fail "${MULLE_SOURCETREE} not found or in PATH"
-   fi
-
-   if [ -z "${MULLE_DISPENSE}" ]
-   then
-      MULLE_DISPENSE="mulle-dispense"
-   fi
-   if [ -z "`command -v "${MULLE_DISPENSE}" `" ]
-   then
-      fail "${MULLE_DISPENSE} not found or in PATH"
-   fi
 }
 
 
@@ -200,6 +169,9 @@ main()
          fi
          MULLE_VIRTUAL_ROOT="`pwd -P`"
          export MULLE_VIRTUAL_ROOT
+
+         DEPENDENCIES_DIR="${DEPENDENCIES_DIR:-${MULLE_VIRTUAL_ROOT}/dependencies}"
+         ADDICTIONS_DIR="${ADDICTIONS_DIR:-${MULLE_VIRTUAL_ROOT}/addictions}"
       ;;
 
       */)
@@ -207,8 +179,6 @@ main()
       ;;
    esac
 
-   DEPENDENCIES_DIR="${DEPENDENCIES_DIR:-${MULLE_VIRTUAL_ROOT}/dependencies}"
-   ADDICTIONS_DIR="${ADDICTIONS_DIR:-${MULLE_VIRTUAL_ROOT}/addictions}"
 
    local cmd
 
@@ -217,7 +187,17 @@ main()
    MULLE_EXECUTABLE_FAIL_PREFIX="${MULLE_EXECUTABLE_NAME} ${cmd}"
    [ $# -eq 0 ] || shift
 
-   check_executables
+   MULLE_SDE="${MULLE_SDE:-`command -v mulle-sde`}"
+   [ -z "${MULLE_SDE}" ] && fail "mulle-sde not in PATH"
+
+   MULLE_MAKE="${MULLE_MAKE:-`command -v mulle-make`}"
+   [ -z "${MULLE_MAKE}" ] && fail "mulle-make not in PATH"
+
+   MULLE_DISPENSE="${MULLE_DISPENSE:-`command -v mulle-dispense`}"
+   [ -z "${MULLE_DISPENSE}" ] && fail "mulle-dispense not in PATH"
+
+   MULLE_SOURCETREE="${MULLE_SOURCETREE:-`command -v mulle-sourcetree`}"
+   [ -z "${MULLE_SOURCETREE}" ] && fail "mulle-sourcetree not in PATH"
 
    #
    # project can give the default way to build this
@@ -241,12 +221,13 @@ main()
          build_clean_main "$@"
       ;;
 
-      help)
-         usage
-      ;;
-
       libexec-dir|library-path)
          echo "${MULLE_CRAFT_LIBEXEC_DIR}"
+      ;;
+
+      install)
+         log_info "mulle-craft doesn't install. Use mulle-make directly."
+         exit 1
       ;;
 
       no-dependencies)

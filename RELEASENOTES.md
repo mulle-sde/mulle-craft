@@ -1,3 +1,7 @@
+### 0.3.2
+
+* * fix option handling for project
+
 ## 0.3.0
 
 * Various small improvements

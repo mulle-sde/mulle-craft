@@ -172,6 +172,12 @@ determine_buildinfo_dir()
    local buildinfodir
    local searchpath
 
+   if [ ! -z "${OPTION_INFO_DIR}" ]
+   then
+      echo "${OPTION_INFO_DIR}"
+      return
+   fi
+
    if [ -z "${BUILDINFO_PATH}" ]
    then
       searchpath="`colon_concat "${searchpath}" "${DEPENDENCIES_DIR}/share/mulle-craft/mulle-make/${NAME}.${MULLE_UNAME}" `"
@@ -685,7 +691,9 @@ do_build_execute()
       log_verbose "Building the project (outside of the sourcetree) ..."
       log_verbose "Build ${C_MAGENTA}${C_BOLD}${PWD}${C_VERBOSE} with ${MULLE_MAKE}"
 
-      if ! eval_exekutor "'${MULLE_MAKE}'" "${MULLE_MAKE_FLAGS}" build "${OPTIONS_MULLE_MAKE}" "$@"
+      # never install the project, use mulle-make for that
+      if ! eval_exekutor "'${MULLE_MAKE}'" "${MULLE_MAKE_FLAGS}" \
+                           "build" "${OPTIONS_MULLE_MAKE_PROJECT}" "$@"
       then
          log_fluff "project build failed"
          return 1
@@ -723,7 +731,8 @@ build_common()
    local OPTION_MODE="--share"
    local OPTION_LENIENT="NO"
    local OPTION_BUILD_DEPENDENCIES="DEFAULT"
-   local OPTIONS_MULLE_MAKE=
+   local OPTIONS_MULLE_MAKE_PROJECT=
+   local OPTION_INSTALL_PROJECT="NO"
 
    local OPTION_INFO_DIR
 
@@ -756,44 +765,48 @@ build_common()
 
          -b|--build-dir)
             [ $# -eq 1 ] && fail "missing argument to \"$1\""
-            OPTIONS_MULLE_MAKE="`concat "${OPTIONS_MULLE_MAKE}" "$1"`"
+            OPTIONS_MULLE_MAKE_PROJECT="`concat "${OPTIONS_MULLE_MAKE_PROJECT}" "$1"`"
             shift
 
             BUILD_DIR="$1"
-            OPTIONS_MULLE_MAKE="`concat "${OPTIONS_MULLE_MAKE}" "'$1'"`"
+            OPTIONS_MULLE_MAKE_PROJECT="`concat "${OPTIONS_MULLE_MAKE_PROJECT}" "'$1'"`"
          ;;
 
          -i|--info-dir)
             [ $# -eq 1 ] && fail "missing argument to \"$1\""
-            OPTIONS_MULLE_MAKE="`concat "${OPTIONS_MULLE_MAKE}" "$1"`"
+            OPTIONS_MULLE_MAKE_PROJECT="`concat "${OPTIONS_MULLE_MAKE_PROJECT}" "$1"`"
             shift
 
-            # not really used, OPTIONS_MULLE_MAKE is used
             OPTION_INFO_DIR="$1"
-            OPTIONS_MULLE_MAKE="`concat "${OPTIONS_MULLE_MAKE}" "'$1'"`"
+            OPTIONS_MULLE_MAKE_PROJECT="`concat "${OPTIONS_MULLE_MAKE_PROJECT}" "'$1'"`"
          ;;
 
          --debug)
             CONFIGURATIONS="Debug"
-            OPTIONS_MULLE_MAKE="`concat "${OPTIONS_MULLE_MAKE}" "-c 'Debug'"`"
+            OPTIONS_MULLE_MAKE_PROJECT="`concat "${OPTIONS_MULLE_MAKE_PROJECT}" "-c 'Debug'"`"
          ;;
 
          --release)
             CONFIGURATIONS="Release"
-            OPTIONS_MULLE_MAKE="`concat "${OPTIONS_MULLE_MAKE}" "-c 'Release'"`"
+            OPTIONS_MULLE_MAKE_PROJECT="`concat "${OPTIONS_MULLE_MAKE_PROJECT}" "-c 'Release'"`"
          ;;
 
          --sdk)
             [ $# -eq 1 ] && fail "missing argument to \"$1\""
-            OPTIONS_MULLE_MAKE="`concat "${OPTIONS_MULLE_MAKE}" "$1"`"
+            OPTIONS_MULLE_MAKE_PROJECT="`concat "${OPTIONS_MULLE_MAKE_PROJECT}" "$1"`"
             shift
 
             SDKS="$1"
-            OPTIONS_MULLE_MAKE="`concat "${OPTIONS_MULLE_MAKE}" "'$1'"`"
+            OPTIONS_MULLE_MAKE_PROJECT="`concat "${OPTIONS_MULLE_MAKE_PROJECT}" "'$1'"`"
          ;;
 
          -r|--recurse|--flat|--share)
             OPTION_MODE="$1"
+         ;;
+
+         --)
+            shift
+            break
          ;;
 
          -*)
@@ -809,42 +822,29 @@ build_common()
       shift
    done
 
-   # for consistency always find the sourcetree
    local projectdir
 
-   projectdir="`exekutor ${MULLE_SOURCETREE} ${MULLE_SOURCETREE_FLAGS} \
-                              ${MULLE_FLAG_DEFER} "sourcetree-dir" `"
+   projectdir="`exekutor ${MULLE_SDE} ${MULLE_SDE_FLAGS} "project-dir" ${MULLE_FLAG_DEFER}`"
+
    if [ ! -z "${projectdir}" ]
    then
-      log_verbose "Found a sourcetree in \"${projectdir}\""
+      log_verbose "Found a mulle-sde project in \"${projectdir}\""
       cd "${projectdir}"
-   else
+   fi
+
+   local sourcetreedir
+
+   sourcetreedir="`exekutor ${MULLE_SOURCETREE} ${MULLE_SOURCETREE_FLAGS} \
+                            ${MULLE_FLAG_DEFER} "sourcetree-dir" `"
+   if [ -z "${sourcetreedir}" -o "${sourcetreedir}" != "${projectdir}" ]
+   then
       if [ "${OPTION_MUST_HAVE_SOURCETREE}" = "YES" ]
       then
          fail "There is no sourcetree here ($PWD)"
-      else
-         log_fluff "No sourcetree found ($PWD)"
-         OPTION_USE_SOURCETREE="NO"
       fi
-   fi
 
-   #
-   # check sourcetree existance and handle DEFAULT
-   #
-   if [ "${OPTION_USE_SOURCETREE}" != "NO" ]
-   then
-      if [ -d ".mulle-sourcetree" ]
-      then
-         OPTION_USE_SOURCETREE="YES"
-      else
-         if [ "${OPTION_USE_SOURCETREE}" = "YES" ]
-         then
-            fail "No .mulle-sourcetree here ($PWD)"
-         else
-            log_verbose "No .mulle-sourcetree here ($PWD)"
-         fi
-         OPTION_USE_SOURCETREE="NO"
-      fi
+      log_fluff "No sourcetree found ($PWD)"
+      OPTION_USE_SOURCETREE="NO"
    fi
 
    if [ -z "${CONFIGURATIONS}" ]
