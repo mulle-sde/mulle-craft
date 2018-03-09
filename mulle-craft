@@ -32,7 +32,7 @@
 [ "${TRACE}" = "YES" ] && set -x && : "$0" "$@"
 
 
-MULLE_EXECUTABLE_VERSION=0.3.2
+MULLE_EXECUTABLE_VERSION=0.3.3
 
 
 trap_fail()
@@ -47,7 +47,9 @@ usage()
 Usage:
    ${MULLE_USAGE_NAME} [flags] [command]
 
-   Build projects taking mulle-sourcetree dependencies into consideration.
+   Build projects taking mulle-sourcetree dependencies into consideration. If
+   the sourcetree needs an update to fetch new dependencies, mulle-craft will
+   run this update.
 
 Flags:
 EOF
@@ -59,8 +61,9 @@ EOF
    -[RTPN]            : flags passed to mulle-sourcetree
 
 Commands:
-   all                : build sourcetreee and project (default)
+   all                : build sourcetree and project (default)
    clean              : clean output
+   fetch              : update the sourcetree and fetch what is missing
    no-dependencies    : build the sourcetree skipping the dependencies
    only-dependencies  : build the sourcetree dependencies only
    project            : build the project (outside sourcetree) only
@@ -208,7 +211,7 @@ main()
    fi
 
    case "${cmd:-all}" in
-      all|build)
+      all|build|craft)
          . "${MULLE_CRAFT_LIBEXEC_DIR}/mulle-craft-execute.sh"
 
          build_all_main "$@"
@@ -223,6 +226,13 @@ main()
 
       libexec-dir|library-path)
          echo "${MULLE_CRAFT_LIBEXEC_DIR}"
+      ;;
+
+      fetch)
+         # shellcheck source=src/mulle-craft-execute.sh
+         . "${MULLE_CRAFT_LIBEXEC_DIR}/mulle-craft-execute.sh"
+
+         build_fetch_main "$@"
       ;;
 
       install)

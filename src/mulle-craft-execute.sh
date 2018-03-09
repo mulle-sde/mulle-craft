@@ -34,6 +34,8 @@ MULLE_CRAFT_EXECUTE_SH="included"
 
 build_execute_usage()
 {
+   [ "$#" -ne 0 ] && log_error "$*"
+
     cat <<EOF >&2
 Usage:
    ${MULLE_USAGE_NAME} ${BUILD_STYLE} [options]
@@ -49,7 +51,7 @@ Options:
    --no-dependencies         : don't build dependencies
    --recurse|flat|share      : specify mode to update sourcetree with
    --release                 : compile for release only
-   --sdk
+   --sdk <sdk>               : specify sdk to build against
 
 Environment:
    ADDICTIONS_DIR   : place to get addictions from (optional)
@@ -60,6 +62,26 @@ EOF
   exit 1
 }
 
+
+build_fetch_usage()
+{
+   [ "$#" -ne 0 ] && log_error "$*"
+
+    cat <<EOF >&2
+Usage:
+   ${MULLE_USAGE_NAME} fetch [options]
+
+   Update the sourcetree, so that all dependencies are properly fetched and
+   in place with the correct versions.
+
+Options:
+   --recurse|flat|share : specify mode to update sourcetree with
+
+Environment:
+   DEPENDENCIES_DIR     : place to put dependencies into (generally required)
+EOF
+  exit 1
+}
 
 #
 # What build does is call
@@ -574,32 +596,26 @@ build_with_buildorder()
 }
 
 
+do_update_sourcetree()
+{
+   log_entry "do_update_sourcetree" "$@"
+
+   if ! exekutor "${MULLE_SOURCETREE}" ${MULLE_SOURCETREE_FLAGS} status --is-uptodate
+   then
+      eval_exekutor "'${MULLE_SOURCETREE}'" \
+                        "${MULLE_SOURCETREE_FLAGS}" "${OPTION_MODE}" \
+                        "update" "$@" || exit 1
+   fi
+}
+
+
 do_build_sourcetree()
 {
    log_entry "do_build_sourcetree" "$@"
 
    [ -z "${MULLE_CRAFT_DEPENDENCIES_SH}" ] && . "${MULLE_CRAFT_LIBEXEC_DIR}/mulle-craft-dependencies.sh"
 
-
-   local sourcetree_update_options
-
-   #
-   # these are environment variables
-   #
-   sourcetree_update_options="${MULLE_SOURCETREE_UPDATE_OPTIONS}"
-
-   if [ "${MULLE_SYMLINK}" = "YES" ]
-   then
-      sourcetree_update_options="`concat "${sourcetree}" "--symlink" `"
-   fi
-
-   if ! exekutor "${MULLE_SOURCETREE}" ${MULLE_SOURCETREE_FLAGS} status --is-uptodate
-   then
-      eval_exekutor "'${MULLE_SOURCETREE}'" \
-                        "${MULLE_SOURCETREE_FLAGS}" "${OPTION_MODE}" \
-                        "update" \
-                          "${sourcetree_update_options}" || exit 1
-   fi
+   do_update_sourcetree
 
    local buildorder
    local builddir
@@ -739,7 +755,7 @@ build_common()
    while [ $# -ne 0 ]
    do
       case "$1" in
-         -h|-help|--help)
+         -h*|--help|help)
             build_execute_usage
          ;;
 
@@ -764,7 +780,7 @@ build_common()
          ;;
 
          -b|--build-dir)
-            [ $# -eq 1 ] && fail "missing argument to \"$1\""
+            [ $# -eq 1 ] && build_execute_usage "missing argument to \"$1\""
             OPTIONS_MULLE_MAKE_PROJECT="`concat "${OPTIONS_MULLE_MAKE_PROJECT}" "$1"`"
             shift
 
@@ -773,7 +789,7 @@ build_common()
          ;;
 
          -i|--info-dir)
-            [ $# -eq 1 ] && fail "missing argument to \"$1\""
+            [ $# -eq 1 ] && build_execute_usage "missing argument to \"$1\""
             OPTIONS_MULLE_MAKE_PROJECT="`concat "${OPTIONS_MULLE_MAKE_PROJECT}" "$1"`"
             shift
 
@@ -792,7 +808,7 @@ build_common()
          ;;
 
          --sdk)
-            [ $# -eq 1 ] && fail "missing argument to \"$1\""
+            [ $# -eq 1 ] && build_execute_usage "missing argument to \"$1\""
             OPTIONS_MULLE_MAKE_PROJECT="`concat "${OPTIONS_MULLE_MAKE_PROJECT}" "$1"`"
             shift
 
@@ -810,8 +826,7 @@ build_common()
          ;;
 
          -*)
-            log_error "${MULLE_EXECUTABLE_FAIL_PREFIX}: Unknown option \"$1\""
-            build_execute_usage
+            build_execute_usage "Unknown option \"$1\""
          ;;
 
          *)
@@ -923,3 +938,42 @@ build_sourcetree_main()
 
    build_common "$@"
 }
+
+
+build_fetch_main()
+{
+   log_entry "build_fetch_main" "$@"
+
+   while [ $# -ne 0 ]
+   do
+      case "$1" in
+         -h*|--help|help)
+            build_fetch_usage
+         ;;
+
+         -r|--recurse|--flat|--share)
+            OPTION_MODE="$1"
+         ;;
+
+         --)
+            shift
+            break
+         ;;
+
+         -*)
+            build_fetch_usage "Unknown option \"$1\""
+         ;;
+
+         *)
+            break
+         ;;
+      esac
+
+      shift
+   done
+
+   [ "$#" -eq 0 ] || build_fetch_usage "superflous arguments \"$*\""
+
+   do_update_sourcetree "$@"
+}
+
