@@ -234,11 +234,11 @@ build_project()
 {
    log_entry "build_project" "$@"
 
-   local project="$1"
-   local cmd="$2"
-   local destination="$3"
-   local configuration="$4"
-   local sdk="$5"
+   local project="$1"; shift
+   local cmd="$1"; shift
+   local destination="$1"; shift
+   local configuration="$1"; shift
+   local sdk="$1"; shift
 
    local includepath
    local frameworkspath
@@ -352,17 +352,31 @@ build_project()
       destination=""
    fi
 
-   eval_exekutor "'${MULLE_MAKE}'" "${MULLE_MAKE_FLAGS}" \
-                          "${cmd}" "${args}" "${project}" "${destination}"
+   local auxargs
+   local i
 
- }
+   for i in "$@"
+   do
+      if [ -z "${auxargs}" ]
+      then
+         auxargs="'$1'"
+      else
+         auxargs="${auxargs} '$1'"
+      fi
+   done
+
+   eval_exekutor "'${MULLE_MAKE}'" "${MULLE_MAKE_FLAGS}" \
+                          "${cmd}" "${args}" "${auxargs}" \
+                          "${project}" "${destination}"
+}
 
 
 build_dependency_directly()
 {
    log_entry "build_dependency_directly" "$@"
 
-   local project="$1"
+   local project="$1"; shift
+
    local rval
 
    dependencies_begin_update || return 1
@@ -398,7 +412,8 @@ build_dependency_directly()
                             "install" \
                             "${DEPENDENCIES_DIR}" \
                             "${configuration}" \
-                            "${sdk}"
+                            "${sdk}" \
+                            "$@"
          then
             if [ "${OPTION_LENIENT}" = "NO" ]
             then
@@ -421,7 +436,8 @@ build_dependency_with_dispense()
 {
    log_entry "build_dependency_with_dispense" "$@"
 
-   local project="$1"
+   local project="$1"; shift
+
    local rval
 
    rval=0
@@ -446,7 +462,8 @@ build_dependency_with_dispense()
                           "install" \
                           "${DEPENDENCIES_DIR}.tmp" \
                           "${configuration}" \
-                          "${sdk}"
+                          "${sdk}" \
+                          "$@"
          then
             dependencies_begin_update &&
             exekutor "${MULLE_DISPENSE}" ${MULLE_DISPENSE_FLAGS} dispense \
@@ -472,20 +489,30 @@ build_dependency()
 {
    log_entry "build_dependency" "$@"
 
-   local project="$1"
-   local marks="$2"
-
-   local buildfunction
-
-   buildfunction="build_dependency_with_dispense"
+   local project="$1" ; shift
+   local cmd="$1" ; shift  # unused
+   local marks="$1" ; shift
 
    case "${marks}" in
       *nodispense*)
-         buildfunction="build_dependency_directly"
+         build_dependency_directly "${project}" "$@"
       ;;
-   esac
 
-   "${buildfunction}" "${project}"
+      *)
+         build_dependency_with_dispense  "${project}" "$@"
+   esac
+}
+
+
+build_subproject()
+{
+   log_entry "build_subproject" "$@"
+
+   local project="$1" ; shift
+   local cmd="$1" ; shift
+   local marks="$1" ; shift # unused
+
+   build_project "${project}" "${cmd}" "" "" "" "$@"
 }
 
 
@@ -497,12 +524,12 @@ build_with_buildorder()
 {
    log_entry "build_with_buildorder" "$@"
 
-   local buildorder="$1"
-   local style="$2"
-   local cmd="$3"
-   local functionname="$4"
-   local builddir="$5"
-   local donefile="$6"
+   local buildorder="$1"; shift
+   local style="$1"; shift
+   local cmd="$1"; shift
+   local functionname="$1"; shift
+   local builddir="$1"; shift
+   local donefile="$1"; shift
 
    local remaining
 
@@ -572,9 +599,11 @@ build_with_buildorder()
       log_verbose "Build ${C_MAGENTA}${C_BOLD}${project}${C_VERBOSE}"
 
       (
-         BUILD_DIR="${builddir}" "${functionname}" "${project}" \
-                                                   "${cmd}" \
-                                                   "${marks}"
+         # functionname will be either build_dependency or build_subproject
+         BUILD_DIR="${builddir}" exekutor "${functionname}" "${project}" \
+                                                            "${cmd}" \
+                                                            "${marks}" \
+                                                            "$@"
       )
 
       if [ $? -eq 0 ]
@@ -620,10 +649,10 @@ do_build_sourcetree()
    local buildorder
    local builddir
 
-   buildorder="`"${MULLE_SOURCETREE}" ${MULLE_SOURCETREE_FLAGS} buildorder --marks`" || exit 1
+   buildorder="`exekutor "${MULLE_SOURCETREE}" ${MULLE_SOURCETREE_FLAGS} buildorder --marks`" || exit 1
    if [ -z "${buildorder}" ]
    then
-      log_verbose "Nothing to build according to ${MULLE_SOURCETREE}"
+      log_verbose "There is nothing to build according to ${MULLE_SOURCETREE}"
       return
    fi
 
@@ -644,7 +673,8 @@ do_build_sourcetree()
                                     "install" \
                                     "build_dependency" \
                                     "${builddir}" \
-                                    "${builddir}/.mulle-built"
+                                    "${builddir}/.mulle-built" \
+                                    "$@"
          then
             if [ "${OPTION_LENIENT}" = "NO" ]
             then
@@ -669,8 +699,10 @@ do_build_sourcetree()
    if ! build_with_buildorder "${buildorder}" \
                               "normal" \
                               "build" \
-                              "build_project" \
-                              "${BUILD_DIR:-build}"
+                              "build_subproject" \
+                              "${BUILD_DIR:-build}" \
+                              "" \
+                              "$@"
    then
       return 1
    fi
@@ -683,12 +715,31 @@ do_build_execute()
 {
    log_entry "do_build_execute" "$@"
 
+   local lastenv
+   local currentenv
+   local filenameenv
+
+   [ -z "${MULLE_UNAME}" ] && internal_fail "MULLE_UNAME not set"
+   [ -z "${LOGNAME}" ] && internal_fail "LOGNAME not set"
+
+   filenameenv="${BUILD_DIR}/.mulle-craft"
+   currentenv="${MULLE_UNAME};`hostname`;${LOGNAME}"
+
+   lastenv="`egrep -s -v '^#' "${filenameenv}"`"
+   if [ "${lastenv}" != "${currentenv}" ]
+   then
+      rmdir_safer "${BUILD_DIR}"
+      mkdir_if_missing "${BUILD_DIR}"
+      redirect_exekutor "${filenameenv}" echo "# mulle-craft environment info
+${currentenv}"
+   fi
+
    local rval
 
    rval=0
    if [ "${OPTION_USE_SOURCETREE}" = "YES" ]
    then
-      if ! do_build_sourcetree
+      if ! do_build_sourcetree "$@"
       then
          if [ "${OPTION_LENIENT}" = "NO" ]
          then
@@ -751,6 +802,7 @@ build_common()
    local OPTION_INSTALL_PROJECT="NO"
 
    local OPTION_INFO_DIR
+   local OPTION_SOURCETREE_ARGS
 
    while [ $# -ne 0 ]
    do
@@ -818,6 +870,11 @@ build_common()
 
          -r|--recurse|--flat|--share)
             OPTION_MODE="$1"
+         ;;
+
+         --)
+            shift
+            break
          ;;
 
          --)

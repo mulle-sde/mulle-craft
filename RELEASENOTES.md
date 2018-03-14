@@ -1,3 +1,7 @@
+### 0.3.4
+
+* pass arguments after -- to sourcetree builds too for the moment
+
 ### 0.3.3
 
 * add fetch command for explicit sourcetree updates
