@@ -500,6 +500,7 @@ build_dependency()
 
       *)
          build_dependency_with_dispense  "${project}" "$@"
+      ;;
    esac
 }
 

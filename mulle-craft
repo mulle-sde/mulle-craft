@@ -32,7 +32,7 @@
 [ "${TRACE}" = "YES" ] && set -x && : "$0" "$@"
 
 
-MULLE_EXECUTABLE_VERSION=0.3.4
+MULLE_EXECUTABLE_VERSION=0.3.5
 
 
 trap_fail()
@@ -110,7 +110,7 @@ main()
    do
       if options_technical_flags "$1"
       then
-         MULLE_MAKE_FLAGS="`concat ${MULLE_MAKE_FLAGS} $1`"
+         MULLE_MAKE_FLAGS="`concat "${MULLE_MAKE_FLAGS}" "$1"`"
          shift
          continue
       fi

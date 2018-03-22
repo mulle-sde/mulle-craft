@@ -1,3 +1,7 @@
+### 0.3.5
+
+* fix a quoting bug
+
 ### 0.3.4
 
 * pass arguments after -- to sourcetree builds too for the moment
