@@ -34,7 +34,7 @@ Essentially, `mulle-craft` is a shortcut for typing:
 for i in `mulle-sourcetree buildorder`
 do
    mulle-make install --prefix "${tmpdir}" "$i"
-   mulle-dispense "${tmpdir}" "${DEPENDENCIES_DIR}
+   mulle-dispense "${tmpdir}" "${DEPENDENCY_DIR}
 done
 
 # Build the project

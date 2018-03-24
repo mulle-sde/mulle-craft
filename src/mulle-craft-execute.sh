@@ -54,10 +54,10 @@ Options:
    --sdk <sdk>               : specify sdk to build against
 
 Environment:
-   ADDICTIONS_DIR   : place to get addictions from (optional)
+   ADDICTION_DIR   : place to get addictions from (optional)
    BUILD_DIR        : place for build products and by-products
    BUILDINFO_PATH   : places to find mulle-craftinfos
-   DEPENDENCIES_DIR : place to put dependencies into (generally required)
+   DEPENDENCY_DIR : place to put dependencies into (generally required)
 EOF
   exit 1
 }
@@ -78,7 +78,7 @@ Options:
    --recurse|flat|share : specify mode to update sourcetree with
 
 Environment:
-   DEPENDENCIES_DIR     : place to put dependencies into (generally required)
+   DEPENDENCY_DIR     : place to put dependencies into (generally required)
 EOF
   exit 1
 }
@@ -202,8 +202,8 @@ determine_buildinfo_dir()
 
    if [ -z "${BUILDINFO_PATH}" ]
    then
-      searchpath="`colon_concat "${searchpath}" "${DEPENDENCIES_DIR}/share/mulle-craft/mulle-make/${NAME}.${MULLE_UNAME}" `"
-      searchpath="`colon_concat "${searchpath}" "${DEPENDENCIES_DIR}/share/mulle-craft/mulle-make/${NAME}" `"
+      searchpath="`colon_concat "${searchpath}" "${DEPENDENCY_DIR}/share/mulle-craft/mulle-make/${NAME}.${MULLE_UNAME}" `"
+      searchpath="`colon_concat "${searchpath}" "${DEPENDENCY_DIR}/share/mulle-craft/mulle-make/${NAME}" `"
       searchpath="`colon_concat "${searchpath}" "${PROJECT_DIR}/.mulle-make.${MULLE_UNAME}" `"
       searchpath="`colon_concat "${searchpath}" "${PROJECT_DIR}/.mulle-make" `"
    else
@@ -244,7 +244,7 @@ build_project()
    local frameworkspath
    local libpath
 
-   if [ ! -z "${DEPENDENCIES_DIR}" ]
+   if [ ! -z "${DEPENDENCY_DIR}" ]
    then
       includepath="`dependencies_include_path "${configuration}" "${sdk}"`"
       libpath="`dependencies_lib_path "${configuration}" "${sdk}"`"
@@ -255,16 +255,16 @@ build_project()
       esac
    fi
 
-   if [ ! -z "${ADDICTIONS_DIR}" ]
+   if [ ! -z "${ADDICTION_DIR}" ]
    then
-      if [ -d "${ADDICTIONS_DIR}/include" ]
+      if [ -d "${ADDICTION_DIR}/include" ]
       then
-         includepath="`add_path "${includepath}" "${ADDICTIONS_DIR}/include"`"
+         includepath="`add_path "${includepath}" "${ADDICTION_DIR}/include"`"
       fi
 
-      if [ -d "${ADDICTIONS_DIR}/lib" ]
+      if [ -d "${ADDICTION_DIR}/lib" ]
       then
-         libpath="`add_path "${libpath}" "${ADDICTIONS_DIR}/lib"`"
+         libpath="`add_path "${libpath}" "${ADDICTION_DIR}/lib"`"
       fi
    fi
 
@@ -410,7 +410,7 @@ build_dependency_directly()
 
          if ! build_project "${project}" \
                             "install" \
-                            "${DEPENDENCIES_DIR}" \
+                            "${DEPENDENCY_DIR}" \
                             "${configuration}" \
                             "${sdk}" \
                             "$@"
@@ -456,18 +456,18 @@ build_dependency_with_dispense()
                                                 "${sdk}" \
                                                 "${DISPENSE_STYLE}"`"
 
-         rmdir_safer "${DEPENDENCIES_DIR}.tmp" || return 1
+         rmdir_safer "${DEPENDENCY_DIR}.tmp" || return 1
 
          if build_project "${project}" \
                           "install" \
-                          "${DEPENDENCIES_DIR}.tmp" \
+                          "${DEPENDENCY_DIR}.tmp" \
                           "${configuration}" \
                           "${sdk}" \
                           "$@"
          then
             dependencies_begin_update &&
             exekutor "${MULLE_DISPENSE}" ${MULLE_DISPENSE_FLAGS} dispense \
-                        "${DEPENDENCIES_DIR}.tmp" "${DEPENDENCIES_DIR}${subdir}"  &&
+                        "${DEPENDENCY_DIR}.tmp" "${DEPENDENCY_DIR}${subdir}"  &&
             dependencies_end_update
          else
             log_fluff "build_project \"${project}\" failed"
@@ -643,7 +643,7 @@ do_build_sourcetree()
 {
    log_entry "do_build_sourcetree" "$@"
 
-   [ -z "${MULLE_CRAFT_DEPENDENCIES_SH}" ] && . "${MULLE_CRAFT_LIBEXEC_DIR}/mulle-craft-dependencies.sh"
+   [ -z "${MULLE_CRAFT_DEPENDENCY_SH}" ] && . "${MULLE_CRAFT_LIBEXEC_DIR}/mulle-craft-dependencies.sh"
 
    do_update_sourcetree
 
@@ -660,14 +660,14 @@ do_build_sourcetree()
    local rval
 
    rval=0
-   if [ "${OPTION_BUILD_DEPENDENCIES}" != "NO" ]
+   if [ "${OPTION_BUILD_DEPENDENCY}" != "NO" ]
    then
-      if [ ! -z "${DEPENDENCIES_DIR}" ]
+      if [ ! -z "${DEPENDENCY_DIR}" ]
       then
          log_verbose "Building the dependencies of the sourcetree ..."
 
          builddir="${BUILD_DIR:-build}"
-         builddir="${OPTION_DEPENDENCIES_BUILD_DIR:-${builddir}}"
+         builddir="${OPTION_DEPENDENCY_BUILD_DIR:-${builddir}}"
 
          if ! build_with_buildorder "${buildorder}" \
                                     "dependencies" \
@@ -684,9 +684,9 @@ do_build_sourcetree()
             rval=1
          fi
       else
-         log_verbose "Not building dependencies as DEPENDENCIES_DIR is undefined"
+         log_verbose "Not building dependencies as DEPENDENCY_DIR is undefined"
       fi
-      if [ "${OPTION_BUILD_DEPENDENCIES}" = "ONLY" ]
+      if [ "${OPTION_BUILD_DEPENDENCY}" = "ONLY" ]
       then
          log_fluff "Building dependencies only, so done here"
          return $rval
@@ -720,6 +720,7 @@ do_build_execute()
    local currentenv
    local filenameenv
 
+   [ -z "${BUILD_DIR}" ] && internal_fail "BUILD_DIR not set"
    [ -z "${MULLE_UNAME}" ] && internal_fail "MULLE_UNAME not set"
    [ -z "${LOGNAME}" ] && internal_fail "LOGNAME not set"
 
@@ -798,7 +799,7 @@ build_common()
 
    local OPTION_MODE="--share"
    local OPTION_LENIENT="NO"
-   local OPTION_BUILD_DEPENDENCIES="DEFAULT"
+   local OPTION_BUILD_DEPENDENCY="DEFAULT"
    local OPTIONS_MULLE_MAKE_PROJECT=
    local OPTION_INSTALL_PROJECT="NO"
 
@@ -820,16 +821,16 @@ build_common()
             OPTION_LENIENT="NO"
          ;;
 
-         --dependencies)
-            OPTION_BUILD_DEPENDENCIES="YES"
+         --dependency)
+            OPTION_BUILD_DEPENDENCY="YES"
          ;;
 
-         --only-dependencies)
-            OPTION_BUILD_DEPENDENCIES="ONLY"
+         --only-dependency)
+            OPTION_BUILD_DEPENDENCY="ONLY"
          ;;
 
-         --no-dependencies)
-            OPTION_BUILD_DEPENDENCIES="NO"
+         --no-dependency)
+            OPTION_BUILD_DEPENDENCY="NO"
          ;;
 
          -b|--build-dir)

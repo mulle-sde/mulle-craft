@@ -9,4 +9,9 @@ tmp.*
 package/
 mulle-project/publisher-info.sh
 NARRATIVE.md
-tests/*build/
+test/*build/
+tests/01-passthru-build/infodir.mulle-build/
+tests/02-sourcetree-build/.mulle-sourcetree/db/
+tests/02-sourcetree-build/.mulle-sourcetree/var/
+tests/02-sourcetree-build/src/.mulle-sourcetree-fix
+

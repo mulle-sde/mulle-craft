@@ -1,3 +1,7 @@
+### 0.3.6
+
+* singular directory names
+
 ### 0.3.5
 
 * fix a quoting bug

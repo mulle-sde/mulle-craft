@@ -42,18 +42,18 @@ Usage:
    default is sourcetree.
 
 Options:
-   --no-dependencies : do not remove dependencies
+   --no-dependency  : do not remove dependencies
 
 Styles:
    all
-   dependencies
-   nodependencies
+   dependency
+   nodependency
    project
    sourcetree
 
 Environment:
    BUILD_DIR        : place for build products and by-products
-   DEPENDENCIES_DIR : place to put dependencies into (generally required)
+   DEPENDENCY_DIR : place to put dependencies into (generally required)
 EOF
   exit 1
 }
@@ -98,8 +98,8 @@ build_clean_main()
 {
    log_entry "build_clean_main" "$@"
 
-   local OPTION_DEPENDENCIES="DEFAULT"
-   local OPTION_DEPENDENCIES_BUILD_DIR
+   local OPTION_DEPENDENCY="DEFAULT"
+   local OPTION_DEPENDENCY_BUILD_DIR
 
    while [ $# -ne 0 ]
    do
@@ -108,16 +108,16 @@ build_clean_main()
             build_execute_usage
          ;;
 
-         --dependencies)
-            OPTION_DEPENDENCIES="YES"
+         --dependency)
+            OPTION_DEPENDENCY="YES"
          ;;
 
-         --no-dependencies)
-            OPTION_DEPENDENCIES="NO"
+         --no-dependency)
+            OPTION_DEPENDENCY="NO"
          ;;
 
-         --only-dependencies)
-            OPTION_DEPENDENCIES="ONLY"
+         --only-dependency)
+            OPTION_DEPENDENCY="ONLY"
          ;;
 
 
@@ -128,11 +128,11 @@ build_clean_main()
             BUILD_DIR="$1"
          ;;
 
-         --dependencies-build-dir)
+         --dependency-build-dir)
             [ $# -eq 1 ] && fail "missing argument to \"$1\""
             shift
 
-            OPTION_DEPENDENCIES_BUILD_DIR="$1"
+            OPTION_DEPENDENCY_BUILD_DIR="$1"
          ;;
 
          -*)
@@ -177,11 +177,11 @@ build_clean_main()
       ;;
 
       "dependencies")
-         OPTION_DEPENDENCIES="ONLY"
+         OPTION_DEPENDENCY="ONLY"
       ;;
 
       "nodependencies")
-         OPTION_DEPENDENCIES="NO"
+         OPTION_DEPENDENCY="NO"
       ;;
 
       *)
@@ -189,17 +189,17 @@ build_clean_main()
       ;;
    esac
 
-   if [ "${OPTION_USE_PROJECT}" = "YES" -a "${OPTION_DEPENDENCIES}" != "ONLY" ]
+   if [ "${OPTION_USE_PROJECT}" = "YES" -a "${OPTION_DEPENDENCY}" != "ONLY" ]
    then
       remove_directory "${BUILD_DIR}"
    fi
 
    if [ "${OPTION_USE_SOURCETREE}" = "YES" ]
    then
-      if [ "${OPTION_DEPENDENCIES}" != "NO" ]
+      if [ "${OPTION_DEPENDENCY}" != "NO" ]
       then
-         remove_directory "${OPTION_DEPENDENCIES_BUILD_DIR}"
-         remove_directory "${DEPENDENCIES_DIR}"
+         remove_directory "${OPTION_DEPENDENCY_BUILD_DIR}"
+         remove_directory "${DEPENDENCY_DIR}"
       fi
    fi
 }

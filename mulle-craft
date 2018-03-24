@@ -32,7 +32,7 @@
 [ "${TRACE}" = "YES" ] && set -x && : "$0" "$@"
 
 
-MULLE_EXECUTABLE_VERSION=0.3.5
+MULLE_EXECUTABLE_VERSION=0.3.6
 
 
 trap_fail()
@@ -64,8 +64,8 @@ Commands:
    all                : build sourcetree and project (default)
    clean              : clean output
    fetch              : update the sourcetree and fetch what is missing
-   no-dependencies    : build the sourcetree skipping the dependencies
-   only-dependencies  : build the sourcetree dependencies only
+   no-dependency      : build the sourcetree skipping the dependencies
+   dependency         : build the sourcetree dependencies only
    project            : build the project (outside sourcetree) only
    sourcetree         : build the sourcetree only
 EOF
@@ -173,8 +173,8 @@ main()
          MULLE_VIRTUAL_ROOT="`pwd -P`"
          export MULLE_VIRTUAL_ROOT
 
-         DEPENDENCIES_DIR="${DEPENDENCIES_DIR:-${MULLE_VIRTUAL_ROOT}/dependencies}"
-         ADDICTIONS_DIR="${ADDICTIONS_DIR:-${MULLE_VIRTUAL_ROOT}/addictions}"
+         DEPENDENCY_DIR="${DEPENDENCY_DIR:-${MULLE_VIRTUAL_ROOT}/dependency}"
+         ADDICTION_DIR="${ADDICTION_DIR:-${MULLE_VIRTUAL_ROOT}/addiction}"
       ;;
 
       */)
@@ -240,18 +240,18 @@ main()
          exit 1
       ;;
 
-      no-dependencies)
+      no-dependency)
          # shellcheck source=src/mulle-craft-execute.sh
          . "${MULLE_CRAFT_LIBEXEC_DIR}/mulle-craft-execute.sh"
 
-         build_sourcetree_main --no-dependencies "$@"
+         build_sourcetree_main --no-dependency "$@"
       ;;
 
-      only-dependencies)
+      dependency|only-dependencies)
          # shellcheck source=src/mulle-craft-execute.sh
          . "${MULLE_CRAFT_LIBEXEC_DIR}/mulle-craft-execute.sh"
 
-         build_sourcetree_main --only-dependencies "$@"
+         build_sourcetree_main --only-dependency "$@"
       ;;
 
       project)

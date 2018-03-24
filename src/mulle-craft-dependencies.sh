@@ -33,15 +33,15 @@ MULLE_CRAFT_DEPENDENCIES_SH="included"
 
 
 #
-# The ./dependencies are somewhat like a /usr folder, a root for
+# The ./dependency folder is somewhat like a /usr folder, a root for
 # bin share lib  folders and so on. The dependencies folder is
 # write protected by default.
 #
-# You add stuff to ./dependencies by callin `dependencies_begin_update`
+# You add stuff to ./dependency by callin `dependencies_begin_update`
 # and when you are done you call  `dependencies_end_update`. During that
-# time ./dependencies is not write protected.
+# time ./dependency is not write protected.
 #
-# The dependencies folder can be preloadeed with tarball content, if
+# The dependency folder can be preloaded with tarball content, if
 # the environment variable TARBALLS is set (it contains a
 # LF separated list of tarball paths)
 #
@@ -67,10 +67,10 @@ _dependencies_install_tarballs()
       then
          fail "tarball \"$tarball\" not found"
       else
-         mkdir_if_missing "${DEPENDENCIES_DIR}"
+         mkdir_if_missing "${DEPENDENCY_DIR}"
          log_info "Installing tarball \"${tarball}\""
          exekutor "${TAR:-tar}" -xz ${TARFLAGS} \
-                                -C "${DEPENDENCIES_DIR}" \
+                                -C "${DEPENDENCY_DIR}" \
                                 -f "${tarball}" || fail "failed to extract ${tar}"
       fi
    done
@@ -84,16 +84,16 @@ dependencies_init()
 
    local project="$1"
 
-   [ -z "${DEPENDENCIES_DIR}" ] && internal_fail "DEPENDENCIES_DIR not set"
+   [ -z "${DEPENDENCY_DIR}" ] && internal_fail "DEPENDENCY_DIR not set"
 
-   mkdir_if_missing "${DEPENDENCIES_DIR}"
+   mkdir_if_missing "${DEPENDENCY_DIR}"
 
-   redirect_exekutor "${DEPENDENCIES_DIR}/.state" \
+   redirect_exekutor "${DEPENDENCY_DIR}/.state" \
       echo "initting"
 
    _dependencies_install_tarballs
 
-   redirect_exekutor "${DEPENDENCIES_DIR}/.state" \
+   redirect_exekutor "${DEPENDENCY_DIR}/.state" \
       echo "inited"
 }
 
@@ -102,14 +102,14 @@ dependencies_unprotect()
 {
    log_entry "dependencies_unprotect" "$@"
 
-   [ -z "${DEPENDENCIES_DIR}" ] && internal_fail "DEPENDENCIES_DIR not set"
+   [ -z "${DEPENDENCY_DIR}" ] && internal_fail "DEPENDENCY_DIR not set"
 
-   if [ ! -e "${DEPENDENCIES_DIR}" ]
+   if [ ! -e "${DEPENDENCY_DIR}" ]
    then
       return
    fi
 
-   chmod -R ug+w "${DEPENDENCIES_DIR}" || fail "could not chmod \"${DEPENDENCIES_DIR}\""
+   chmod -R ug+w "${DEPENDENCY_DIR}" || fail "could not chmod \"${DEPENDENCY_DIR}\""
 }
 
 
@@ -117,14 +117,14 @@ dependencies_protect()
 {
    log_entry "dependencies_protect" "$@"
 
-   [ -z "${DEPENDENCIES_DIR}" ] && internal_fail "DEPENDENCIES_DIR not set"
+   [ -z "${DEPENDENCY_DIR}" ] && internal_fail "DEPENDENCY_DIR not set"
 
-   if [ ! -e "${DEPENDENCIES_DIR}" ]
+   if [ ! -e "${DEPENDENCY_DIR}" ]
    then
       return
    fi
 
-   chmod -R a-w "${DEPENDENCIES_DIR}" || fail "could not chmod \"${DEPENDENCIES_DIR}\""
+   chmod -R a-w "${DEPENDENCY_DIR}" || fail "could not chmod \"${DEPENDENCY_DIR}\""
 }
 
 
@@ -139,9 +139,9 @@ dependencies_protect()
 #
 dependencies_get_state()
 {
-   [ -z "${DEPENDENCIES_DIR}" ] && internal_fail "DEPENDENCIES_DIR not set"
+   [ -z "${DEPENDENCY_DIR}" ] && internal_fail "DEPENDENCY_DIR not set"
 
-   if ! cat "${DEPENDENCIES_DIR}/.state" 2> /dev/null
+   if ! cat "${DEPENDENCY_DIR}/.state" 2> /dev/null
    then
       echo "clean"
    fi
@@ -152,11 +152,11 @@ dependencies_get_timestamp()
 {
    log_entry "dependencies_get_timestamp" "$@"
 
-   [ -z "${DEPENDENCIES_DIR}" ] && internal_fail "DEPENDENCIES_DIR not set"
+   [ -z "${DEPENDENCY_DIR}" ] && internal_fail "DEPENDENCY_DIR not set"
 
-   if [ -f "${DEPENDENCIES_DIR}/.state" ]
+   if [ -f "${DEPENDENCY_DIR}/.state" ]
    then
-      modification_timestamp "${DEPENDENCIES_DIR}/.state"
+      modification_timestamp "${DEPENDENCY_DIR}/.state"
    fi
 }
 
@@ -165,10 +165,10 @@ dependencies_clean()
 {
    log_entry "dependencies_clean" "$@"
 
-   [ -z "${DEPENDENCIES_DIR}" ] && internal_fail "DEPENDENCIES_DIR not set"
+   [ -z "${DEPENDENCY_DIR}" ] && internal_fail "DEPENDENCY_DIR not set"
 
    dependencies_unprotect
-   rmdir_safer "${DEPENDENCIES_DIR}"
+   rmdir_safer "${DEPENDENCY_DIR}"
 }
 
 
@@ -176,7 +176,7 @@ dependencies_begin_update()
 {
    log_entry "dependencies_begin_update" "$@"
 
-   [ -z "${DEPENDENCIES_DIR}" ] && internal_fail "DEPENDENCIES_DIR not set"
+   [ -z "${DEPENDENCY_DIR}" ] && internal_fail "DEPENDENCY_DIR not set"
 
    local state
 
@@ -205,7 +205,7 @@ dependencies_begin_update()
 
    dependencies_unprotect
 
-   redirect_exekutor "${DEPENDENCIES_DIR}/.state" \
+   redirect_exekutor "${DEPENDENCY_DIR}/.state" \
       echo "updating"
 }
 
@@ -214,9 +214,9 @@ dependencies_end_update()
 {
    log_entry "dependencies_end_update" "$@"
 
-   [ -z "${DEPENDENCIES_DIR}" ] && fail "DEPENDENCIES_DIR not set"
+   [ -z "${DEPENDENCY_DIR}" ] && fail "DEPENDENCY_DIR not set"
 
-   redirect_exekutor "${DEPENDENCIES_DIR}/.state" \
+   redirect_exekutor "${DEPENDENCY_DIR}/.state" \
       echo "ready"
 
    dependencies_protect
@@ -234,7 +234,7 @@ dependencies_existing_dirs_path()
 
    local subdirectories="$1"
 
-   [ -z "${DEPENDENCIES_DIR}" ] && internal_fail "DEPENDENCIES_DIR not set"
+   [ -z "${DEPENDENCY_DIR}" ] && internal_fail "DEPENDENCY_DIR not set"
 
    local subdir
    local path
@@ -245,9 +245,9 @@ dependencies_existing_dirs_path()
    do
       IFS="${DEFAULT_IFS}"
 
-      if [ -d "${DEPENDENCIES_DIR}/${subdir}" ]
+      if [ -d "${DEPENDENCY_DIR}/${subdir}" ]
       then
-         path="`colon_concat "${path}" "${DEPENDENCIES_DIR}/${subdir}"`"
+         path="`colon_concat "${path}" "${DEPENDENCY_DIR}/${subdir}"`"
       fi
    done
 
@@ -268,7 +268,7 @@ dependencies_dir_locations()
    local configuration="$2"
    local sdk="$3"
 
-   [ -z "${DEPENDENCIES_DIR}" ] && internal_fail "DEPENDENCIES_DIR not set"
+   [ -z "${DEPENDENCY_DIR}" ] && internal_fail "DEPENDENCY_DIR not set"
 
    if [ ! -z "${configuration}" ]
    then
