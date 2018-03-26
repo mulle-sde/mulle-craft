@@ -55,9 +55,9 @@ Options:
 
 Environment:
    ADDICTION_DIR   : place to get addictions from (optional)
-   BUILD_DIR        : place for build products and by-products
-   BUILDINFO_PATH   : places to find mulle-craftinfos
-   DEPENDENCY_DIR : place to put dependencies into (generally required)
+   BUILD_DIR       : place for build products and by-products
+   BUILDINFO_PATH  : places to find mulle-craftinfos
+   DEPENDENCY_DIR  : place to put dependencies into (generally required)
 EOF
   exit 1
 }
@@ -186,10 +186,10 @@ determine_buildinfo_dir()
 
    #
    # upper case for the sake of sameness for ppl setting BUILDINFO_PATH
-   # in the environment
+   # in the environment ?=??
    #
-   local NAME="$1"
-   local PROJECT_DIR="$2"
+   local name="$1"
+   local projectdir="$2"
 
    local buildinfodir
    local searchpath
@@ -202,10 +202,21 @@ determine_buildinfo_dir()
 
    if [ -z "${BUILDINFO_PATH}" ]
    then
-      searchpath="`colon_concat "${searchpath}" "${DEPENDENCY_DIR}/share/mulle-craft/mulle-make/${NAME}.${MULLE_UNAME}" `"
-      searchpath="`colon_concat "${searchpath}" "${DEPENDENCY_DIR}/share/mulle-craft/mulle-make/${NAME}" `"
-      searchpath="`colon_concat "${searchpath}" "${PROJECT_DIR}/.mulle-make.${MULLE_UNAME}" `"
-      searchpath="`colon_concat "${searchpath}" "${PROJECT_DIR}/.mulle-make" `"
+      if [ ! -z "${DEPENDENCY_DIR}" ]
+      then
+         searchpath="`colon_concat "${searchpath}" "${DEPENDENCY_DIR}/share/mulle-craft/info/${name}.${MULLE_UNAME}" `"
+         searchpath="`colon_concat "${searchpath}" "${DEPENDENCY_DIR}/share/mulle-craft/info/${name}" `"
+      fi
+      if [ ! -z "${MAIN_PROJECT_DIR}" ]
+      then
+         searchpath="`colon_concat "${searchpath}" "${MAIN_PROJECT_DIR}/.mulle-craft/etc/info/${name}.${MULLE_UNAME}" `"
+         searchpath="`colon_concat "${searchpath}" "${MAIN_PROJECT_DIR}/.mulle-craft/etc/info/${name}" `"
+      fi
+      if [ ! -z "${projectdir}" ]
+      then
+         searchpath="`colon_concat "${searchpath}" "${projectdir}/.mulle-craft/etc/info/${name}.${MULLE_UNAME}" `"
+         searchpath="`colon_concat "${searchpath}" "${projectdir}/.mulle-craft/etc/info/${name}" `"
+      fi
    else
       searchpath="`eval echo "${BUILDINFO_PATH}"`"
    fi
@@ -874,6 +885,10 @@ build_common()
             OPTION_MODE="$1"
          ;;
 
+         -V|--verbose-make)
+            MULLE_MAKE_PROJECT="`concat "${OPTIONS_MULLE_MAKE_PROJECT}" "'$1'"`"
+         ;;
+
          --)
             shift
             break
@@ -906,11 +921,15 @@ build_common()
       cd "${projectdir}"
    fi
 
+   local MAIN_PROJECT_DIR
+
+   MAIN_PROJECT_DIR="${PWD}"
+
    local sourcetreedir
 
    sourcetreedir="`exekutor ${MULLE_SOURCETREE} ${MULLE_SOURCETREE_FLAGS} \
                             ${MULLE_FLAG_DEFER} "sourcetree-dir" `"
-   if [ -z "${sourcetreedir}" -o "${sourcetreedir}" != "${projectdir}" ]
+   if [ -z "${sourcetreedir}" -o "${sourcetreedir}" != "${MAIN_PROJECT_DIR}" ]
    then
       if [ "${OPTION_MUST_HAVE_SOURCETREE}" = "YES" ]
       then

@@ -57,18 +57,21 @@ These can be platform specific, but don't have to be. It is one of
 
 ## How mulle-craft searches for the *info-folder*
 
-First the `dependencies/share/mulle-craft/mulle-make` folder will be searched
+First the `dependencies/share/mulle-craft/info` folder will be searched
 for any matches. A match is made if the name of the to-be-built
 project is the same as the *info-folder* name (without extension).
 
 An *info-folder* may have an extension, which can be one of the simplified
 **mulle-craft uname** outputs, which are platform specificy.
-
 A non matching "uname" extension is ignored. An *info-folder* with a matching
 extension is preferred over a matching name with no extension.
 
-Finally, if no match has been made,  the projects own `.mulle-make` and
-`.mulle-make.${uname}` folders  will be considered.
+Then the `.mulle-craft/etc/info` folder of the current (mulle-sde) project is
+searched.
+
+Finally, if no match has been made,  the projects own `.mulle-craft/etc/info`
+and `.mulle-make.${uname}` folders  will be considered, if these are
+dependencies.
 
 Assume that you are on **darwin** in the following picture, the `.linux`
 folder will be ignored:

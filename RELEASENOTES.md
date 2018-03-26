@@ -1,3 +1,7 @@
+### 0.3.7
+
+* use different search paths for info-dir now
+
 ### 0.3.6
 
 * singular directory names

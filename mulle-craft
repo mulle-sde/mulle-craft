@@ -32,7 +32,7 @@
 [ "${TRACE}" = "YES" ] && set -x && : "$0" "$@"
 
 
-MULLE_EXECUTABLE_VERSION=0.3.6
+MULLE_EXECUTABLE_VERSION=0.3.7
 
 
 trap_fail()
@@ -145,10 +145,6 @@ main()
             MULLE_FLAG_DEFER="$1"
          ;;
 
-         -V)
-           MULLE_MAKE_FLAGS="`concat ${MULLE_MAKE_FLAGS} $1`"
-         ;;
-
          -*)
             log_error "${MULLE_EXECUTABLE_FAIL_PREFIX}: Unknown option \"$1\""
             usage
@@ -211,7 +207,7 @@ main()
    fi
 
    case "${cmd:-all}" in
-      all|build|craft)
+      all)
          . "${MULLE_CRAFT_LIBEXEC_DIR}/mulle-craft-execute.sh"
 
          build_all_main "$@"
@@ -247,7 +243,7 @@ main()
          build_sourcetree_main --no-dependency "$@"
       ;;
 
-      dependency|only-dependencies)
+      dependency|only-dependency)
          # shellcheck source=src/mulle-craft-execute.sh
          . "${MULLE_CRAFT_LIBEXEC_DIR}/mulle-craft-execute.sh"
 
