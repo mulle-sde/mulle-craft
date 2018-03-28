@@ -1,3 +1,7 @@
+### 0.3.9
+
+* use canonical overview pic
+
 ### 0.3.8
 
 * changed searchpath again, update dox a bit

@@ -32,7 +32,7 @@
 [ "${TRACE}" = "YES" ] && set -x && : "$0" "$@"
 
 
-MULLE_EXECUTABLE_VERSION=0.3.8
+MULLE_EXECUTABLE_VERSION=0.3.9
 
 
 trap_fail()

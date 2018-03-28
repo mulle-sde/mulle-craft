@@ -4,9 +4,10 @@
 
 ... for Linux, OS X, FreeBSD, Windows
 
-![Overview](mulle-craft-overview.png)
+![Overview](dox/mulle-sde-overview.png)
 
-**mulle-craft** builds your project and it's dependencies. The dependencies are specified using [mulle-sourcetree](https://github.com/mulle-sde/mulle-sourcetree).
+**mulle-craft** builds your project and it's dependencies. The dependencies are
+specified using [mulle-sourcetree](https://github.com/mulle-sde/mulle-sourcetree).
 
 
 Executable    | Description
@@ -14,7 +15,8 @@ Executable    | Description
 `mulle-craft` | Build projects and their dependencies
 
 
-> **mulle-craft** is the successor to [mulle-build](https://github.com/mulle-nat/mulle-build).
+> **mulle-craft** is the successor to
+> [mulle-build](https://github.com/mulle-nat/mulle-build).
 
 
 ## Install
@@ -41,7 +43,10 @@ done
 mulle-make build "${PWD}"
 ```
 
-So it's conceptually fairly simple, if you know how [mulle-sourcetree](https://github.com/mulle-sde/mulle-sourcetree) and [mulle-make](https://github.com/mulle-sde/mulle-make) and [mulle-dispense](https://github.com/mulle-sde/mulle-dispense) work.
+So it's conceptually fairly simple, if you know how
+[mulle-sourcetree](https://github.com/mulle-sde/mulle-sourcetree) and
+[mulle-make](https://github.com/mulle-sde/mulle-make) and
+[mulle-dispense](https://github.com/mulle-sde/mulle-dispense) work.
 
 But then there are also variations and options :)
 
