@@ -1,3 +1,7 @@
+### 0.3.8
+
+* changed searchpath again, update dox a bit
+
 ### 0.3.7
 
 * use different search paths for info-dir now

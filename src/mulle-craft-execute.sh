@@ -200,22 +200,26 @@ determine_buildinfo_dir()
       return
    fi
 
+   #
+   # I couldn't come up with anything else to store in mulle-craft, so its
+   # not /etc/info/... but just ...
+   #
    if [ -z "${BUILDINFO_PATH}" ]
    then
       if [ ! -z "${DEPENDENCY_DIR}" ]
       then
-         searchpath="`colon_concat "${searchpath}" "${DEPENDENCY_DIR}/share/mulle-craft/info/${name}.${MULLE_UNAME}" `"
-         searchpath="`colon_concat "${searchpath}" "${DEPENDENCY_DIR}/share/mulle-craft/info/${name}" `"
+         searchpath="`colon_concat "${searchpath}" "${DEPENDENCY_DIR}/share/mulle-craft/${name}.${MULLE_UNAME}" `"
+         searchpath="`colon_concat "${searchpath}" "${DEPENDENCY_DIR}/share/mulle-craft/${name}" `"
       fi
       if [ ! -z "${MAIN_PROJECT_DIR}" ]
       then
-         searchpath="`colon_concat "${searchpath}" "${MAIN_PROJECT_DIR}/.mulle-craft/etc/info/${name}.${MULLE_UNAME}" `"
-         searchpath="`colon_concat "${searchpath}" "${MAIN_PROJECT_DIR}/.mulle-craft/etc/info/${name}" `"
+         searchpath="`colon_concat "${searchpath}" "${MAIN_PROJECT_DIR}/.mulle-craft/${name}.${MULLE_UNAME}" `"
+         searchpath="`colon_concat "${searchpath}" "${MAIN_PROJECT_DIR}/.mulle-craft/${name}" `"
       fi
       if [ ! -z "${projectdir}" ]
       then
-         searchpath="`colon_concat "${searchpath}" "${projectdir}/.mulle-craft/etc/info/${name}.${MULLE_UNAME}" `"
-         searchpath="`colon_concat "${searchpath}" "${projectdir}/.mulle-craft/etc/info/${name}" `"
+         searchpath="`colon_concat "${searchpath}" "${projectdir}/.mulle-craft/${name}.${MULLE_UNAME}" `"
+         searchpath="`colon_concat "${searchpath}" "${projectdir}/.mulle-craft/${name}" `"
       fi
    else
       searchpath="`eval echo "${BUILDINFO_PATH}"`"
