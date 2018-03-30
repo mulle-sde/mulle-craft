@@ -32,7 +32,7 @@
 [ "${TRACE}" = "YES" ] && set -x && : "$0" "$@"
 
 
-MULLE_EXECUTABLE_VERSION=0.3.9
+MULLE_EXECUTABLE_VERSION=0.3.10
 
 
 trap_fail()
@@ -88,6 +88,7 @@ main()
    local MULLE_FLAG_IGNORE_GRAVEYARD="NO"
 
    # technical flags
+   local MULLE_TRACE
    local MULLE_FLAG_EXEKUTOR_DRY_RUN="NO"
    local MULLE_FLAG_LOG_LOCAL="NO"
    local MULLE_FLAG_LOG_DEBUG="NO"
@@ -201,10 +202,7 @@ main()
    #
    # project can give the default way to build this
    #
-   if [ -z "${cmd}" ]
-   then
-      cmd="`cat .mulle-craft/etc/default 2> /dev/null`"
-   fi
+   cmd="${cmd:-${MULLE_CRAFT_DEFAULT_CMD}}"
 
    case "${cmd:-all}" in
       all)

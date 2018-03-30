@@ -1,3 +1,7 @@
+### 0.3.10
+
+* need to preserve buildorder strictly, fixed that
+
 ### 0.3.9
 
 * use canonical overview pic

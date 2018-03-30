@@ -4,13 +4,13 @@ digraph G {
     { rank="same" ; "mulle-craft" }
 
     "mulle-craft"   [ shape="none", fontcolor="blue" ]
+    "mulle-make"   [ shape="none", fontcolor="#778ca3" ]
 
     node[ shape=folder, color="#0fb9b1", fontcolor="#0fb9b1"];
 
-    "foo1.linux"   [ label="foo.linux"]
-    "foo2.linux"   [ label="foo.linux"]
-    "foo2.darwin"  [ label="foo.darwin", fontcolor="#3867d6", color="#3867d6" ]
-    "foo3.linux"   [ label="foo.linux"]
+    ".mulle-make.darwin"   [ label=".mulle-make.darwin"]
+    "foo2.linux"           [ label="foo.linux"]
+    "foo2"                  [ label="foo", fontcolor="#3867d6", color="#3867d6" ]
 
     node[ shape=folder, color="#7f8c8d", fontcolor="#7f8c8d"];
     edge[ arrowhead="none", color="#7f8c8d"];
@@ -19,29 +19,22 @@ digraph G {
     edge[  arrowhead="none", color="black"];
     node[ shape=folder, color="black", fontcolor="black"];
 
-    "project"       -> "mulle-craft1"
-    "mulle-craft1"  -> "foo1.linux"
-    "mulle-craft1"   [ label=".mulle-craft"]
+    "foo"          -> ".mulle-make.darwin"
 
-    "project"       -> "stash"
-    "stash"         -> "foo2"
-    "foo2"      -> "mulle-craft2"
-    "mulle-craft2"  -> "foo2.linux"
-    "mulle-craft2"  -> "foo2.darwin"
-    "foo2"       [ label="foo"]
-    "mulle-craft2"   [ label=".mulle-craft"]
+    node[ shape=folder, color="#4b6584", fontcolor="#4b6584"];
 
-    "project"      -> "dependencies"
-    "dependencies" -> "share"
-    "share"        -> "mulle-craft3"
-    "mulle-craft3" -> "foo3.linux"
-    "mulle-craft3"  [ label="mulle-craft"]
+    "foo"          -> "dependency"
+    "dependency"   -> "share"
+    "share"        -> "mulle-craft1"
+    "mulle-craft1" -> "foo2.linux"
+    "mulle-craft1" -> "foo2"
+    "mulle-craft1"  [ label="mulle-craft"]
 
     edge[ style="dotted", arrowhead=""]
 
-    "mulle-craft" -> "project"   [ style="invis" ]
+    "mulle-craft" -> "foo"   [ style="invis" ]
+    "mulle-make"  -> "foo"   [ style="invis" ]
 
-    "mulle-craft" -> "mulle-craft3"   [ label="search (1)" ]
-    "mulle-craft" -> "mulle-craft2"   [ label="search (3)", color="#3867d6", fontcolor="#3867d6"  ]
-    "mulle-craft" -> "mulle-craft1"   [ label="search (2)" ]
+    "mulle-craft" -> "mulle-craft1"        [ label="search (1)" ]
+    "mulle-make"  -> ".mulle-make.darwin"  [ label="default (2)", color="#778ca3", fontcolor="#778ca3"  ]
 }

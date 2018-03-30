@@ -190,6 +190,9 @@ determine_buildinfo_dir()
    #
    local name="$1"
    local projectdir="$2"
+   local projecttype="$3"
+
+   [ -z "${name}" ] && internal_fail "name must not be null"
 
    local buildinfodir
    local searchpath
@@ -200,30 +203,38 @@ determine_buildinfo_dir()
       return
    fi
 
-   #
-   # I couldn't come up with anything else to store in mulle-craft, so its
-   # not /etc/info/... but just ...
-   #
-   if [ -z "${BUILDINFO_PATH}" ]
-   then
-      if [ ! -z "${DEPENDENCY_DIR}" ]
-      then
-         searchpath="`colon_concat "${searchpath}" "${DEPENDENCY_DIR}/share/mulle-craft/${name}.${MULLE_UNAME}" `"
-         searchpath="`colon_concat "${searchpath}" "${DEPENDENCY_DIR}/share/mulle-craft/${name}" `"
-      fi
-      if [ ! -z "${MAIN_PROJECT_DIR}" ]
-      then
-         searchpath="`colon_concat "${searchpath}" "${MAIN_PROJECT_DIR}/.mulle-craft/${name}.${MULLE_UNAME}" `"
-         searchpath="`colon_concat "${searchpath}" "${MAIN_PROJECT_DIR}/.mulle-craft/${name}" `"
-      fi
-      if [ ! -z "${projectdir}" ]
-      then
-         searchpath="`colon_concat "${searchpath}" "${projectdir}/.mulle-craft/${name}.${MULLE_UNAME}" `"
-         searchpath="`colon_concat "${searchpath}" "${projectdir}/.mulle-craft/${name}" `"
-      fi
-   else
-      searchpath="`eval echo "${BUILDINFO_PATH}"`"
-   fi
+   case "${projecttype}" in
+      "dependency")
+         #
+         # I couldn't come up with anything else to store in mulle-craft, so its
+         # not /etc/info/... but just ...
+         #
+         if [ -z "${BUILDINFO_PATH}" ]
+         then
+            if [ ! -z "${DEPENDENCY_DIR}" ]
+            then
+               searchpath="`colon_concat "${searchpath}" "${DEPENDENCY_DIR}/share/mulle-craft/${name}.${MULLE_UNAME}" `"
+               searchpath="`colon_concat "${searchpath}" "${DEPENDENCY_DIR}/share/mulle-craft/${name}" `"
+            fi
+            if [ ! -z "${projectdir}" ]
+            then
+               searchpath="`colon_concat "${searchpath}" "${projectdir}/.mulle-make.${MULLE_UNAME}" `"
+               searchpath="`colon_concat "${searchpath}" "${projectdir}/.mulle-make" `"
+            fi
+         else
+            searchpath="`eval echo "${BUILDINFO_PATH}"`"
+         fi
+      ;;
+
+      "project")
+         searchpath="`colon_concat "${searchpath}" "${projectdir}/.mulle-make.${MULLE_UNAME}" `"
+         searchpath="`colon_concat "${searchpath}" "${projectdir}/.mulle-make" `"
+      ;;
+
+      *)
+         internal_fail "Unknown project type \"${projecttype}\""
+      ;;
+   esac
 
    log_fluff "Build info searchpath: ${searchpath}"
 
@@ -233,6 +244,7 @@ determine_buildinfo_dir()
       IFS="${DEFAULT_IFS}"
       if [ ! -z "${buildinfodir}" ] && [ -d "${buildinfodir}" ]
       then
+         log_info "Info directory \"${buildinfodir}\" found"
          echo "${buildinfodir}"
          return 0
       fi
@@ -241,7 +253,7 @@ determine_buildinfo_dir()
 
    log_fluff "No buildinfo found"
 
-   return 1
+   return 2
 }
 
 
@@ -261,11 +273,11 @@ build_project()
 
    if [ ! -z "${DEPENDENCY_DIR}" ]
    then
-      includepath="`dependencies_include_path "${configuration}" "${sdk}"`"
-      libpath="`dependencies_lib_path "${configuration}" "${sdk}"`"
+      includepath="`dependencies_include_path "${configuration}" "${sdk}"`" || return 1
+      libpath="`dependencies_lib_path "${configuration}" "${sdk}"`" || return 1
       case "${MULLE_UNAME}" in
          darwin)
-            frameworkspath="`dependencies_frameworks_path "${configuration}" "${sdk}"`"
+            frameworkspath="`dependencies_frameworks_path "${configuration}" "${sdk}"`" || return 1
          ;;
       esac
    fi
@@ -296,13 +308,13 @@ build_project()
 
    local buildinfodir
 
-   buildinfodir="`determine_buildinfo_dir "${name}" "${project}"`"
-
+   buildinfodir="`determine_buildinfo_dir "${name}" "${project}" "dependency"`"
+   [ $? -eq 1 ] && exit 1
    # subdir for configuration / sdk
 
    local stylesubdir
 
-   stylesubdir="`determine_build_subdir "${configuration}" "${sdk}" `"
+   stylesubdir="`determine_build_subdir "${configuration}" "${sdk}" `" || return 1
 
    #
    # find proper build directory
@@ -536,24 +548,85 @@ build_subproject()
 # non-dependencies are build with their own BUILD_DIR
 # not in the shared one.
 #
-build_with_buildorder()
+build_sourcetree_node()
 {
-   log_entry "build_with_buildorder" "$@"
+   log_entry "build_sourcetree_line" "$@"
 
-   local buildorder="$1"; shift
-   local style="$1"; shift
-   local cmd="$1"; shift
-   local functionname="$1"; shift
-   local builddir="$1"; shift
-   local donefile="$1"; shift
+   local project="$1";  shift
+   local marks="$1";  shift
+
+   case "${marks}" in
+      *,no-dependency,*)
+         # subproject or something else
+      ;;
+
+      *)
+         if [ "${OPTION_BUILD_DEPENDENCY}" = "NO" ]
+         then
+            log_fluff "Not building dependencies (complying with user wish)"
+            return 2
+         fi
+      ;;
+   esac
+
+   local builddir
+
+   builddir="${BUILD_DIR:-build}"
+   log_verbose "Build ${C_MAGENTA}${C_BOLD}${project}${C_VERBOSE}"
+
+   case "${marks}" in
+      *,no-dependency,*)
+         # functionname will be either build_dependency or build_subproject
+         mkdir_if_missing "${builddir}" || fail "Could not create build directory"
+
+         BUILD_DIR="${builddir}" exekutor build_subproject "${project}" \
+                                                            "build" \
+                                                            "${marks}" \
+                                                            "$@"
+      ;;
+
+      *)
+         [ -z "${DEPENDENCY_DIR}" ] && fail "DEPENDENCY_DIR is undefined"
+         [ -z "${CONFIGURATIONS}" ] && internal_fail "CONFIGURATIONS is empty"
+         [ -z "${SDKS}" ]           && internal_fail "SDKS is empty"
+
+         builddir="${OPTION_DEPENDENCY_BUILD_DIR:-${builddir}}"
+         mkdir_if_missing "${builddir}" || fail "Could not create build directory"
+
+         # functionname will be either build_dependency or build_subproject
+         BUILD_DIR="${builddir}" exekutor build_dependency "${project}" \
+                                                           "install" \
+                                                           "${marks}" \
+                                                           "$@"
+      ;;
+   esac
+}
+
+
+do_build_sourcetree()
+{
+   log_entry "do_build_sourcetree" "$@"
+
+   [ -z "${MULLE_CRAFT_DEPENDENCY_SH}" ] && . "${MULLE_CRAFT_LIBEXEC_DIR}/mulle-craft-dependencies.sh"
+
+   do_update_sourcetree # hmm
+
+   local buildorder
+   local builddir
+
+   buildorder="`exekutor "${MULLE_SOURCETREE}" ${MULLE_SOURCETREE_FLAGS} buildorder --marks`" || exit 1
+   if [ -z "${buildorder}" ]
+   then
+      log_verbose "There is nothing to build according to ${MULLE_SOURCETREE}"
+      return
+   fi
 
    local remaining
+   local donefile
 
-   [ ! -z "${builddir}" ] || internal_fail "builddir is empty"
-
-   mkdir_if_missing "${builddir}" || fail "Could not create build directory"
-
+   donefile="${BUILD_DIR}/.mulle-built"
    remaining="${buildorder}"
+
    if [ ! -z "${donefile}" ]
    then
       if [ -f "${donefile}" ]
@@ -566,9 +639,6 @@ build_with_buildorder()
          fi
       fi
    fi
-
-   [ ! -z "${CONFIGURATIONS}" ] || internal_fail "CONFIGURATIONS is empty"
-   [ ! -z "${SDKS}" ]           || internal_fail "SDKS is empty"
 
    local line
 
@@ -588,142 +658,76 @@ build_with_buildorder()
          internal_fail "empty project fail"
       fi
 
-      case "${style}" in
-         dependencies)
-            case "${marks}" in
-               *nodependency*)
-                  log_fluff "\"${project}\" marked as nodependency, ignore"
-                  continue
-               ;;
-            esac
+      build_sourcetree_node "${project}" "${marks}"
+      case $? in
+         0)
+            if [ ! -z "${donefile}" ]
+            then
+               redirect_append_exekutor "${donefile}" echo "${line}"
+            fi
          ;;
 
-         *)
-            case "${marks}" in
-               *nodependency*)
-                  # ok!
-               ;;
-
-               ""|*)
-                  log_fluff "\"${project}\" marked as dependency, ignore"
-                  continue
-               ;;
-            esac
+         1)
+            if [ "${OPTION_LENIENT}" = "NO" ]
+            then
+               log_fluff "Build of \"${project}\" failed, so quit"
+               return 1
+            fi
+            log_fluff "Ignore failure of \"${project}\" due to leniency option"
          ;;
+
+         # 2 just ignored, but not remembered
       esac
-
-      log_verbose "Build ${C_MAGENTA}${C_BOLD}${project}${C_VERBOSE}"
-
-      (
-         # functionname will be either build_dependency or build_subproject
-         BUILD_DIR="${builddir}" exekutor "${functionname}" "${project}" \
-                                                            "${cmd}" \
-                                                            "${marks}" \
-                                                            "$@"
-      )
-
-      if [ $? -eq 0 ]
-      then
-         if [ ! -z "${donefile}" ]
-         then
-            redirect_append_exekutor "${donefile}" echo "${line}"
-         fi
-      else
-         if [ "${OPTION_LENIENT}" = "NO" ]
-         then
-            log_fluff "Build of \"${project}\" failed, so quit"
-            return 1
-         fi
-         log_fluff "Ignore failure of \"${project}\" due to leniency option"
-      fi
    done
+
    IFS="${DEFAULT_IFS}"
 }
 
 
-do_update_sourcetree()
+
+do_build_project()
 {
-   log_entry "do_update_sourcetree" "$@"
+   log_entry "do_build_project" "$@"
 
-   if ! exekutor "${MULLE_SOURCETREE}" ${MULLE_SOURCETREE_FLAGS} status --is-uptodate
+   local buildinfodir
+   local name
+
+   name="${PROJECT_NAME}"
+   if [ -z "${PROJECT_NAME}" ]
    then
-      eval_exekutor "'${MULLE_SOURCETREE}'" \
-                        "${MULLE_SOURCETREE_FLAGS}" "${OPTION_MODE}" \
-                        "update" "$@" || exit 1
-   fi
-}
-
-
-do_build_sourcetree()
-{
-   log_entry "do_build_sourcetree" "$@"
-
-   [ -z "${MULLE_CRAFT_DEPENDENCY_SH}" ] && . "${MULLE_CRAFT_LIBEXEC_DIR}/mulle-craft-dependencies.sh"
-
-   do_update_sourcetree
-
-   local buildorder
-   local builddir
-
-   buildorder="`exekutor "${MULLE_SOURCETREE}" ${MULLE_SOURCETREE_FLAGS} buildorder --marks`" || exit 1
-   if [ -z "${buildorder}" ]
-   then
-      log_verbose "There is nothing to build according to ${MULLE_SOURCETREE}"
-      return
+      name="`fast_basename "${PWD}"`"
    fi
 
-   local rval
+   log_verbose "Build ${C_MAGENTA}${C_BOLD}${name}${C_VERBOSE} with ${MULLE_MAKE}"
 
-   rval=0
-   if [ "${OPTION_BUILD_DEPENDENCY}" != "NO" ]
+   buildinfodir="`determine_buildinfo_dir "${name}" "${project}" "project"`"
+   [ $? -eq 1 ] && exit 1
+
+   if [ ! -z "${buildinfodir}" ]
    then
-      if [ ! -z "${DEPENDENCY_DIR}" ]
-      then
-         log_verbose "Building the dependencies of the sourcetree ..."
-
-         builddir="${BUILD_DIR:-build}"
-         builddir="${OPTION_DEPENDENCY_BUILD_DIR:-${builddir}}"
-
-         if ! build_with_buildorder "${buildorder}" \
-                                    "dependencies" \
-                                    "install" \
-                                    "build_dependency" \
-                                    "${builddir}" \
-                                    "${builddir}/.mulle-built" \
-                                    "$@"
-         then
-            if [ "${OPTION_LENIENT}" = "NO" ]
-            then
-               return 1
-            fi
-            rval=1
-         fi
-      else
-         log_verbose "Not building dependencies as DEPENDENCY_DIR is undefined"
-      fi
-      if [ "${OPTION_BUILD_DEPENDENCY}" = "ONLY" ]
-      then
-         log_fluff "Building dependencies only, so done here"
-         return $rval
-      fi
-   else
-      log_fluff "Not building dependencies (complying with user wish)"
+      OPTIONS_MULLE_MAKE_PROJECT="`concat "${OPTIONS_MULLE_MAKE_PROJECT}" "--info-dir '${buildinfodir}'" `"
    fi
 
-   log_verbose "Building the rest of the sourcetree ..."
-
-   if ! build_with_buildorder "${buildorder}" \
-                              "normal" \
-                              "build" \
-                              "build_subproject" \
-                              "${BUILD_DIR:-build}" \
-                              "" \
-                              "$@"
+   # never install the project, use mulle-make for that
+   if ! eval_exekutor "'${MULLE_MAKE}'" "${MULLE_MAKE_FLAGS}" \
+                        "build" "${OPTIONS_MULLE_MAKE_PROJECT}" "$@"
    then
+      log_fluff "project build failed"
       return 1
    fi
 
-   return $rval
+   if [ "${MULLE_FLAG_MOTD}" = "NO" ]
+   then
+      log_fluff "Not showing motd on request"
+   else
+      if [ -f "${BUILD_DIR}/.motd" ]
+      then
+         log_fluff "Showing \"${BUILD_DIR}/.motd\""
+         exekutor cat "${BUILD_DIR}/.motd"
+      else
+         log_fluff "No \"${BUILD_DIR}/.motd\" was produced"
+      fi
+   fi
 }
 
 
@@ -760,7 +764,7 @@ ${currentenv}"
       then
          if [ "${OPTION_LENIENT}" = "NO" ]
          then
-            log_fluff "Sourcetree build failed and we aren't lenient"
+            log_error "Sourcetree build failed and we aren't lenient"
             return 1
          fi
          rval=1
@@ -770,36 +774,33 @@ ${currentenv}"
       log_fluff "Not building sourcetree (complying with user wish)"
    fi
 
+   #
+   # Build the project
+   #
    if [ "${OPTION_USE_PROJECT}" = "YES" ]
    then
-      log_verbose "Building the project (outside of the sourcetree) ..."
-      log_verbose "Build ${C_MAGENTA}${C_BOLD}${PWD}${C_VERBOSE} with ${MULLE_MAKE}"
-
-      # never install the project, use mulle-make for that
-      if ! eval_exekutor "'${MULLE_MAKE}'" "${MULLE_MAKE_FLAGS}" \
-                           "build" "${OPTIONS_MULLE_MAKE_PROJECT}" "$@"
+      if ! do_build_project "$@"
       then
-         log_fluff "project build failed"
-         return 1
-      fi
-
-      if [ "${MULLE_FLAG_MOTD}" = "NO" ]
-      then
-         log_fluff "Not showing motd on request"
-      else
-         if [ -f "${BUILD_DIR}/.motd" ]
-         then
-            log_fluff "Showing \"${BUILD_DIR}/.motd\""
-            exekutor cat "${BUILD_DIR}/.motd"
-         else
-            log_fluff "No \"${BUILD_DIR}/.motd\" was produced"
-         fi
+         rval=1
       fi
    else
       log_fluff "Not building project (complying with user wish)"
    fi
 
    return $rval
+}
+
+
+do_update_sourcetree()
+{
+   log_entry "do_update_sourcetree" "$@"
+
+   if ! exekutor "${MULLE_SOURCETREE}" ${MULLE_SOURCETREE_FLAGS} status --is-uptodate
+   then
+      eval_exekutor "'${MULLE_SOURCETREE}'" \
+                        "${MULLE_SOURCETREE_FLAGS}" "${OPTION_MODE}" \
+                        "update" "$@" || exit 1
+   fi
 }
 
 
@@ -921,7 +922,10 @@ build_common()
 
    if [ ! -z "${projectdir}" ]
    then
-      log_verbose "Found a mulle-sde project in \"${projectdir}\""
+      if [ "${projectdir}" != "${PWD}" ]
+      then
+         log_verbose "Found a mulle-sde project in \"${projectdir}\""
+      fi
       cd "${projectdir}"
    fi
 
