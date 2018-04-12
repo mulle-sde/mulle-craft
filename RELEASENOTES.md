@@ -1,3 +1,7 @@
+### 0.3.11
+
+* reorganize build folder a bit
+
 ### 0.3.10
 
 * need to preserve buildorder strictly, fixed that

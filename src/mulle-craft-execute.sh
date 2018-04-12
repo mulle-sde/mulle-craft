@@ -226,7 +226,7 @@ determine_buildinfo_dir()
          fi
       ;;
 
-      "project")
+      "mainproject")
          searchpath="`colon_concat "${searchpath}" "${projectdir}/.mulle-make.${MULLE_UNAME}" `"
          searchpath="`colon_concat "${searchpath}" "${projectdir}/.mulle-make" `"
       ;;
@@ -325,10 +325,8 @@ build_project()
 
    builddir="${BUILD_DIR:-build}"
    builddir="`filepath_concat "${builddir}" "${name}" `"
-   logdir="${builddir}/.logs"
-
    builddir="`filepath_concat "${builddir}" "${stylesubdir}" `"
-   logdir="`filepath_concat "${logdir}" "${stylesubdir}" `"
+   logdir="`filepath_concat "${builddir}" ".logs" `"
 
    #
    # call mulle-make with all we've got now
@@ -572,6 +570,8 @@ build_sourcetree_node()
    local builddir
 
    builddir="${BUILD_DIR:-build}"
+   builddir="${builddir}/.sourcetree"
+
    log_verbose "Build ${C_MAGENTA}${C_BOLD}${project}${C_VERBOSE}"
 
    case "${marks}" in
@@ -684,10 +684,12 @@ do_build_sourcetree()
 }
 
 
-
-do_build_project()
+#
+# need a different name for the mainproject here
+#
+do_build_mainproject()
 {
-   log_entry "do_build_project" "$@"
+   log_entry "do_build_mainproject" "$@"
 
    local buildinfodir
    local name
@@ -700,13 +702,34 @@ do_build_project()
 
    log_verbose "Build ${C_MAGENTA}${C_BOLD}${name}${C_VERBOSE} with ${MULLE_MAKE}"
 
-   buildinfodir="`determine_buildinfo_dir "${name}" "${project}" "project"`"
-   [ $? -eq 1 ] && exit 1
+   buildinfodir="`determine_buildinfo_dir "${name}" "${project}" "mainproject"`"
 
    if [ ! -z "${buildinfodir}" ]
    then
       OPTIONS_MULLE_MAKE_PROJECT="`concat "${OPTIONS_MULLE_MAKE_PROJECT}" "--info-dir '${buildinfodir}'" `"
    fi
+
+   local stylesubdir
+
+   stylesubdir="`determine_build_subdir "${CONFIGURATIONS}" "${SDKS}" `" || return 1
+
+   #
+   # find proper build directory
+   # find proper log directory
+   #
+   local builddir
+   local logdir
+
+   builddir="${BUILD_DIR:-build}"
+   builddir="`filepath_concat "${builddir}" "${stylesubdir}" `"
+   logdir="`filepath_concat "${builddir}" ".logs" `"
+
+
+   [ $? -eq 1 ] && exit 1
+
+   OPTIONS_MULLE_MAKE_PROJECT="`concat "${OPTIONS_MULLE_MAKE_PROJECT}" "--build-dir '${builddir}'"`"
+   OPTIONS_MULLE_MAKE_PROJECT="`concat "${OPTIONS_MULLE_MAKE_PROJECT}" "--log-dir '${logdir}'"`"
+
 
    # never install the project, use mulle-make for that
    if ! eval_exekutor "'${MULLE_MAKE}'" "${MULLE_MAKE_FLAGS}" \
@@ -779,7 +802,7 @@ ${currentenv}"
    #
    if [ "${OPTION_USE_PROJECT}" = "YES" ]
    then
-      if ! do_build_project "$@"
+      if ! do_build_mainproject "$@"
       then
          rval=1
       fi
@@ -851,39 +874,31 @@ build_common()
 
          -b|--build-dir)
             [ $# -eq 1 ] && build_execute_usage "missing argument to \"$1\""
-            OPTIONS_MULLE_MAKE_PROJECT="`concat "${OPTIONS_MULLE_MAKE_PROJECT}" "$1"`"
             shift
 
             BUILD_DIR="$1"
-            OPTIONS_MULLE_MAKE_PROJECT="`concat "${OPTIONS_MULLE_MAKE_PROJECT}" "'$1'"`"
          ;;
 
          -i|--info-dir)
             [ $# -eq 1 ] && build_execute_usage "missing argument to \"$1\""
-            OPTIONS_MULLE_MAKE_PROJECT="`concat "${OPTIONS_MULLE_MAKE_PROJECT}" "$1"`"
             shift
 
             OPTION_INFO_DIR="$1"
-            OPTIONS_MULLE_MAKE_PROJECT="`concat "${OPTIONS_MULLE_MAKE_PROJECT}" "'$1'"`"
          ;;
 
          --debug)
             CONFIGURATIONS="Debug"
-            OPTIONS_MULLE_MAKE_PROJECT="`concat "${OPTIONS_MULLE_MAKE_PROJECT}" "-c 'Debug'"`"
          ;;
 
          --release)
             CONFIGURATIONS="Release"
-            OPTIONS_MULLE_MAKE_PROJECT="`concat "${OPTIONS_MULLE_MAKE_PROJECT}" "-c 'Release'"`"
          ;;
 
          --sdk)
             [ $# -eq 1 ] && build_execute_usage "missing argument to \"$1\""
-            OPTIONS_MULLE_MAKE_PROJECT="`concat "${OPTIONS_MULLE_MAKE_PROJECT}" "$1"`"
             shift
 
             SDKS="$1"
-            OPTIONS_MULLE_MAKE_PROJECT="`concat "${OPTIONS_MULLE_MAKE_PROJECT}" "'$1'"`"
          ;;
 
          -r|--recurse|--flat|--share)
