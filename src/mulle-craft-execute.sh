@@ -105,12 +105,13 @@ determine_build_subdir()
 
    sdk=`echo "${sdk}" | "${SED:-sed}" 's/^\([a-zA-Z]*\).*$/\1/g'`
 
+   #
+   # for build we do not create "top level" Release files, because it is
+   # easier to clean this way
+   #
    if [ "${sdk}" = "Default" ]
    then
-      if [ "${configuration}" != "Release" ]
-      then
-         echo "/${configuration}"
-      fi
+      echo "/${configuration}"
    else
       echo "/${configuration}-${sdk}"
    fi
@@ -326,7 +327,7 @@ build_project()
    builddir="${BUILD_DIR:-build}"
    builddir="`filepath_concat "${builddir}" "${name}" `"
    builddir="`filepath_concat "${builddir}" "${stylesubdir}" `"
-   logdir="`filepath_concat "${builddir}" ".logs" `"
+   logdir="`filepath_concat "${builddir}" ".log" `"
 
    #
    # call mulle-make with all we've got now
@@ -624,7 +625,7 @@ do_build_sourcetree()
    local remaining
    local donefile
 
-   donefile="${BUILD_DIR}/.mulle-built"
+   donefile="${BUILD_DIR}/.mulle-craft-built"
    remaining="${buildorder}"
 
    if [ ! -z "${donefile}" ]
@@ -907,11 +908,6 @@ build_common()
 
          -V|--verbose-make)
             MULLE_MAKE_PROJECT="`concat "${OPTIONS_MULLE_MAKE_PROJECT}" "'$1'"`"
-         ;;
-
-         --)
-            shift
-            break
          ;;
 
          --)

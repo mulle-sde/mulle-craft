@@ -1,3 +1,7 @@
+### 0.3.12
+
+* reworked clean
+
 ### 0.3.11
 
 * reorganize build folder a bit

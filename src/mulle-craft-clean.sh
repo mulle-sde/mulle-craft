@@ -34,26 +34,27 @@ MULLE_CRAFT_CLEAN_SH="included"
 
 build_clean_usage()
 {
-    cat <<EOF >&2
-Usage:
-   ${MULLE_USAGE_NAME} clean [options] [style]
+   [ "$#" -ne 0 ] && log_error "$1"
 
-   Remove build directory. You can specify a variety of clean styles. The
-   default is sourcetree.
+   cat <<EOF >&2
+Usage:
+   ${MULLE_USAGE_NAME} clean [options] [name]*
+
+   Remove build products. By default BUILD_DIR is removed, which will
+   rebuild everything. You can also specify the names of the projects to clean
+   and rebuild. There are three special names: "all", "dependency", "project".
 
 Options:
-   --no-dependency  : do not remove dependencies
 
-Styles:
-   all
-   dependency
-   nodependency
-   project
-   sourcetree
+
+Names:
+   all              : clean build folder
+   dependency       : clean dependency folder
+   project          : clean main project
 
 Environment:
    BUILD_DIR        : place for build products and by-products
-   DEPENDENCY_DIR : place to put dependencies into (generally required)
+   DEPENDENCY_DIR  : place to put dependencies into (generally required)
 EOF
   exit 1
 }
@@ -99,27 +100,14 @@ build_clean_main()
    log_entry "build_clean_main" "$@"
 
    local OPTION_DEPENDENCY="DEFAULT"
-   local OPTION_DEPENDENCY_BUILD_DIR
+   local OPTION_SOURCETREE_BUILD_DIR
 
-   while [ $# -ne 0 ]
+   while :
    do
       case "$1" in
          -h*|--help|help)
-            build_execute_usage
+            build_clean_usage
          ;;
-
-         --dependency)
-            OPTION_DEPENDENCY="YES"
-         ;;
-
-         --no-dependency)
-            OPTION_DEPENDENCY="NO"
-         ;;
-
-         --only-dependency)
-            OPTION_DEPENDENCY="ONLY"
-         ;;
-
 
          -b|--build-dir)
             [ $# -eq 1 ] && fail "missing argument to \"$1\""
@@ -136,8 +124,7 @@ build_clean_main()
          ;;
 
          -*)
-            log_error "${MULLE_EXECUTABLE_FAIL_PREFIX}: Unknown option \"$1\""
-            build_execute_usage
+            build_clean_usage "Unknown option \"$1\""
          ;;
 
          *)
@@ -148,58 +135,59 @@ build_clean_main()
       shift
    done
 
-   local style
-
-   style="$1"
-   [ $# -ne 0 ] && shift
-
-   [ $# -eq 0 ] || fail "superflous arguments \"$*\""
-
-
-   local OPTION_USE_PROJECT
-   local OPTION_USE_SOURCETREE
-
-   OPTION_USE_PROJECT="NO"
-   OPTION_USE_SOURCETREE="YES"
-
-   case "${style}" in
-      "sourcetree")
-      ;;
-
-      "all")
-         OPTION_USE_PROJECT="YES"
-         OPTION_USE_SOURCETREE="YES"
-      ;;
-
-      ""|"project")
-         OPTION_USE_PROJECT="YES"
-         OPTION_USE_SOURCETREE="NO"
-      ;;
-
-      "dependencies")
-         OPTION_DEPENDENCY="ONLY"
-      ;;
-
-      "nodependencies")
-         OPTION_DEPENDENCY="NO"
-      ;;
-
-      *)
-         fail "unknown clean style \"$1\""
-      ;;
-   esac
-
-   if [ "${OPTION_USE_PROJECT}" = "YES" -a "${OPTION_DEPENDENCY}" != "ONLY" ]
+   if [ $# -eq 0 ]
    then
       remove_directory "${BUILD_DIR}"
+      return $?
    fi
 
-   if [ "${OPTION_USE_SOURCETREE}" = "YES" ]
-   then
-      if [ "${OPTION_DEPENDENCY}" != "NO" ]
-      then
-         remove_directory "${OPTION_DEPENDENCY_BUILD_DIR}"
-         remove_directory "${DEPENDENCY_DIR}"
-      fi
-   fi
+#  # shellcheck source=src/mulle-craft-execute.sh
+#  if [ -z "${MULLE_CRAFT_EXECUTE_SH}" ]
+#  then
+#     . "${MULLE_CRAFT_LIBEXEC_DIR}/mulle-craft-execute.sh"
+#  fi
+
+   local DEPENDENCY_BUILD_DIR
+   local donefile
+   local escaped
+
+   donefile="${BUILD_DIR}/.mulle-craft-built"
+   DEPENDENCY_BUILD_DIR="${OPTION_DEPENDENCY_BUILD_DIR:-${BUILD_DIR}/.sourcetree}"
+
+   shopt -s nullglob
+
+   while :
+   do
+      case "$1" in
+         "dependency")
+            remove_directory "${DEPENDENCY_DIR}"
+         ;;
+
+         "project")
+            for i in "${BUILD_DIR}"/*
+            do
+               if [ -d "${i}" ]
+               then
+                  remove_directory "${i}"
+               fi
+            done
+         ;;
+
+         "")
+            break
+         ;;
+
+         *)
+            remove_directory "${DEPENDENCY_BUILD_DIR}/$1"
+
+            escaped="`escaped_sed_pattern "$1"`"
+            if [ -f "${donefile}" ]
+            then
+               inplace_sed "/${escaped};/d" "${donefile}"
+            fi
+         ;;
+      esac
+
+      shift
+   done
 }
