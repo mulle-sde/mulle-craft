@@ -610,12 +610,22 @@ do_build_sourcetree()
 
    [ -z "${MULLE_CRAFT_DEPENDENCY_SH}" ] && . "${MULLE_CRAFT_LIBEXEC_DIR}/mulle-craft-dependencies.sh"
 
-   do_update_sourcetree # hmm
-
    local buildorder
    local builddir
+   local todofile
 
-   buildorder="`exekutor "${MULLE_SOURCETREE}" ${MULLE_SOURCETREE_FLAGS} buildorder --marks`" || exit 1
+   #
+   # the todofile can stale away which is inconvenient
+   # should have a quick check in mulle-sourcetree to check that a file is
+   # not older than latest change
+   #
+   todofile="${BUILD_DIR}/.mulle-craft-buildorder"
+   if [ ! -f "${todofile}" ]
+   then
+      redirect_exekutor "${todofile}" "${MULLE_SOURCETREE}" ${MULLE_SOURCETREE_FLAGS} buildorder --marks || exit 1
+   fi
+
+   buildorder="`egrep -v '^#' "${todofile}"`"
    if [ -z "${buildorder}" ]
    then
       log_verbose "There is nothing to build according to ${MULLE_SOURCETREE}"
@@ -635,7 +645,7 @@ do_build_sourcetree()
          remaining="`fgrep -x -v -f "${donefile}" <<< "${buildorder}"`"
          if [ -z "${remaining}" ]
          then
-            log_verbose "Everything has been built already"
+            log_verbose "Everything in the sourcetree has been built already"
             return
          fi
       fi
@@ -730,7 +740,6 @@ do_build_mainproject()
 
    OPTIONS_MULLE_MAKE_PROJECT="`concat "${OPTIONS_MULLE_MAKE_PROJECT}" "--build-dir '${builddir}'"`"
    OPTIONS_MULLE_MAKE_PROJECT="`concat "${OPTIONS_MULLE_MAKE_PROJECT}" "--log-dir '${logdir}'"`"
-
 
    # never install the project, use mulle-make for that
    if ! eval_exekutor "'${MULLE_MAKE}'" "${MULLE_MAKE_FLAGS}" \
@@ -842,6 +851,7 @@ build_common()
    local OPTION_BUILD_DEPENDENCY="DEFAULT"
    local OPTIONS_MULLE_MAKE_PROJECT=
    local OPTION_INSTALL_PROJECT="NO"
+   local OPTION_UPDATE_SOURCETREE="NO"
 
    local OPTION_INFO_DIR
    local OPTION_SOURCETREE_ARGS
@@ -904,6 +914,14 @@ build_common()
 
          -r|--recurse|--flat|--share)
             OPTION_MODE="$1"
+         ;;
+
+         -u|--update-sourcetree)
+            OPTION_UPDATE_SOURCETREE="YES"
+         ;;
+
+         --no-dependency)
+            OPTION_BUILD_DEPENDENCY="NO"
          ;;
 
          -V|--verbose-make)
@@ -969,6 +987,11 @@ build_common()
       SDKS="Default"
    fi
 
+   if [ "${OPTION_USE_SOURCETREE}" = "YES" -a "${OPTION_UPDATE_SOURCETREE}" = "YES" ]
+   then
+      do_update_sourcetree # hmm
+   fi
+
    do_build_execute "$@"
 }
 
@@ -1031,7 +1054,6 @@ build_sourcetree_main()
    OPTION_USE_PROJECT="NO"
    OPTION_USE_SOURCETREE="YES"
    OPTION_MUST_HAVE_SOURCETREE="YES"
-
 
    build_common "$@"
 }

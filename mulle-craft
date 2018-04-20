@@ -32,7 +32,7 @@
 [ "${TRACE}" = "YES" ] && set -x && : "$0" "$@"
 
 
-MULLE_EXECUTABLE_VERSION=0.3.12
+MULLE_EXECUTABLE_VERSION=0.3.13
 
 
 trap_fail()
@@ -167,7 +167,12 @@ main()
          then
             fail "To run mulle-craft outside of mulle-env, pass the -e flag"
          fi
+
          MULLE_VIRTUAL_ROOT="`pwd -P`"
+         if [ "${MULLE_VIRTUAL_ROOT}" = "/" ]
+         then
+            fail "You are running this in root, which is not supported"
+         fi
          export MULLE_VIRTUAL_ROOT
 
          DEPENDENCY_DIR="${DEPENDENCY_DIR:-${MULLE_VIRTUAL_ROOT}/dependency}"

@@ -78,6 +78,9 @@ If mulle-craft finds no info-folder, **mulle-make** will use a project's own
 
 ## GitHub and Mulle kybernetiK
 
-The development is done on [Mulle kybernetiK](https://www.mulle-kybernetik.com/software/git/mulle-craft/master). Releases and bug-tracking are on [GitHub](https://github.com/mulle-sde/mulle-craft).
+The development is done on
+[Mulle kybernetiK](https://www.mulle-kybernetik.com/software/git/mulle-craft/master).
+Releases and bug-tracking are on
+[GitHub](https://github.com/mulle-sde/mulle-craft).
 
 

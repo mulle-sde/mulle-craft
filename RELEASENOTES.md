@@ -1,3 +1,7 @@
+### 0.3.13
+
+* make the update/fetch an option instead of checking every time
+
 ### 0.3.12
 
 * reworked clean
