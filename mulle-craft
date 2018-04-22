@@ -32,7 +32,7 @@
 [ "${TRACE}" = "YES" ] && set -x && : "$0" "$@"
 
 
-MULLE_EXECUTABLE_VERSION=0.3.13
+MULLE_EXECUTABLE_VERSION=0.4.0
 
 
 trap_fail()
@@ -47,27 +47,28 @@ usage()
 Usage:
    ${MULLE_USAGE_NAME} [flags] [command]
 
-   Build projects taking mulle-sourcetree dependencies into consideration. If
-   the sourcetree needs an update to fetch new dependencies, mulle-craft will
-   run this update.
+   Build projects given by supplied \`buildorder\`. Then build the main
+   project.
 
 Flags:
 EOF
 
-   options_technical_flags_usage "           : "
+   (
+      options_technical_flags_usage "              : "
+
+      cat <<EOF
+   -f <file>          : specify buildorder file, mandatory for some commands
+   -e                 : use mulle-craft outside of mulle-env
+EOF
+   ) | sort
 
    cat <<EOF
-   -e                 : use mulle-craft outside of mulle-env
-   -[RTPN]            : flags passed to mulle-sourcetree
 
 Commands:
-   all                : build sourcetree and project (default)
+   all                : build buildorder and project (default)
+   buildorder         : build buildorder only
    clean              : clean output
-   fetch              : update the sourcetree and fetch what is missing
-   no-dependency      : build the sourcetree skipping the dependencies
-   dependency         : build the sourcetree dependencies only
-   project            : build the project (outside sourcetree) only
-   sourcetree         : build the sourcetree only
+   project            : build the project (outside buildorder) only
 EOF
 
    if [ "${MULLE_FLAG_LOG_VERBOSE}" = "NO" ]
@@ -100,7 +101,6 @@ main()
    local MULLE_FLAG_LOG_MERGE="NO"
    local MULLE_TRACE_POSTPONE="NO"
 
-   local MULLE_FLAG_DEFER="--defer-this"
    local MULLE_FLAG_MOTD="DEFAULT"
    local FLAG_OUTSIDE_ENV="NO"
 
@@ -142,8 +142,32 @@ main()
             exit 0
          ;;
 
-         -R|--defer-root|-T|--defer-this|-P|--defer-parent|-N|--no-defer)
-            MULLE_FLAG_DEFER="$1"
+         --build-dir)
+            [ $# -eq 1 ] && build_execute_usage "missing argument to \"$1\""
+            shift
+
+            BUILD_DIR="$1"
+         ;;
+
+         --info-dir)
+            [ $# -eq 1 ] && build_execute_usage "missing argument to \"$1\""
+            shift
+
+            INFO_DIR="$1"
+         ;;
+
+         -f|--buildorder-file)
+            [ $# -eq 1 ] && build_execute_usage "missing argument to \"$1\""
+            shift
+
+            BUILDORDER_FILE="$1"
+         ;;
+
+         --d|--project-dir)
+            [ $# -eq 1 ] && build_execute_usage "missing argument to \"$1\""
+            shift
+
+            exekutor cd "$1" || exit 1
          ;;
 
          -*)
@@ -184,25 +208,15 @@ main()
       ;;
    esac
 
+   local cmd="$1"
 
-   local cmd
-
-   cmd="$1"
-
-   MULLE_EXECUTABLE_FAIL_PREFIX="${MULLE_EXECUTABLE_NAME} ${cmd}"
    [ $# -eq 0 ] || shift
-
-   MULLE_SDE="${MULLE_SDE:-`command -v mulle-sde`}"
-   [ -z "${MULLE_SDE}" ] && fail "mulle-sde not in PATH"
 
    MULLE_MAKE="${MULLE_MAKE:-`command -v mulle-make`}"
    [ -z "${MULLE_MAKE}" ] && fail "mulle-make not in PATH"
 
    MULLE_DISPENSE="${MULLE_DISPENSE:-`command -v mulle-dispense`}"
    [ -z "${MULLE_DISPENSE}" ] && fail "mulle-dispense not in PATH"
-
-   MULLE_SOURCETREE="${MULLE_SOURCETREE:-`command -v mulle-sourcetree`}"
-   [ -z "${MULLE_SOURCETREE}" ] && fail "mulle-sourcetree not in PATH"
 
    #
    # project can give the default way to build this
@@ -227,30 +241,9 @@ main()
          echo "${MULLE_CRAFT_LIBEXEC_DIR}"
       ;;
 
-      fetch)
-         # shellcheck source=src/mulle-craft-execute.sh
-         . "${MULLE_CRAFT_LIBEXEC_DIR}/mulle-craft-execute.sh"
-
-         build_fetch_main "$@"
-      ;;
-
       install)
          log_info "mulle-craft doesn't install. Use mulle-make directly."
          exit 1
-      ;;
-
-      no-dependency)
-         # shellcheck source=src/mulle-craft-execute.sh
-         . "${MULLE_CRAFT_LIBEXEC_DIR}/mulle-craft-execute.sh"
-
-         build_sourcetree_main --no-dependency "$@"
-      ;;
-
-      dependency|only-dependency)
-         # shellcheck source=src/mulle-craft-execute.sh
-         . "${MULLE_CRAFT_LIBEXEC_DIR}/mulle-craft-execute.sh"
-
-         build_sourcetree_main --only-dependency "$@"
       ;;
 
       project)
@@ -260,15 +253,11 @@ main()
          build_project_main "$@"
       ;;
 
-      sourcetree)
+      buildorder)
          # shellcheck source=src/mulle-craft-execute.sh
          . "${MULLE_CRAFT_LIBEXEC_DIR}/mulle-craft-execute.sh"
 
-         build_sourcetree_main "$@"
-      ;;
-
-      pwd)
-         exekutor echo "$PWD"
+         build_buildorder_main "$@"
       ;;
 
       uname)

@@ -43,42 +43,18 @@ Usage:
    ${USAGE_INFO}
 
 Options:
-   --build-dir <dir>         : set BUILD_DIR
-   --debug                   : compile for debug only
-   --info-dir <dir>          : specify the buildinfo for mulle-make (project)
-   --lenient                 : do not stop on errors
-   --only-dependencies       : build dependencies only
-   --no-dependencies         : don't build dependencies
-   --recurse|flat|share      : specify mode to update sourcetree with
-   --release                 : compile for release only
-   --sdk <sdk>               : specify sdk to build against
+   --debug           : compile for debug only
+   --lenient         : do not stop on errors
+   --only-dependency : build dependencies only
+   --no-dependency   : don't build dependencies
+   --release         : compile for release only
+   --sdk <sdk>       : specify sdk to build against
 
 Environment:
-   ADDICTION_DIR   : place to get addictions from (optional)
-   BUILD_DIR       : place for build products and by-products
-   BUILDINFO_PATH  : places to find mulle-craftinfos
-   DEPENDENCY_DIR  : place to put dependencies into (generally required)
-EOF
-  exit 1
-}
-
-
-build_fetch_usage()
-{
-   [ "$#" -ne 0 ] && log_error "$*"
-
-    cat <<EOF >&2
-Usage:
-   ${MULLE_USAGE_NAME} fetch [options]
-
-   Update the sourcetree, so that all dependencies are properly fetched and
-   in place with the correct versions.
-
-Options:
-   --recurse|flat|share : specify mode to update sourcetree with
-
-Environment:
-   DEPENDENCY_DIR     : place to put dependencies into (generally required)
+   ADDICTION_DIR     : place to get addictions from (optional)
+   BUILD_DIR         : place for build products and by-products
+   BUILDINFO_PATH    : places to find mulle-craftinfos
+   DEPENDENCY_DIR    : place to put dependencies into (generally required)
 EOF
   exit 1
 }
@@ -198,9 +174,9 @@ determine_buildinfo_dir()
    local buildinfodir
    local searchpath
 
-   if [ ! -z "${OPTION_INFO_DIR}" ]
+   if [ ! -z "${INFO_DIR}" ]
    then
-      echo "${OPTION_INFO_DIR}"
+      echo "${INFO_DIR}"
       return
    fi
 
@@ -547,9 +523,9 @@ build_subproject()
 # non-dependencies are build with their own BUILD_DIR
 # not in the shared one.
 #
-build_sourcetree_node()
+build_buildorder_node()
 {
-   log_entry "build_sourcetree_line" "$@"
+   log_entry "build_buildorder_line" "$@"
 
    local project="$1";  shift
    local marks="$1";  shift
@@ -571,7 +547,7 @@ build_sourcetree_node()
    local builddir
 
    builddir="${BUILD_DIR:-build}"
-   builddir="${builddir}/.sourcetree"
+   builddir="${builddir}/.buildorder"
 
    log_verbose "Build ${C_MAGENTA}${C_BOLD}${project}${C_VERBOSE}"
 
@@ -604,31 +580,29 @@ build_sourcetree_node()
 }
 
 
-do_build_sourcetree()
+do_build_buildorder()
 {
-   log_entry "do_build_sourcetree" "$@"
+   log_entry "do_build_buildorder" "$@"
 
    [ -z "${MULLE_CRAFT_DEPENDENCY_SH}" ] && . "${MULLE_CRAFT_LIBEXEC_DIR}/mulle-craft-dependencies.sh"
 
    local buildorder
    local builddir
-   local todofile
+
+   buildorder="`egrep -v '^#' "${BUILDORDER_FILE}" 2> /dev/null`"
+   [ $? -eq 2 ] && fail "Buildorder \"${BUILDORDER_FILE}\" is missing"
 
    #
-   # the todofile can stale away which is inconvenient
-   # should have a quick check in mulle-sourcetree to check that a file is
-   # not older than latest change
+   # Do this once initially, even if there are no dependencies
+   # That allows tarballs to be installed. Also now the existance of the
+   # dependencies folders, means something
    #
-   todofile="${BUILD_DIR}/.mulle-craft-buildorder"
-   if [ ! -f "${todofile}" ]
-   then
-      redirect_exekutor "${todofile}" "${MULLE_SOURCETREE}" ${MULLE_SOURCETREE_FLAGS} buildorder --marks || exit 1
-   fi
+   dependencies_begin_update || exit 1
+   dependencies_end_update || exit 1
 
-   buildorder="`egrep -v '^#' "${todofile}"`"
    if [ -z "${buildorder}" ]
    then
-      log_verbose "There is nothing to build according to ${MULLE_SOURCETREE}"
+      log_verbose "There is nothing to build according to ${BUILDORDER_FILE}"
       return
    fi
 
@@ -645,7 +619,7 @@ do_build_sourcetree()
          remaining="`fgrep -x -v -f "${donefile}" <<< "${buildorder}"`"
          if [ -z "${remaining}" ]
          then
-            log_verbose "Everything in the sourcetree has been built already"
+            log_verbose "Everything in the buildorder has been built already"
             return
          fi
       fi
@@ -669,7 +643,9 @@ do_build_sourcetree()
          internal_fail "empty project fail"
       fi
 
-      build_sourcetree_node "${project}" "${marks}"
+      project="`eval echo "${project}"`"
+
+      build_buildorder_node "${project}" "${marks}"
       case $? in
          0)
             if [ ! -z "${donefile}" ]
@@ -735,7 +711,6 @@ do_build_mainproject()
    builddir="`filepath_concat "${builddir}" "${stylesubdir}" `"
    logdir="`filepath_concat "${builddir}" ".logs" `"
 
-
    [ $? -eq 1 ] && exit 1
 
    OPTIONS_MULLE_MAKE_PROJECT="`concat "${OPTIONS_MULLE_MAKE_PROJECT}" "--build-dir '${builddir}'"`"
@@ -791,9 +766,9 @@ ${currentenv}"
    local rval
 
    rval=0
-   if [ "${OPTION_USE_SOURCETREE}" = "YES" ]
+   if [ "${OPTION_USE_BUILDORDER}" = "YES" ]
    then
-      if ! do_build_sourcetree "$@"
+      if ! do_build_buildorder "$@"
       then
          if [ "${OPTION_LENIENT}" = "NO" ]
          then
@@ -802,9 +777,9 @@ ${currentenv}"
          fi
          rval=1
       fi
-      log_fluff "Done with sourcetree built"
+      log_fluff "Done with buildorder built"
    else
-      log_fluff "Not building sourcetree (complying with user wish)"
+      log_fluff "Not building buildorder (complying with user wish)"
    fi
 
    #
@@ -824,19 +799,6 @@ ${currentenv}"
 }
 
 
-do_update_sourcetree()
-{
-   log_entry "do_update_sourcetree" "$@"
-
-   if ! exekutor "${MULLE_SOURCETREE}" ${MULLE_SOURCETREE_FLAGS} status --is-uptodate
-   then
-      eval_exekutor "'${MULLE_SOURCETREE}'" \
-                        "${MULLE_SOURCETREE_FLAGS}" "${OPTION_MODE}" \
-                        "update" "$@" || exit 1
-   fi
-}
-
-
 #
 # mulle-craft isn't rules so much by command line arguments
 # but uses mostly ENVIRONMENT variables
@@ -846,15 +808,10 @@ build_common()
 {
    log_entry "build_common" "$@"
 
-   local OPTION_MODE="--share"
    local OPTION_LENIENT="NO"
    local OPTION_BUILD_DEPENDENCY="DEFAULT"
    local OPTIONS_MULLE_MAKE_PROJECT=
    local OPTION_INSTALL_PROJECT="NO"
-   local OPTION_UPDATE_SOURCETREE="NO"
-
-   local OPTION_INFO_DIR
-   local OPTION_SOURCETREE_ARGS
 
    while [ $# -ne 0 ]
    do
@@ -883,20 +840,6 @@ build_common()
             OPTION_BUILD_DEPENDENCY="NO"
          ;;
 
-         -b|--build-dir)
-            [ $# -eq 1 ] && build_execute_usage "missing argument to \"$1\""
-            shift
-
-            BUILD_DIR="$1"
-         ;;
-
-         -i|--info-dir)
-            [ $# -eq 1 ] && build_execute_usage "missing argument to \"$1\""
-            shift
-
-            OPTION_INFO_DIR="$1"
-         ;;
-
          --debug)
             CONFIGURATIONS="Debug"
          ;;
@@ -910,18 +853,6 @@ build_common()
             shift
 
             SDKS="$1"
-         ;;
-
-         -r|--recurse|--flat|--share)
-            OPTION_MODE="$1"
-         ;;
-
-         -u|--update-sourcetree)
-            OPTION_UPDATE_SOURCETREE="YES"
-         ;;
-
-         --no-dependency)
-            OPTION_BUILD_DEPENDENCY="NO"
          ;;
 
          -V|--verbose-make)
@@ -945,36 +876,14 @@ build_common()
       shift
    done
 
-   local projectdir
-
-   projectdir="`exekutor ${MULLE_SDE} ${MULLE_SDE_FLAGS} "project-dir" ${MULLE_FLAG_DEFER}`"
-
-   if [ ! -z "${projectdir}" ]
+   if [ -z "${BUILDORDER_FILE}" ]
    then
-      if [ "${projectdir}" != "${PWD}" ]
+      if [ "${OPTION_MUST_HAVE_BUILDORDER}" = "YES" ]
       then
-         log_verbose "Found a mulle-sde project in \"${projectdir}\""
-      fi
-      cd "${projectdir}"
-   fi
-
-   local MAIN_PROJECT_DIR
-
-   MAIN_PROJECT_DIR="${PWD}"
-
-   local sourcetreedir
-
-   sourcetreedir="`exekutor ${MULLE_SOURCETREE} ${MULLE_SOURCETREE_FLAGS} \
-                            ${MULLE_FLAG_DEFER} "sourcetree-dir" `"
-   if [ -z "${sourcetreedir}" -o "${sourcetreedir}" != "${MAIN_PROJECT_DIR}" ]
-   then
-      if [ "${OPTION_MUST_HAVE_SOURCETREE}" = "YES" ]
-      then
-         fail "There is no sourcetree here ($PWD)"
+         fail "There is no buildorder file here ($PWD)"
       fi
 
-      log_fluff "No sourcetree found ($PWD)"
-      OPTION_USE_SOURCETREE="NO"
+      OPTION_USE_BUILDORDER="NO"
    fi
 
    if [ -z "${CONFIGURATIONS}" ]
@@ -987,11 +896,6 @@ build_common()
       SDKS="Default"
    fi
 
-   if [ "${OPTION_USE_SOURCETREE}" = "YES" -a "${OPTION_UPDATE_SOURCETREE}" = "YES" ]
-   then
-      do_update_sourcetree # hmm
-   fi
-
    do_build_execute "$@"
 }
 
@@ -1002,17 +906,15 @@ build_all_main()
 
    BUILD_STYLE="all"
 
-   USAGE_INFO="Build the sourcetree, containing the dependencies.
-   Then build the project.
+   USAGE_INFO="Build the buildorder, then build the project.
 "
-
    local OPTION_USE_PROJECT
-   local OPTION_USE_SOURCETREE
-   local OPTION_MUST_HAVE_SOURCETREE
+   local OPTION_USE_BUILDORDER
+   local OPTION_MUST_HAVE_BUILDORDER
 
    OPTION_USE_PROJECT="YES"
-   OPTION_USE_SOURCETREE="YES"
-   OPTION_MUST_HAVE_SOURCETREE="NO"
+   OPTION_USE_BUILDORDER="YES"
+   OPTION_MUST_HAVE_BUILDORDER="NO"
 
    build_common "$@"
 }
@@ -1027,72 +929,33 @@ build_project_main()
    USAGE_INFO="Build the project only.
 "
    local OPTION_USE_PROJECT
-   local OPTION_USE_SOURCETREE
-   local OPTION_MUST_HAVE_SOURCETREE
+   local OPTION_USE_BUILDORDER
+   local OPTION_MUST_HAVE_BUILDORDER
 
    OPTION_USE_PROJECT="YES"
-   OPTION_USE_SOURCETREE="NO"
-   OPTION_MUST_HAVE_SOURCETREE="NO"
+   OPTION_USE_BUILDORDER="NO"
+   OPTION_MUST_HAVE_BUILDORDER="NO"
 
    build_common "$@"
 }
 
 
-build_sourcetree_main()
+build_buildorder_main()
 {
-   log_entry "build_sourcetree_main" "$@"
+   log_entry "build_buildorder_main" "$@"
 
-   BUILD_STYLE="sourcetree"
+   BUILD_STYLE="buildorder"
 
-   USAGE_INFO="Build the sourcetree only.
+   USAGE_INFO="Build the buildorder only.
 "
-
    local OPTION_USE_PROJECT
-   local OPTION_USE_SOURCETREE
-   local OPTION_MUST_HAVE_SOURCETREE
+   local OPTION_USE_BUILDORDER
+   local OPTION_MUST_HAVE_BUILDORDER
 
    OPTION_USE_PROJECT="NO"
-   OPTION_USE_SOURCETREE="YES"
-   OPTION_MUST_HAVE_SOURCETREE="YES"
+   OPTION_USE_BUILDORDER="YES"
+   OPTION_MUST_HAVE_BUILDORDER="YES"
 
    build_common "$@"
-}
-
-
-build_fetch_main()
-{
-   log_entry "build_fetch_main" "$@"
-
-   while [ $# -ne 0 ]
-   do
-      case "$1" in
-         -h*|--help|help)
-            build_fetch_usage
-         ;;
-
-         -r|--recurse|--flat|--share)
-            OPTION_MODE="$1"
-         ;;
-
-         --)
-            shift
-            break
-         ;;
-
-         -*)
-            build_fetch_usage "Unknown option \"$1\""
-         ;;
-
-         *)
-            break
-         ;;
-      esac
-
-      shift
-   done
-
-   [ "$#" -eq 0 ] || build_fetch_usage "superflous arguments \"$*\""
-
-   do_update_sourcetree "$@"
 }
 

@@ -1,3 +1,8 @@
+## 0.4.0
+
+* cut the dependency to mulle-sourcetree. mulle-craft now gets a buildorder file and builds that
+
+
 ### 0.3.13
 
 * make the update/fetch an option instead of checking every time
