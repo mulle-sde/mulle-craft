@@ -1,3 +1,7 @@
+### 0.4.2
+
+* fix some bugs and improve bash completion
+
 ### 0.4.1
 
 * fix some bugs and improve bash completion
