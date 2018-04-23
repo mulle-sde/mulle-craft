@@ -215,10 +215,10 @@ determine_buildinfo_dir()
 
    log_fluff "Build info searchpath: ${searchpath}"
 
-   IFS=":"
+   set -f ; IFS=":"
    for buildinfodir in ${searchpath}
    do
-      IFS="${DEFAULT_IFS}"
+      set +f ; IFS="${DEFAULT_IFS}"
       if [ ! -z "${buildinfodir}" ] && [ -d "${buildinfodir}" ]
       then
          log_info "Info directory \"${buildinfodir}\" found"
@@ -226,7 +226,7 @@ determine_buildinfo_dir()
          return 0
       fi
    done
-   IFS="${DEFAULT_IFS}"
+   set +f ; IFS="${DEFAULT_IFS}"
 
    log_fluff "No buildinfo found"
 
@@ -392,10 +392,9 @@ build_dependency_directly()
 
    rval=0
 
-   IFS=","
+   set -f; IFS=","
    for configuration in ${CONFIGURATIONS}
    do
-      IFS=","
       if [ -z "${configuration}" ]
       then
          continue
@@ -403,7 +402,7 @@ build_dependency_directly()
 
       for sdk in ${SDKS}
       do
-         IFS="${DEFAULT_IFS}"
+         set +f; IFS="${DEFAULT_IFS}"
 
          if [ -z "${sdk}" ]
          then
@@ -423,9 +422,12 @@ build_dependency_directly()
             fi
             rval=1
          fi
+
+         set -f; IFS=","
       done
+
    done
-   IFS="${DEFAULT_IFS}"
+   set +f ; IFS="${DEFAULT_IFS}"
 
    dependencies_end_update || return 1
 
@@ -444,10 +446,9 @@ build_dependency_with_dispense()
 
    rval=0
 
-   IFS=","
+   set -f; IFS=","
    for configuration in ${CONFIGURATIONS}
    do
-      IFS=","
       for sdk in ${SDKS}
       do
          IFS="${DEFAULT_IFS}"
@@ -479,9 +480,11 @@ build_dependency_with_dispense()
             fi
             rval=1
          fi
+
+         set -f; IFS=","
       done
    done
-   IFS="${DEFAULT_IFS}"
+   set +f ; IFS="${DEFAULT_IFS}"
 
    return $rval
 }
@@ -627,11 +630,11 @@ do_build_buildorder()
 
    local line
 
-   IFS="
+   set -f ; IFS="
 "
    for line in ${remaining}
    do
-      IFS="${DEFAULT_IFS}"
+      set +f ; IFS="${DEFAULT_IFS}"
 
       local project
       local marks
@@ -667,7 +670,7 @@ do_build_buildorder()
       esac
    done
 
-   IFS="${DEFAULT_IFS}"
+   set +f ; IFS="${DEFAULT_IFS}"
 }
 
 
@@ -856,7 +859,7 @@ build_common()
          ;;
 
          -V|--verbose-make)
-            MULLE_MAKE_PROJECT="`concat "${OPTIONS_MULLE_MAKE_PROJECT}" "'$1'"`"
+            OPTIONS_MULLE_MAKE_PROJECT="`concat "${OPTIONS_MULLE_MAKE_PROJECT}" "'$1'"`"
          ;;
 
          --)

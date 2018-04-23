@@ -1,3 +1,7 @@
+### 0.4.1
+
+* fix some bugs and improve bash completion
+
 ## 0.4.0
 
 * cut the dependency to mulle-sourcetree. mulle-craft now gets a buildorder file and builds that

@@ -52,11 +52,11 @@ _dependencies_install_tarballs()
    local tarballs
    local tarball
 
-   IFS="
+   set -f ; IFS="
 "
    for tarball in ${TARBALLS}
    do
-      IFS="${DEFAULT_IFS}"
+      set +f ; IFS="${DEFAULT_IFS}"
 
       if [ -z "${tarball}" ]
       then
@@ -74,7 +74,7 @@ _dependencies_install_tarballs()
                                 -f "${tarball}" || fail "failed to extract ${tar}"
       fi
    done
-   IFS="${DEFAULT_IFS}"
+   set +f; IFS="${DEFAULT_IFS}"
 }
 
 
@@ -239,11 +239,11 @@ dependencies_existing_dirs_path()
    local subdir
    local path
 
-   IFS="
+   set -f ; IFS="
 "
    for subdir in ${subdirectories}
    do
-      IFS="${DEFAULT_IFS}"
+      set +f ; IFS="${DEFAULT_IFS}"
 
       if [ -d "${DEPENDENCY_DIR}/${subdir}" ]
       then
@@ -251,7 +251,7 @@ dependencies_existing_dirs_path()
       fi
    done
 
-   IFS="${DEFAULT_IFS}"
+   set +f; IFS="${DEFAULT_IFS}"
 
    if [ ! -z "${path}" ]
    then

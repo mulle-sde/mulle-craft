@@ -37,9 +37,43 @@ _mulle_craft_complete()
    local cur=${COMP_WORDS[COMP_CWORD]}
    local prev=${COMP_WORDS[COMP_CWORD-1]}
 
-   COMPREPLY=( $( compgen -W "all clean no-dependencies \
-                              only-dependencies project \
-                              sourcetree" -- $cur ) )
+   local i
+   local context
+
+   for i in "${COMP_WORDS[@]}"
+   do
+      case "$i" in
+         all|buildorder|clean|project)
+            context="$i"
+         ;;
+      esac
+   done
+
+   case "${context}" in
+      clean)
+         case "${cur}" in
+            -*)
+            ;;
+
+            "")
+               COMPREPLY=( $( compgen -W "all buildorder project" -- $cur ) )
+            ;;
+         esac
+      ;;
+
+      all|buildorder|project)
+         case "${cur}" in
+            -*)
+               COMPREPLY=( $( compgen -W "--debug --release --lenient" -- $cur ) )
+            ;;
+         esac
+      ;;
+
+      *)
+         COMPREPLY=( $( compgen -W "all buildorder clean project" -- $cur ) )
+      ;;
+   esac
+
    return 0
 }
 
