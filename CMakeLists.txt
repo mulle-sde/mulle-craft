@@ -30,11 +30,11 @@ set( SCRIPTS
 mulle-craft
 )
 
-set( LIBRARY_SCRIPTS
-src/mulle-craft-clean.sh
-src/mulle-craft-dependencies.sh
-src/mulle-craft-execute.sh
+
+file( GLOB LIBRARY_SCRIPTS
+   "src/*.sh"
 )
+
 
 
 INSTALL( FILES ${SCRIPTS}

@@ -1,3 +1,8 @@
+## 0.5.0
+
+* changed the mulle-make search scheme, fix some bugs
+
+
 ### 0.4.2
 
 * fix some bugs and improve bash completion

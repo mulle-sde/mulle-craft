@@ -180,38 +180,37 @@ determine_buildinfo_dir()
       return
    fi
 
-   case "${projecttype}" in
-      "dependency")
-         #
-         # I couldn't come up with anything else to store in mulle-craft, so its
-         # not /etc/info/... but just ...
-         #
-         if [ -z "${BUILDINFO_PATH}" ]
-         then
+   if [ ! -z "${BUILDINFO_PATH}" ]
+   then
+      searchpath="`eval echo "${BUILDINFO_PATH}"`"
+   else
+      case "${projecttype}" in
+         "dependency")
+            # the directory being edited with mulle-sde dependency definition
+            #            searchpath="`colon_concat "${searchpath}" "buildinfo/${name}/mulle-make.${MULLE_UNAME}" `"
+            #            searchpath="`colon_concat "${searchpath}" "buildinfo/${name}/mulle-make" `"
+            # stuff installed by subprojects
             if [ ! -z "${DEPENDENCY_DIR}" ]
             then
-               searchpath="`colon_concat "${searchpath}" "${DEPENDENCY_DIR}/share/mulle-craft/${name}.${MULLE_UNAME}" `"
-               searchpath="`colon_concat "${searchpath}" "${DEPENDENCY_DIR}/share/mulle-craft/${name}" `"
+               searchpath="`colon_concat "${searchpath}" "${DEPENDENCY_DIR}/share/buildinfo/${name}/mulle-make.${MULLE_UNAME}" `"
+               searchpath="`colon_concat "${searchpath}" "${DEPENDENCY_DIR}/share/buildinfo/${name}/mulle-make" `"
             fi
-            if [ ! -z "${projectdir}" ]
-            then
-               searchpath="`colon_concat "${searchpath}" "${projectdir}/.mulle-make.${MULLE_UNAME}" `"
-               searchpath="`colon_concat "${searchpath}" "${projectdir}/.mulle-make" `"
-            fi
-         else
-            searchpath="`eval echo "${BUILDINFO_PATH}"`"
-         fi
-      ;;
+         ;;
 
-      "mainproject")
+         "mainproject")
+         ;;
+
+         *)
+            internal_fail "Unknown project type \"${projecttype}\""
+         ;;
+      esac
+
+      if [ ! -z "${projectdir}" ]
+      then
          searchpath="`colon_concat "${searchpath}" "${projectdir}/.mulle-make.${MULLE_UNAME}" `"
          searchpath="`colon_concat "${searchpath}" "${projectdir}/.mulle-make" `"
-      ;;
-
-      *)
-         internal_fail "Unknown project type \"${projecttype}\""
-      ;;
-   esac
+      fi
+   fi
 
    log_fluff "Build info searchpath: ${searchpath}"
 
@@ -283,12 +282,6 @@ build_project()
 
    name="`extensionless_basename "${project}"`"
 
-   local buildinfodir
-
-   buildinfodir="`determine_buildinfo_dir "${name}" "${project}" "dependency"`"
-   [ $? -eq 1 ] && exit 1
-   # subdir for configuration / sdk
-
    local stylesubdir
 
    stylesubdir="`determine_build_subdir "${configuration}" "${sdk}" `" || return 1
@@ -302,8 +295,27 @@ build_project()
 
    builddir="${BUILD_DIR:-build}"
    builddir="`filepath_concat "${builddir}" "${name}" `"
+
+   #
+   # if projects exist with duplicate names, add a random number at end
+   # to differentiate
+   #
+   local randomstring
+
+   while [ -d "${builddir}" ]
+   do
+      randomstring="`uuidgen | cut -c'1-6'`"
+      builddir="`filepath_concat "${builddir}" "${name}-${randomstring}" `"
+   done
+
    builddir="`filepath_concat "${builddir}" "${stylesubdir}" `"
    logdir="`filepath_concat "${builddir}" ".log" `"
+
+   local buildinfodir
+
+   buildinfodir="`determine_buildinfo_dir "${name}" "${project}" "dependency"`"
+   [ $? -eq 1 ] && exit 1
+   # subdir for configuration / sdk
 
    #
    # call mulle-make with all we've got now
@@ -361,9 +373,9 @@ build_project()
    do
       if [ -z "${auxargs}" ]
       then
-         auxargs="'$1'"
+         auxargs="'${i}'"
       else
-         auxargs="${auxargs} '$1'"
+         auxargs="${auxargs} '${i}'"
       fi
    done
 
@@ -574,10 +586,10 @@ build_buildorder_node()
          mkdir_if_missing "${builddir}" || fail "Could not create build directory"
 
          # functionname will be either build_dependency or build_subproject
-         BUILD_DIR="${builddir}" exekutor build_dependency "${project}" \
-                                                           "install" \
-                                                           "${marks}" \
-                                                           "$@"
+         BUILD_DIR="${builddir}" build_dependency "${project}" \
+                                                  "install" \
+                                                  "${marks}" \
+                                                  "$@"
       ;;
    esac
 }
@@ -587,6 +599,7 @@ do_build_buildorder()
 {
    log_entry "do_build_buildorder" "$@"
 
+   # shellcheck source=mulle-env-dependencies.sh
    [ -z "${MULLE_CRAFT_DEPENDENCY_SH}" ] && . "${MULLE_CRAFT_LIBEXEC_DIR}/mulle-craft-dependencies.sh"
 
    local buildorder
@@ -660,7 +673,7 @@ do_build_buildorder()
          1)
             if [ "${OPTION_LENIENT}" = "NO" ]
             then
-               log_fluff "Build of \"${project}\" failed, so quit"
+               log_debug "Build of \"${project}\" failed, so quit"
                return 1
             fi
             log_fluff "Ignore failure of \"${project}\" due to leniency option"
@@ -674,9 +687,6 @@ do_build_buildorder()
 }
 
 
-#
-# need a different name for the mainproject here
-#
 do_build_mainproject()
 {
    log_entry "do_build_mainproject" "$@"
@@ -719,6 +729,16 @@ do_build_mainproject()
    OPTIONS_MULLE_MAKE_PROJECT="`concat "${OPTIONS_MULLE_MAKE_PROJECT}" "--build-dir '${builddir}'"`"
    OPTIONS_MULLE_MAKE_PROJECT="`concat "${OPTIONS_MULLE_MAKE_PROJECT}" "--log-dir '${logdir}'"`"
 
+   # ugly hackage
+   if [ ! -z "${CONFIGURATIONS}" ]
+   then
+      OPTIONS_MULLE_MAKE_PROJECT="`concat "${OPTIONS_MULLE_MAKE_PROJECT}" "--configuration '${CONFIGURATIONS%%,*}'" `"
+   fi
+   if [ ! -z "${SDKS}" ]
+   then
+      OPTIONS_MULLE_MAKE_PROJECT="`concat "${OPTIONS_MULLE_MAKE_PROJECT}" "--sdk '${SDKS%%,*}'" `"
+   fi
+
    # never install the project, use mulle-make for that
    if ! eval_exekutor "'${MULLE_MAKE}'" "${MULLE_MAKE_FLAGS}" \
                         "build" "${OPTIONS_MULLE_MAKE_PROJECT}" "$@"
@@ -755,7 +775,7 @@ do_build_execute()
    [ -z "${LOGNAME}" ] && internal_fail "LOGNAME not set"
 
    filenameenv="${BUILD_DIR}/.mulle-craft"
-   currentenv="${MULLE_UNAME};`hostname`;${LOGNAME}"
+   currentenv="${MULLE_UNAME};${MULLE_HOSTNAME};${LOGNAME}"
 
    lastenv="`egrep -s -v '^#' "${filenameenv}"`"
    if [ "${lastenv}" != "${currentenv}" ]
@@ -814,7 +834,6 @@ build_common()
    local OPTION_LENIENT="NO"
    local OPTION_BUILD_DEPENDENCY="DEFAULT"
    local OPTIONS_MULLE_MAKE_PROJECT=
-   local OPTION_INSTALL_PROJECT="NO"
 
    while [ $# -ne 0 ]
    do
@@ -879,11 +898,22 @@ build_common()
       shift
    done
 
-   if [ -z "${BUILDORDER_FILE}" ]
+   #
+   # the buildorderfile is created by mulle-craft
+   # mulle-craft searches no default path
+   #
+   if [ ! -f "${BUILDORDER_FILE}" ]
    then
       if [ "${OPTION_MUST_HAVE_BUILDORDER}" = "YES" ]
       then
-         fail "There is no buildorder file here ($PWD)"
+         if [ -z "${BUILDORDER_FILE}" ]
+         then
+            fail "Failed to specify buildorder with --buildorder-file <file>"
+         else
+            fail "Missing buildorder file \"${BUILDORDER_FILE}\""
+         fi
+      else
+         log_fluff "No buildorder file \"${BUILDORDER_FILE}\" here ($PWD)"
       fi
 
       OPTION_USE_BUILDORDER="NO"

@@ -41,9 +41,9 @@ MULLE_CRAFT_DEPENDENCIES_SH="included"
 # and when you are done you call  `dependencies_end_update`. During that
 # time ./dependency is not write protected.
 #
-# The dependency folder can be preloaded with tarball content, if
-# the environment variable TARBALLS is set (it contains a
-# LF separated list of tarball paths)
+# The dependency folder can be preloaded with tarball content and directory
+# contents, if the environment variable MULLE_CRAFT_DEPENDENCY_PRELOADS is set
+# (it contains a : separated list of tarball paths)
 #
 _dependencies_install_tarballs()
 {
@@ -51,10 +51,15 @@ _dependencies_install_tarballs()
 
    local tarballs
    local tarball
+   local tarflags
 
-   set -f ; IFS="
-"
-   for tarball in ${TARBALLS}
+   if [ "${MULLE_FLAG_LOG_VERBOSE}" ]
+   then
+      tarflags="-v"
+   fi
+
+   set -f ; IFS=":"
+   for tarball in ${MULLE_CRAFT_DEPENDENCY_PRELOADS}
    do
       set +f ; IFS="${DEFAULT_IFS}"
 
@@ -63,16 +68,29 @@ _dependencies_install_tarballs()
          continue
       fi
 
-      if [ ! -f "${tarball}" ]
+      if [ ! -e "${tarball}" ]
       then
-         fail "tarball \"$tarball\" not found"
-      else
-         mkdir_if_missing "${DEPENDENCY_DIR}"
+         fail "Preload \"$tarball\" not found"
+      fi
+
+      if [ -f "${tarball}" ]
+      then
          log_info "Installing tarball \"${tarball}\""
          exekutor "${TAR:-tar}" -xz ${TARFLAGS} \
                                 -C "${DEPENDENCY_DIR}" \
                                 -f "${tarball}" || fail "failed to extract ${tar}"
+      else
+         log_info "Copying directory \"${tarball}\""
+         (
+            cd "${tarball}" &&
+            exekutor "${TAR:-tar}" -cf ${TARFLAGS} .
+         ) |
+         (
+            cd "${DEPENDENCY_DIR}" &&
+            exekutor "${TAR:-tar}" -xf -
+         ) || fail "failed to copy ${tarball}"
       fi
+
    done
    set +f; IFS="${DEFAULT_IFS}"
 }

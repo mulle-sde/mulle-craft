@@ -32,7 +32,7 @@
 [ "${TRACE}" = "YES" ] && set -x && : "$0" "$@"
 
 
-MULLE_EXECUTABLE_VERSION=0.4.2
+MULLE_EXECUTABLE_VERSION=0.5.0
 
 
 trap_fail()
@@ -189,7 +189,7 @@ main()
       "")
          if [ "${FLAG_OUTSIDE_ENV}" = "NO" ]
          then
-            fail "To run mulle-craft outside of mulle-env, pass the -e flag"
+            fail "To run ${MULLE_EXECUTABLE_NAME} outside of mulle-env, pass the -e flag"
          fi
 
          MULLE_VIRTUAL_ROOT="`pwd -P`"
