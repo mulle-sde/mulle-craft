@@ -21,10 +21,25 @@ Executable    | Description
 
 ## Install
 
-OS    | Command
-------|------------------------------------
-macos | `brew install mulle-kybernetik/software/mulle-craft`
-other | ./install.sh  (Requires: [mulle-sourcetree](https://github.com/mulle-sde/mulle-sourcetree),[mulle-make](https://github.com/mulle-sde/mulle-make),[mulle-dispense](https://github.com/mulle-sde/mulle-dispense))
+Install the pre-requisites:
+
+* [mulle-bashfunctions](https://github.com/mulle-nat/mulle-bashfunctions).
+* [mulle-dispense](https://github.com/mulle-sde/mulle-dispense)
+* [mulle-make](https://github.com/mulle-sde/mulle-make)
+* [mulle-sourcetree](https://github.com/mulle-sde/mulle-sourcetree)
+
+Install into `/usr` with sudo:
+
+```
+curl -L 'https://github.com/mulle-sde/mulle-craft/archive/latest.tar.gz' \
+ | tar xfz - && cd 'mulle-craft-latest' && sudo ./install /usr
+```
+
+### Packages
+
+OS          | Command
+------------|------------------------------------
+macos       | `brew install mulle-kybernetik/software/mulle-craft`
 
 
 ## What mulle-craft does

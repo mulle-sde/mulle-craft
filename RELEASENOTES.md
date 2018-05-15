@@ -1,3 +1,7 @@
+### 0.5.1
+
+* rename install, improve README.md
+
 ## 0.5.0
 
 * changed the mulle-make search scheme, fix some bugs
