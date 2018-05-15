@@ -1,3 +1,8 @@
+### 0.5.3
+
+* rename install.sh to install
+* rename install, improve README.md
+
 ### 0.5.1
 
 * rename install, improve README.md
