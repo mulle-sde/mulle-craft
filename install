@@ -32,7 +32,6 @@ fail()
 #
 # https://github.com/hoelzro/useful-scripts/blob/master/decolorize.pl
 #
-
 #
 # stolen from:
 # http://stackoverflow.com/questions/1055671/how-can-i-get-the-behavior-of-gnus-readlink-f-on-a-mac

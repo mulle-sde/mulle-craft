@@ -1,3 +1,7 @@
+### 0.5.4
+
+* distribute again
+
 ### 0.5.3
 
 * rename install.sh to install
