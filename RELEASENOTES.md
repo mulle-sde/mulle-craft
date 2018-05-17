@@ -1,3 +1,7 @@
+### 0.5.6
+
+* small beauty fix
+
 ### 0.5.5
 
 * make project the default

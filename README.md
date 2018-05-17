@@ -65,6 +65,7 @@ So it's conceptually fairly simple, if you know how
 
 But then there are also variations and options :)
 
+
 ## The *info folder*
 
 **mulle-make** accepts a so called *info-folder*, which contains compile
@@ -90,6 +91,7 @@ If mulle-craft finds no info-folder, **mulle-make** will use a project's own
 `.mulle-make` folder, if present.
 
 ![Searching](dox/searchpath.png)
+
 
 ## GitHub and Mulle kybernetiK
 
