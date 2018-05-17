@@ -1,3 +1,7 @@
+### 0.5.5
+
+* make project the default
+
 ### 0.5.4
 
 * distribute again

@@ -913,7 +913,12 @@ build_common()
             fail "Missing buildorder file \"${BUILDORDER_FILE}\""
          fi
       else
-         log_fluff "No buildorder file \"${BUILDORDER_FILE}\" here ($PWD)"
+         if [ -z "${BUILDORDER_FILE}" ]
+         then
+            log_fluff "No buildorder file specified. Use mulle-sde craft instead ?"
+         else
+            log_fluff "No buildorder file \"${BUILDORDER_FILE}\" here ($PWD)"
+         fi
       fi
 
       OPTION_USE_BUILDORDER="NO"
@@ -947,7 +952,7 @@ build_all_main()
 
    OPTION_USE_PROJECT="YES"
    OPTION_USE_BUILDORDER="YES"
-   OPTION_MUST_HAVE_BUILDORDER="NO"
+   OPTION_MUST_HAVE_BUILDORDER="YES"
 
    build_common "$@"
 }
