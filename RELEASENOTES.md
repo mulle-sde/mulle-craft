@@ -1,3 +1,7 @@
+### 0.6.1
+
+* rename install to installer, because of name conflict
+
 ## 0.6.0
 
 * remove command 'all' ; buildorder now requires a filename
