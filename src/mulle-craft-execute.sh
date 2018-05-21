@@ -60,11 +60,6 @@ EOF
 }
 
 #
-# What build does is call
-#
-
-
-#
 # if only one configuration is chosen, make it the default
 # if there are multiple configurations, make Release the default
 # if Release is not in multiple configurations, then there is no default
@@ -842,6 +837,13 @@ build_common()
             build_execute_usage
          ;;
 
+         -f|--buildorder-file)
+            [ $# -eq 1 ] && build_execute_usage "missing argument to \"$1\""
+            shift
+
+            BUILDORDER_FILE="$1"  # could be global env
+         ;;
+
          -l|--lenient)
             OPTION_LENIENT="YES"
          ;;
@@ -935,26 +937,6 @@ build_common()
    fi
 
    do_build_execute "$@"
-}
-
-
-build_all_main()
-{
-   log_entry "build_all_main" "$@"
-
-   BUILD_STYLE="all"
-
-   USAGE_INFO="Build the buildorder, then build the project.
-"
-   local OPTION_USE_PROJECT
-   local OPTION_USE_BUILDORDER
-   local OPTION_MUST_HAVE_BUILDORDER
-
-   OPTION_USE_PROJECT="YES"
-   OPTION_USE_BUILDORDER="YES"
-   OPTION_MUST_HAVE_BUILDORDER="YES"
-
-   build_common "$@"
 }
 
 

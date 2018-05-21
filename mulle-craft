@@ -32,7 +32,7 @@
 [ "${TRACE}" = "YES" ] && set -x && : "$0" "$@"
 
 
-MULLE_EXECUTABLE_VERSION=0.5.6
+MULLE_EXECUTABLE_VERSION=0.6.0
 
 
 trap_fail()
@@ -65,10 +65,9 @@ EOF
    cat <<EOF
 
 Commands:
-   all                : build buildorder and project 
-   buildorder         : build buildorder only
+   buildorder         : build projects using a buildorder file
    clean              : clean output
-   project            : build the project (outside buildorder) only (default)
+   project            : build main project without a buildorder file (default)
 EOF
 
    if [ "${MULLE_FLAG_LOG_VERBOSE}" = "NO" ]
@@ -156,13 +155,6 @@ main()
             INFO_DIR="$1"
          ;;
 
-         -f|--buildorder-file)
-            [ $# -eq 1 ] && build_execute_usage "missing argument to \"$1\""
-            shift
-
-            BUILDORDER_FILE="$1"
-         ;;
-
          --d|--project-dir)
             [ $# -eq 1 ] && build_execute_usage "missing argument to \"$1\""
             shift
@@ -224,12 +216,6 @@ main()
    cmd="${cmd:-${MULLE_CRAFT_DEFAULT_CMD}}"
 
    case "${cmd:-project}" in
-      all)
-         . "${MULLE_CRAFT_LIBEXEC_DIR}/mulle-craft-execute.sh"
-
-         build_all_main "$@"
-      ;;
-
       clean)
          # shellcheck source=src/mulle-craft-clean.sh
          . "${MULLE_CRAFT_LIBEXEC_DIR}/mulle-craft-clean.sh"

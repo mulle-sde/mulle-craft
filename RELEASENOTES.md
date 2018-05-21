@@ -1,3 +1,8 @@
+## 0.6.0
+
+* remove command 'all' ; buildorder now requires a filename
+
+
 ### 0.5.6
 
 * small beauty fix
