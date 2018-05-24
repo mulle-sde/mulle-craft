@@ -150,82 +150,6 @@ determine_dependencies_subdir()
 }
 
 
-determine_buildinfo_dir()
-{
-   log_entry "determine_buildinfo_dir" "$@"
-
-   #
-   # upper case for the sake of sameness for ppl setting BUILDINFO_PATH
-   # in the environment ?=??
-   #
-   local name="$1"
-   local projectdir="$2"
-   local projecttype="$3"
-
-   [ -z "${name}" ] && internal_fail "name must not be null"
-
-   local buildinfodir
-   local searchpath
-
-   if [ ! -z "${INFO_DIR}" ]
-   then
-      echo "${INFO_DIR}"
-      return
-   fi
-
-   if [ ! -z "${BUILDINFO_PATH}" ]
-   then
-      searchpath="`eval echo "${BUILDINFO_PATH}"`"
-   else
-      case "${projecttype}" in
-         "dependency")
-            # the directory being edited with mulle-sde dependency definition
-            #            searchpath="`colon_concat "${searchpath}" "buildinfo/${name}/mulle-make.${MULLE_UNAME}" `"
-            #            searchpath="`colon_concat "${searchpath}" "buildinfo/${name}/mulle-make" `"
-            # stuff installed by subprojects
-            if [ ! -z "${DEPENDENCY_DIR}" ]
-            then
-               searchpath="`colon_concat "${searchpath}" "${DEPENDENCY_DIR}/share/buildinfo/${name}/mulle-make.${MULLE_UNAME}" `"
-               searchpath="`colon_concat "${searchpath}" "${DEPENDENCY_DIR}/share/buildinfo/${name}/mulle-make" `"
-            fi
-         ;;
-
-         "mainproject")
-         ;;
-
-         *)
-            internal_fail "Unknown project type \"${projecttype}\""
-         ;;
-      esac
-
-      if [ ! -z "${projectdir}" ]
-      then
-         searchpath="`colon_concat "${searchpath}" "${projectdir}/.mulle-make.${MULLE_UNAME}" `"
-         searchpath="`colon_concat "${searchpath}" "${projectdir}/.mulle-make" `"
-      fi
-   fi
-
-   log_fluff "Build info searchpath: ${searchpath}"
-
-   set -f ; IFS=":"
-   for buildinfodir in ${searchpath}
-   do
-      set +f ; IFS="${DEFAULT_IFS}"
-      if [ ! -z "${buildinfodir}" ] && [ -d "${buildinfodir}" ]
-      then
-         log_info "Info directory \"${buildinfodir}\" found"
-         echo "${buildinfodir}"
-         return 0
-      fi
-   done
-   set +f ; IFS="${DEFAULT_IFS}"
-
-   log_fluff "No buildinfo found"
-
-   return 2
-}
-
-
 build_project()
 {
    log_entry "build_project" "$@"
@@ -306,8 +230,16 @@ build_project()
 
    local buildinfodir
 
-   buildinfodir="`determine_buildinfo_dir "${name}" "${project}" "dependency"`"
-   [ $? -eq 1 ] && exit 1
+   buildinfodir="`determine_buildinfo_dir "${name}" "${project}" "dependency"`" 
+   case $? in
+      0|2)
+      ;;
+
+      *)
+         exit 1
+      ;;
+   esac
+
    # subdir for configuration / sdk
 
    #
@@ -596,7 +528,6 @@ do_build_buildorder()
    [ -z "${MULLE_CRAFT_DEPENDENCY_SH}" ] && . "${MULLE_CRAFT_LIBEXEC_DIR}/mulle-craft-dependencies.sh"
 
    local buildorder
-   local builddir
 
    buildorder="`egrep -v '^#' "${BUILDORDER_FILE}" 2> /dev/null`"
    [ $? -eq 2 ] && fail "Buildorder \"${BUILDORDER_FILE}\" is missing"
@@ -618,7 +549,7 @@ do_build_buildorder()
    local remaining
    local donefile
 
-   donefile="${BUILD_DIR}/.mulle-craft-built"
+   donefile="${OPTION_DEPENDENCY_BUILD_DIR:-${BUILD_DIR}/.buildorder}/.mulle-craft-built"
    remaining="${buildorder}"
 
    if [ ! -z "${donefile}" ]
@@ -744,12 +675,12 @@ do_build_mainproject()
    then
       log_fluff "Not showing motd on request"
    else
-      if [ -f "${BUILD_DIR}/.motd" ]
+      if [ -f "${builddir}/.motd" ]
       then
-         log_fluff "Showing \"${BUILD_DIR}/.motd\""
-         exekutor cat "${BUILD_DIR}/.motd"
+         log_fluff "Showing \"${builddir}/.motd\""
+         exekutor cat "${builddir}/.motd"
       else
-         log_fluff "No \"${BUILD_DIR}/.motd\" was produced"
+         log_fluff "No \"${builddir}/.motd\" was produced"
       fi
    fi
 }
@@ -865,6 +796,11 @@ build_common()
       mkdir_if_missing "${BUILD_DIR}"
       redirect_exekutor "${filenameenv}" echo "# mulle-craft environment info
 ${currentenv}"
+   fi
+
+   if [ -z "${MULLE_CRAFT_SEARCH_SH}" ]
+   then
+      . "${MULLE_CRAFT_LIBEXEC_DIR}/mulle-craft-search.sh" || exit 1
    fi
 
    if [ "${OPTION_USE_BUILDORDER}" = "YES" ]

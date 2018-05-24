@@ -1,3 +1,7 @@
+### 0.6.3
+
+* place .mulle-craft-built better, add search command for buildinfo
+
 ### 0.6.2
 
 * improved build and clean

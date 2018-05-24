@@ -153,8 +153,8 @@ build_clean_main()
    local donefile
    local escaped
 
-   donefile="${BUILD_DIR}/.mulle-craft-built"
    DEPENDENCY_BUILD_DIR="${OPTION_DEPENDENCY_BUILD_DIR:-${BUILD_DIR}/.buildorder}"
+   donefile="${DEPENDENCY_BUILD_DIR}/.mulle-craft-built"
 
    shopt -s nullglob
 
@@ -165,6 +165,7 @@ build_clean_main()
             log_verbose "Cleaning \"${DEPENDENCY_DIR}\" directory"
 
             remove_directory "${DEPENDENCY_DIR}"
+            remove_directory "${DEPENDENCY_BUILD_DIR}"
          ;;
 
          "build")
