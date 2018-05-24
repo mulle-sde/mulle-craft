@@ -1,3 +1,7 @@
+### 0.6.4
+
+* fix homebrew install ruby script
+
 ### 0.6.3
 
 * place .mulle-craft-built better, add search command for buildinfo
