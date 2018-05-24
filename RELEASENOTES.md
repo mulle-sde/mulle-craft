@@ -1,3 +1,7 @@
+### 0.6.2
+
+* improved build and clean
+
 ### 0.6.1
 
 * rename install to installer, because of name conflict

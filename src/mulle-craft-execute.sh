@@ -45,8 +45,6 @@ Usage:
 Options:
    --debug           : compile for debug only
    --lenient         : do not stop on errors
-   --only-dependency : build dependencies only
-   --no-dependency   : don't build dependencies
    --release         : compile for release only
    --sdk <sdk>       : specify sdk to build against
 
@@ -613,7 +611,7 @@ do_build_buildorder()
 
    if [ -z "${buildorder}" ]
    then
-      log_verbose "There is nothing to build according to ${BUILDORDER_FILE}"
+      log_verbose "The buildorder file is empty, nothing to build (${BUILDORDER_FILE})"
       return
    fi
 
@@ -756,71 +754,10 @@ do_build_mainproject()
    fi
 }
 
-
-do_build_execute()
-{
-   log_entry "do_build_execute" "$@"
-
-   local lastenv
-   local currentenv
-   local filenameenv
-
-   [ -z "${BUILD_DIR}" ] && internal_fail "BUILD_DIR not set"
-   [ -z "${MULLE_UNAME}" ] && internal_fail "MULLE_UNAME not set"
-   [ -z "${LOGNAME}" ] && internal_fail "LOGNAME not set"
-
-   filenameenv="${BUILD_DIR}/.mulle-craft"
-   currentenv="${MULLE_UNAME};${MULLE_HOSTNAME};${LOGNAME}"
-
-   lastenv="`egrep -s -v '^#' "${filenameenv}"`"
-   if [ "${lastenv}" != "${currentenv}" ]
-   then
-      rmdir_safer "${BUILD_DIR}"
-      mkdir_if_missing "${BUILD_DIR}"
-      redirect_exekutor "${filenameenv}" echo "# mulle-craft environment info
-${currentenv}"
-   fi
-
-   local rval
-
-   rval=0
-   if [ "${OPTION_USE_BUILDORDER}" = "YES" ]
-   then
-      if ! do_build_buildorder "$@"
-      then
-         if [ "${OPTION_LENIENT}" = "NO" ]
-         then
-            log_error "Sourcetree build failed and we aren't lenient"
-            return 1
-         fi
-         rval=1
-      fi
-      log_fluff "Done with buildorder built"
-   else
-      log_fluff "Not building buildorder (complying with user wish)"
-   fi
-
-   #
-   # Build the project
-   #
-   if [ "${OPTION_USE_PROJECT}" = "YES" ]
-   then
-      if ! do_build_mainproject "$@"
-      then
-         rval=1
-      fi
-   else
-      log_fluff "Not building project (complying with user wish)"
-   fi
-
-   return $rval
-}
-
-
 #
 # mulle-craft isn't rules so much by command line arguments
 # but uses mostly ENVIRONMENT variables
-# These are usually provided with mulle-sde
+# These are usually provided with mulle-sde. 
 #
 build_common()
 {
@@ -900,32 +837,6 @@ build_common()
       shift
    done
 
-   #
-   # the buildorderfile is created by mulle-craft
-   # mulle-craft searches no default path
-   #
-   if [ ! -f "${BUILDORDER_FILE}" ]
-   then
-      if [ "${OPTION_MUST_HAVE_BUILDORDER}" = "YES" ]
-      then
-         if [ -z "${BUILDORDER_FILE}" ]
-         then
-            fail "Failed to specify buildorder with --buildorder-file <file>"
-         else
-            fail "Missing buildorder file \"${BUILDORDER_FILE}\""
-         fi
-      else
-         if [ -z "${BUILDORDER_FILE}" ]
-         then
-            log_fluff "No buildorder file specified. Use mulle-sde craft instead ?"
-         else
-            log_fluff "No buildorder file \"${BUILDORDER_FILE}\" here ($PWD)"
-         fi
-      fi
-
-      OPTION_USE_BUILDORDER="NO"
-   fi
-
    if [ -z "${CONFIGURATIONS}" ]
    then
       CONFIGURATIONS="Release"
@@ -936,7 +847,52 @@ build_common()
       SDKS="Default"
    fi
 
-   do_build_execute "$@"
+   local lastenv
+   local currentenv
+   local filenameenv
+
+   [ -z "${BUILD_DIR}" ] && internal_fail "BUILD_DIR not set"
+   [ -z "${MULLE_UNAME}" ] && internal_fail "MULLE_UNAME not set"
+   [ -z "${LOGNAME}" ] && internal_fail "LOGNAME not set"
+
+   filenameenv="${BUILD_DIR}/.mulle-craft"
+   currentenv="${MULLE_UNAME};${MULLE_HOSTNAME};${LOGNAME}"
+
+   lastenv="`egrep -s -v '^#' "${filenameenv}"`"
+   if [ "${lastenv}" != "${currentenv}" ]
+   then
+      rmdir_safer "${BUILD_DIR}"
+      mkdir_if_missing "${BUILD_DIR}"
+      redirect_exekutor "${filenameenv}" echo "# mulle-craft environment info
+${currentenv}"
+   fi
+
+   if [ "${OPTION_USE_BUILDORDER}" = "YES" ]
+   then
+      #
+      # the buildorderfile is created by mulle-sde
+      # mulle-craft searches no default path
+      #
+      if [ -z "${BUILDORDER_FILE}" ]
+      then
+         fail "Failed to specify buildorder with --buildorder-file <file>"
+      fi
+
+      if [ ! -f "${BUILDORDER_FILE}" ]
+      then
+         fail "Missing buildorder file \"${BUILDORDER_FILE}\""
+      fi
+
+      do_build_buildorder "$@"
+      return $?
+   fi
+
+   #
+   # Build the project
+   #
+   [ "${OPTION_USE_PROJECT}" = "YES" ] || internal_fail "hein ?"
+
+   do_build_mainproject "$@"
 }
 
 

@@ -66,11 +66,9 @@ remove_directory()
 
    if [ -d "$1" ]
    then
-      log_verbose "Deleting ${C_RESET_BOLD}$1${C_VERBOSE}"
-
       rmdir_safer "$1"
    else
-      log_fluff "Removal candidate \"$1\" is not present"
+      log_fluff "Clean candidate \"$1\" is not present"
    fi
 }
 
@@ -137,6 +135,8 @@ build_clean_main()
 
    if [ $# -eq 0 ]
    then
+      log_verbose "Cleaning \"${BUILD_DIR}\" directory"
+
       remove_directory "${BUILD_DIR}"
       return $?
    fi
@@ -147,12 +147,14 @@ build_clean_main()
 #     . "${MULLE_CRAFT_LIBEXEC_DIR}/mulle-craft-execute.sh"
 #  fi
 
+   # centralize this into mulle-craft-environment.sh
+   
    local DEPENDENCY_BUILD_DIR
    local donefile
    local escaped
 
    donefile="${BUILD_DIR}/.mulle-craft-built"
-   DEPENDENCY_BUILD_DIR="${OPTION_DEPENDENCY_BUILD_DIR:-${BUILD_DIR}/.sourcetree}"
+   DEPENDENCY_BUILD_DIR="${OPTION_DEPENDENCY_BUILD_DIR:-${BUILD_DIR}/.buildorder}"
 
    shopt -s nullglob
 
@@ -160,10 +162,21 @@ build_clean_main()
    do
       case "$1" in
          "dependency")
+            log_verbose "Cleaning \"${DEPENDENCY_DIR}\" directory"
+
             remove_directory "${DEPENDENCY_DIR}"
          ;;
 
+         "build")
+            log_verbose "Cleaning \"build\""
+
+            remove_directory "${BUILD_DIR}"
+            return
+         ;;
+
          "project")
+            log_verbose "Cleaning project"
+
             for i in "${BUILD_DIR}"/*
             do
                if [ -d "${i}" ]
@@ -178,8 +191,9 @@ build_clean_main()
          ;;
 
          *)
-            remove_directory "${DEPENDENCY_BUILD_DIR}/$1"
+            log_verbose "Cleaning \"${1}\" dependency"
 
+            remove_directory "${DEPENDENCY_BUILD_DIR}/$1"
             escaped="`escaped_sed_pattern "$1"`"
             if [ -f "${donefile}" ]
             then
