@@ -1,3 +1,7 @@
+### 0.6.8
+
+* fix for -e operation
+
 ### 0.6.7
 
 * fix .mulle-make detection for mainproject, can live without LOGNAME

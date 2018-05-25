@@ -43,7 +43,7 @@ Usage:
    Search for a buildinfo for the project or the given dependency.
 
 Options:
-	--project-dir <dir> : project directory
+   --project-dir <dir> : project directory
 
 Environment:
    DEPENDENCY_DIR    : place to put dependencies into (generally required)
@@ -116,7 +116,7 @@ determine_buildinfo_dir()
       set +f ; IFS="${DEFAULT_IFS}"
       if [ ! -z "${buildinfodir}" ] && [ -d "${buildinfodir}" ]
       then
-         log_info "Info directory \"${buildinfodir}\" found"
+         log_verbose "Info directory \"${buildinfodir}\" found"
          echo "${buildinfodir}"
          return 0
       fi
@@ -161,13 +161,22 @@ build_search_main()
       shift
    done
 
+
    if [ $# -eq 0 ]
    then
-	   determine_buildinfo_dir "${PROJECT_NAME}" "${OPTION_PROJECT_DIR:-${PWD}}" "mainproject"
+      local name
+
+      name="${PROJECT_NAME}"
+      if [ -z "${PROJECT_NAME}" ]
+      then
+         name="`fast_basename "${PWD}"`"
+      fi
+
+	   determine_buildinfo_dir "${name}" "${OPTION_PROJECT_DIR:-${PWD}}" "mainproject"
 	else
 		if [ -z "${OPTION_PROJECT_DIR}" ]
 		then
-			fail "Specify --project-dir <dir> for a dependency"
+			fail "Specify --project-dir <dir> for dependency \"$1\""
 		fi
 
 	   determine_buildinfo_dir "$1" "${OPTION_PROJECT_DIR}" "dependency"
