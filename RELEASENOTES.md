@@ -1,3 +1,7 @@
+### 0.6.7
+
+* fix .mulle-make detection for mainproject, can live without LOGNAME
+
 ### 0.6.6
 
 * fix package dependencies more

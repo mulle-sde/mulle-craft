@@ -230,7 +230,7 @@ build_project()
 
    local buildinfodir
 
-   buildinfodir="`determine_buildinfo_dir "${name}" "${project}" "dependency"`" 
+   buildinfodir="`determine_buildinfo_dir "${name}" "${project}" "dependency"`"
    case $? in
       0|2)
       ;;
@@ -626,7 +626,7 @@ do_build_mainproject()
 
    log_verbose "Build ${C_MAGENTA}${C_BOLD}${name}${C_VERBOSE} with ${MULLE_MAKE}"
 
-   buildinfodir="`determine_buildinfo_dir "${name}" "${project}" "mainproject"`"
+   buildinfodir="`determine_buildinfo_dir "${name}" "${PWD}" "mainproject"`"
 
    if [ ! -z "${buildinfodir}" ]
    then
@@ -688,7 +688,7 @@ do_build_mainproject()
 #
 # mulle-craft isn't rules so much by command line arguments
 # but uses mostly ENVIRONMENT variables
-# These are usually provided with mulle-sde. 
+# These are usually provided with mulle-sde.
 #
 build_common()
 {
@@ -784,10 +784,9 @@ build_common()
 
    [ -z "${BUILD_DIR}" ] && internal_fail "BUILD_DIR not set"
    [ -z "${MULLE_UNAME}" ] && internal_fail "MULLE_UNAME not set"
-   [ -z "${LOGNAME}" ] && internal_fail "LOGNAME not set"
 
    filenameenv="${BUILD_DIR}/.mulle-craft"
-   currentenv="${MULLE_UNAME};${MULLE_HOSTNAME};${LOGNAME}"
+   currentenv="${MULLE_UNAME};${MULLE_HOSTNAME};${LOGNAME:-`id -u`}"
 
    lastenv="`egrep -s -v '^#' "${filenameenv}"`"
    if [ "${lastenv}" != "${currentenv}" ]

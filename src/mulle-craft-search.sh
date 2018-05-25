@@ -93,6 +93,7 @@ determine_buildinfo_dir()
          ;;
 
          "mainproject")
+           [ -z "${projectdir}" ] && internal_fail "projectdir not set"
          ;;
 
          *)
@@ -107,7 +108,7 @@ determine_buildinfo_dir()
       fi
    fi
 
-   log_fluff "Build info searchpath: ${searchpath}"
+   log_fluff "Buildinfo searchpath: ${searchpath}"
 
    set -f ; IFS=":"
    for buildinfodir in ${searchpath}
