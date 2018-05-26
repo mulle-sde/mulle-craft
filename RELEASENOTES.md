@@ -1,3 +1,7 @@
+### 0.6.9
+
+* add --global to search
+
 ### 0.6.8
 
 * fix for -e operation

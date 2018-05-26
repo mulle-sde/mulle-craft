@@ -44,6 +44,7 @@ Usage:
 
 Options:
    --project-dir <dir> : project directory
+   --global            : search for global buildinfo only
 
 Environment:
    DEPENDENCY_DIR    : place to put dependencies into (generally required)
@@ -63,6 +64,7 @@ determine_buildinfo_dir()
    local name="$1"
    local projectdir="$2"
    local projecttype="$3"
+   local globalonly="$4"
 
    [ -z "${name}" ] && internal_fail "name must not be null"
 
@@ -87,7 +89,10 @@ determine_buildinfo_dir()
             # stuff installed by subprojects
             if [ ! -z "${DEPENDENCY_DIR}" ]
             then
-               searchpath="`colon_concat "${searchpath}" "${DEPENDENCY_DIR}/share/mulle-craft/${name}.${MULLE_UNAME}" `"
+               if [ "${globalonly}" != "YES" ]
+               then
+                  searchpath="`colon_concat "${searchpath}" "${DEPENDENCY_DIR}/share/mulle-craft/${name}.${MULLE_UNAME}" `"
+               fi
                searchpath="`colon_concat "${searchpath}" "${DEPENDENCY_DIR}/share/mulle-craft/${name}" `"
             fi
          ;;
@@ -103,7 +108,10 @@ determine_buildinfo_dir()
 
       if [ ! -z "${projectdir}" ]
       then
-         searchpath="`colon_concat "${searchpath}" "${projectdir}/.mulle-make.${MULLE_UNAME}" `"
+         if [ "${globalonly}" != "YES" ]
+         then
+            searchpath="`colon_concat "${searchpath}" "${projectdir}/.mulle-make.${MULLE_UNAME}" `"
+         fi
          searchpath="`colon_concat "${searchpath}" "${projectdir}/.mulle-make" `"
       fi
    fi
@@ -134,6 +142,7 @@ build_search_main()
    log_entry "build_common" "$@"
 
    local OPTION_PROJECT_DIR
+   local OPTION_GLOBAL
 
    while [ $# -ne 0 ]
    do
@@ -147,6 +156,10 @@ build_search_main()
             shift
 
             OPTION_PROJECT_DIR="$1"  # could be global env
+         ;;
+
+         --global)
+            OPTION_GLOBAL="YES"
          ;;
 
          -*)
@@ -172,13 +185,13 @@ build_search_main()
          name="`fast_basename "${PWD}"`"
       fi
 
-	   determine_buildinfo_dir "${name}" "${OPTION_PROJECT_DIR:-${PWD}}" "mainproject"
+	   determine_buildinfo_dir "${name}" "${OPTION_PROJECT_DIR:-${PWD}}" "mainproject" "${OPTION_GLOBAL}"
 	else
 		if [ -z "${OPTION_PROJECT_DIR}" ]
 		then
 			fail "Specify --project-dir <dir> for dependency \"$1\""
 		fi
 
-	   determine_buildinfo_dir "$1" "${OPTION_PROJECT_DIR}" "dependency"
+	   determine_buildinfo_dir "$1" "${OPTION_PROJECT_DIR}" "dependency" "${OPTION_GLOBAL}"
 	fi
 }
