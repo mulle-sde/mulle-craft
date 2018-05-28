@@ -600,7 +600,7 @@ do_build_buildorder()
                log_debug "Build of \"${project}\" failed, so quit"
                return 1
             fi
-            log_fluff "Ignore failure of \"${project}\" due to leniency option"
+            log_fluff "Ignoring build failure of \"${project}\" due to leniency option"
          ;;
 
          # 2 just ignored, but not remembered

@@ -1,3 +1,7 @@
+### 0.6.10
+
+* improved brew formula defintion
+
 ### 0.6.9
 
 * add --global to search

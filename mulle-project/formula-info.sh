@@ -7,9 +7,9 @@ DESC="🚬 Build projects using mulle-make and mulle-sourcetre"
 LANGUAGE="bash"                # c,cpp, objc, bash ...
 # NAME="${PROJECT}"        # formula filename without .rb extension
 
-DEPENDENCIES='${TOOLS_TAP}mulle-sourcetree
-${TOOLS_TAP}mulle-make
-${TOOLS_TAP}mulle-dispense
+DEPENDENCIES='${MULLE_SDE_TAP}mulle-sourcetree
+${MULLE_SDE_TAP}mulle-make
+${MULLE_SDE_TAP}mulle-dispense
 '
 
 DEBIAN_DEPENDENCIES="mulle-sourcetree, mulle-make, mulle-dispense"
