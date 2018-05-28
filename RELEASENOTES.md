@@ -1,3 +1,7 @@
+### 0.6.11
+
+* make README.md more lazy
+
 ### 0.6.10
 
 * improved brew formula defintion

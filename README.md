@@ -37,9 +37,8 @@ curl -L 'https://github.com/mulle-sde/mulle-craft/archive/latest.tar.gz' \
 
 ### Packages
 
-OS          | Command
-------------|------------------------------------
-macos       | `brew install mulle-kybernetik/software/mulle-craft`
+See [mulle-sde-developer](//github.com/mulle-sde/mulle-sde-developer) how
+to install mulle-sde for OS X and Linux/Ubuntu or Linux/Debian.
 
 
 ## What mulle-craft does
