@@ -1,3 +1,7 @@
+### 0.6.12
+
+* simplify README
+
 ### 0.6.11
 
 * make README.md more lazy
