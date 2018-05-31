@@ -1,3 +1,7 @@
+### 0.6.14
+
+* use `LC_ALL=C` for sort
+
 ### 0.6.13
 
 * Various small improvements
