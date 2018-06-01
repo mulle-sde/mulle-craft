@@ -1,3 +1,7 @@
+### 0.6.15
+
+* fix capitalization on log string
+
 ### 0.6.14
 
 * use `LC_ALL=C` for sort

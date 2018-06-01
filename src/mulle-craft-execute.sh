@@ -667,7 +667,7 @@ do_build_mainproject()
    if ! eval_exekutor "'${MULLE_MAKE}'" "${MULLE_MAKE_FLAGS}" \
                         "build" "${OPTIONS_MULLE_MAKE_PROJECT}" "$@"
    then
-      log_fluff "project build failed"
+      log_fluff "Project build failed"
       return 1
    fi
 
