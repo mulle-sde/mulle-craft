@@ -1,3 +1,7 @@
+### 0.6.16
+
+* improve usage
+
 ### 0.6.15
 
 * fix capitalization on log string

@@ -47,6 +47,8 @@ Options:
    --lenient         : do not stop on errors
    --release         : compile for release only
    --sdk <sdk>       : specify sdk to build against
+   --                : pass remaining options to mulle-make
+   -V                : more verbose output from make tools
 
 Environment:
    ADDICTION_DIR     : place to get addictions from (optional)
