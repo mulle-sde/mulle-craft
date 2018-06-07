@@ -40,7 +40,7 @@ fail()
 _prepend_path_if_relative()
 {
    case "$2" in
-      /*)
+      "/"*)
          echo "$2"
       ;;
 

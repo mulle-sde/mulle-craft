@@ -148,15 +148,13 @@ build_clean_main()
 #  fi
 
    # centralize this into mulle-craft-environment.sh
-   
+
    local DEPENDENCY_BUILD_DIR
    local donefile
    local escaped
 
    DEPENDENCY_BUILD_DIR="${OPTION_DEPENDENCY_BUILD_DIR:-${BUILD_DIR}/.buildorder}"
    donefile="${DEPENDENCY_BUILD_DIR}/.mulle-craft-built"
-
-   shopt -s nullglob
 
    while :
    do

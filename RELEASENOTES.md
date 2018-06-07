@@ -1,3 +1,7 @@
+### 0.6.17
+
+* small style change
+
 ### 0.6.16
 
 * improve usage
