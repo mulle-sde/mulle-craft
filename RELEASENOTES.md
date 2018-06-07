@@ -1,3 +1,7 @@
+### 0.6.18
+
+* add `._.DS_Store` to .gitignore
+
 ### 0.6.17
 
 * small style change
