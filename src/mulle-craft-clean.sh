@@ -45,7 +45,7 @@ Usage:
    and rebuild. There are three special names: "all", "dependency", "project".
 
 Options:
-
+   -b <dir>         : specify build directory
 
 Names:
    all              : clean build folder
@@ -54,7 +54,7 @@ Names:
 
 Environment:
    BUILD_DIR        : place for build products and by-products
-   DEPENDENCY_DIR  : place to put dependencies into (generally required)
+   DEPENDENCY_DIR   : place to put dependencies into (generally required)
 EOF
   exit 1
 }
@@ -108,14 +108,14 @@ build_clean_main()
          ;;
 
          -b|--build-dir)
-            [ $# -eq 1 ] && fail "missing argument to \"$1\""
+            [ $# -eq 1 ] && fail "Missing argument to \"$1\""
             shift
 
             BUILD_DIR="$1"
          ;;
 
          --dependency-build-dir)
-            [ $# -eq 1 ] && fail "missing argument to \"$1\""
+            [ $# -eq 1 ] && fail "Missing argument to \"$1\""
             shift
 
             OPTION_DEPENDENCY_BUILD_DIR="$1"
@@ -132,6 +132,11 @@ build_clean_main()
 
       shift
    done
+
+   if [ -z "${BUILD_DIR}" ]
+   then
+      fail "Unknown build directory, specify with -b"
+   fi
 
    if [ $# -eq 0 ]
    then

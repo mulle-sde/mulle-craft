@@ -472,7 +472,7 @@ build_buildorder_node()
    local project="$1";  shift
    local marks="$1";  shift
 
-   case "${marks}" in
+   case ",${marks}," in
       *,no-dependency,*)
          # subproject or something else
       ;;
@@ -480,9 +480,20 @@ build_buildorder_node()
       *)
          if [ "${OPTION_BUILD_DEPENDENCY}" = "NO" ]
          then
-            log_fluff "Not building dependencies (complying with user wish)"
+            log_fluff "Not building \"${project}\" (complying with user wish)"
             return 2
          fi
+      ;;
+   esac
+
+   case ",${marks}," in
+      *",only-os-${MULLE_UNAME}",*)
+         # nice
+      ;;
+
+      *",only-os-"*","*|*",no-os-${MULLE_UNAME},"*)
+         log_fluff "Not building \"${project}\" for platform \"${MULLE_UNAME}\""
+         return 2
       ;;
    esac
 
@@ -708,7 +719,7 @@ build_common()
          ;;
 
          -f|--buildorder-file)
-            [ $# -eq 1 ] && build_execute_usage "missing argument to \"$1\""
+            [ $# -eq 1 ] && build_execute_usage "Missing argument to \"$1\""
             shift
 
             BUILDORDER_FILE="$1"  # could be global env
@@ -743,7 +754,7 @@ build_common()
          ;;
 
          --sdk)
-            [ $# -eq 1 ] && build_execute_usage "missing argument to \"$1\""
+            [ $# -eq 1 ] && build_execute_usage "Missing argument to \"$1\""
             shift
 
             SDKS="$1"

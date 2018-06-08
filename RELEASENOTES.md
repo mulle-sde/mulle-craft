@@ -1,3 +1,7 @@
+### 0.6.19
+
+* deal with no-os and only-os marks properly for buildorder
+
 ### 0.6.18
 
 * add `._.DS_Store` to .gitignore

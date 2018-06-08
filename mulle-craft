@@ -32,7 +32,7 @@
 [ "${TRACE}" = "YES" ] && set -x && : "$0" "$@"
 
 
-MULLE_EXECUTABLE_VERSION=0.6.18
+MULLE_EXECUTABLE_VERSION=0.6.19
 
 
 trap_fail()
@@ -143,21 +143,21 @@ main()
          ;;
 
          --build-dir)
-            [ $# -eq 1 ] && build_execute_usage "missing argument to \"$1\""
+            [ $# -eq 1 ] && build_execute_usage "Missing argument to \"$1\""
             shift
 
             BUILD_DIR="$1"
          ;;
 
          --info-dir)
-            [ $# -eq 1 ] && build_execute_usage "missing argument to \"$1\""
+            [ $# -eq 1 ] && build_execute_usage "Missing argument to \"$1\""
             shift
 
             INFO_DIR="$1"
          ;;
 
          --d|--project-dir)
-            [ $# -eq 1 ] && build_execute_usage "missing argument to \"$1\""
+            [ $# -eq 1 ] && build_execute_usage "Missing argument to \"$1\""
             shift
 
             exekutor cd "$1" || exit 1
