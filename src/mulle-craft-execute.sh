@@ -486,14 +486,14 @@ build_buildorder_node()
       ;;
    esac
 
+   # the buildorder should have filtered these out already
    case ",${marks}," in
       *",only-os-${MULLE_UNAME}",*)
          # nice
       ;;
 
       *",only-os-"*","*|*",no-os-${MULLE_UNAME},"*)
-         log_fluff "Not building \"${project}\" for platform \"${MULLE_UNAME}\""
-         return 2
+         fail "The buildorder was made for a different platform. Better clean build."
       ;;
    esac
 

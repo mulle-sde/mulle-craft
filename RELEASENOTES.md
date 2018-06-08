@@ -1,3 +1,7 @@
+### 0.6.20
+
+* deal with them even more properly by raising an error
+
 ### 0.6.19
 
 * deal with no-os and only-os marks properly for buildorder
