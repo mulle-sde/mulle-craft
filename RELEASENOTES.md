@@ -1,3 +1,7 @@
+### 0.6.21
+
+* add --touch option for clean and tidy up code a bit
+
 ### 0.6.20
 
 * deal with them even more properly by raising an error

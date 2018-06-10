@@ -99,6 +99,7 @@ build_clean_main()
 
    local OPTION_DEPENDENCY="DEFAULT"
    local OPTION_SOURCETREE_BUILD_DIR
+   local OPTION_TOUCH="NO"
 
    while :
    do
@@ -112,6 +113,10 @@ build_clean_main()
             shift
 
             BUILD_DIR="$1"
+         ;;
+
+         --touch)
+            OPTION_TOUCH="YES"
          ;;
 
          --dependency-build-dir)
@@ -197,11 +202,15 @@ build_clean_main()
          *)
             log_verbose "Cleaning \"${1}\" dependency"
 
-            remove_directory "${DEPENDENCY_BUILD_DIR}/$1"
+            if [ "${OPTION_TOUCH}" = "NO" ]
+            then
+               remove_directory "${DEPENDENCY_BUILD_DIR}/$1"
+            fi
+
             escaped="`escaped_sed_pattern "$1"`"
             if [ -f "${donefile}" ]
             then
-               inplace_sed "/${escaped};/d" "${donefile}"
+               inplace_sed -n -e "/${escaped};/q;p" "${donefile}"
             fi
          ;;
       esac

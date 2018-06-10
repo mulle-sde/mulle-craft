@@ -438,7 +438,7 @@ build_dependency()
    local marks="$1" ; shift
 
    case "${marks}" in
-      *nodispense*)
+      *no-dispense*)
          build_dependency_directly "${project}" "$@"
       ;;
 
@@ -467,10 +467,11 @@ build_subproject()
 #
 build_buildorder_node()
 {
-   log_entry "build_buildorder_line" "$@"
+   log_entry "build_buildorder_node" "$@"
 
    local project="$1";  shift
    local marks="$1";  shift
+   local builddir="$1"; shift
 
    case ",${marks}," in
       *,no-dependency,*)
@@ -493,43 +494,23 @@ build_buildorder_node()
       ;;
 
       *",only-os-"*","*|*",no-os-${MULLE_UNAME},"*)
-         fail "The buildorder was made for a different platform. Better clean build."
+         fail "The buildorder ${C_RESET_BOLD}${BUILDORDER_FILE#${MULLE_USER_PWD}/}${C_ERROR} was made for a different platform. Time to clean. "
       ;;
    esac
-
-   local builddir
-
-   builddir="${BUILD_DIR:-build}"
-   builddir="${builddir}/.buildorder"
 
    log_verbose "Build ${C_MAGENTA}${C_BOLD}${project}${C_VERBOSE}"
 
-   case "${marks}" in
-      *,no-dependency,*)
-         # functionname will be either build_dependency or build_subproject
-         mkdir_if_missing "${builddir}" || fail "Could not create build directory"
+   mkdir_if_missing "${builddir}" || fail "Could not create build directory"
 
-         BUILD_DIR="${builddir}" exekutor build_subproject "${project}" \
-                                                            "build" \
-                                                            "${marks}" \
-                                                            "$@"
-      ;;
+   [ -z "${DEPENDENCY_DIR}" ] && fail "DEPENDENCY_DIR is undefined"
+   [ -z "${CONFIGURATIONS}" ] && internal_fail "CONFIGURATIONS is empty"
+   [ -z "${SDKS}" ]           && internal_fail "SDKS is empty"
 
-      *)
-         [ -z "${DEPENDENCY_DIR}" ] && fail "DEPENDENCY_DIR is undefined"
-         [ -z "${CONFIGURATIONS}" ] && internal_fail "CONFIGURATIONS is empty"
-         [ -z "${SDKS}" ]           && internal_fail "SDKS is empty"
-
-         builddir="${OPTION_DEPENDENCY_BUILD_DIR:-${builddir}}"
-         mkdir_if_missing "${builddir}" || fail "Could not create build directory"
-
-         # functionname will be either build_dependency or build_subproject
-         BUILD_DIR="${builddir}" build_dependency "${project}" \
-                                                  "install" \
-                                                  "${marks}" \
-                                                  "$@"
-      ;;
-   esac
+   # functionname will be either build_dependency or build_subproject
+   BUILD_DIR="${builddir}" build_dependency "${project}" \
+                                            "install" \
+                                            "${marks}" \
+                                            "$@"
 }
 
 
@@ -537,13 +518,17 @@ do_build_buildorder()
 {
    log_entry "do_build_buildorder" "$@"
 
+   local buildorderfile="$1"
+   local builddir="$2"
+   local donefile="$3"
+
    # shellcheck source=mulle-env-dependencies.sh
    [ -z "${MULLE_CRAFT_DEPENDENCY_SH}" ] && . "${MULLE_CRAFT_LIBEXEC_DIR}/mulle-craft-dependencies.sh"
 
    local buildorder
 
-   buildorder="`egrep -v '^#' "${BUILDORDER_FILE}" 2> /dev/null`"
-   [ $? -eq 2 ] && fail "Buildorder \"${BUILDORDER_FILE}\" is missing"
+   buildorder="`egrep -v '^#' "${buildorderfile}" 2> /dev/null`"
+   [ $? -eq 2 ] && fail "Buildorder \"${buildorderfile}\" is missing"
 
    #
    # Do this once initially, even if there are no dependencies
@@ -555,14 +540,12 @@ do_build_buildorder()
 
    if [ -z "${buildorder}" ]
    then
-      log_verbose "The buildorder file is empty, nothing to build (${BUILDORDER_FILE})"
+      log_verbose "The buildorder file is empty, nothing to build (${buildorderfile#${MULLE_USER_PWD}/})"
       return
    fi
 
    local remaining
-   local donefile
 
-   donefile="${OPTION_DEPENDENCY_BUILD_DIR:-${BUILD_DIR}/.buildorder}/.mulle-craft-built"
    remaining="${buildorder}"
 
    if [ ! -z "${donefile}" ]
@@ -598,13 +581,20 @@ do_build_buildorder()
 
       project="`eval echo "${project}"`"
 
-      build_buildorder_node "${project}" "${marks}"
+      build_buildorder_node "${project}" "${marks}" "${builddir}"
       case $? in
          0)
-            if [ ! -z "${donefile}" ]
-            then
-               redirect_append_exekutor "${donefile}" echo "${line}"
-            fi
+            case ",${marks}," in
+               *,no-memo,*)
+               ;;
+
+               *)
+                  if [ ! -z "${donefile}" ]
+                  then
+                     redirect_append_exekutor "${donefile}" echo "${line}"
+                  fi
+               ;;
+            esac
          ;;
 
          1)
@@ -710,6 +700,7 @@ build_common()
    local OPTION_LENIENT="NO"
    local OPTION_BUILD_DEPENDENCY="DEFAULT"
    local OPTIONS_MULLE_MAKE_PROJECT=
+   local OPTION_SUBDIR=".buildorder"
 
    while [ $# -ne 0 ]
    do
@@ -723,6 +714,13 @@ build_common()
             shift
 
             BUILDORDER_FILE="$1"  # could be global env
+         ;;
+
+         -s|--subdir)
+            [ $# -eq 1 ] && build_execute_usage "Missing argument to \"$1\""
+            shift
+
+            OPTION_SUBDIR="$1"  # could be global env
          ;;
 
          -l|--lenient)
@@ -831,7 +829,15 @@ ${currentenv}"
          fail "Missing buildorder file \"${BUILDORDER_FILE}\""
       fi
 
-      do_build_buildorder "$@"
+      local donefile
+      local builddir
+      local subdir
+
+      builddir="${OPTION_DEPENDENCY_BUILD_DIR:-${BUILD_DIR}}"
+      builddir="${builddir}/${OPTION_SUBDIR}"
+      donefile="${builddir}/.mulle-craft-built"
+
+      do_build_buildorder "${BUILDORDER_FILE}" "${builddir}" "${donefile}" "$@"
       return $?
    fi
 
