@@ -1,3 +1,7 @@
+### 0.6.22
+
+* propagate name to mulle-make
+
 ### 0.6.21
 
 * add --touch option for clean and tidy up code a bit

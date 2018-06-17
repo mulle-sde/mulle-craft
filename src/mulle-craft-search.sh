@@ -116,7 +116,7 @@ determine_buildinfo_dir()
       fi
    fi
 
-   log_fluff "Buildinfo searchpath: ${searchpath}"
+   log_fluff "Buildinfo search order: ${searchpath}"
 
    set -f ; IFS=":"
    for buildinfodir in ${searchpath}

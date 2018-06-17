@@ -215,7 +215,7 @@ dependencies_begin_update()
          log_warning "dependencies: Updating an incomplete previous update"
       ;;
 
-      ""|*)
+      *)
          internal_fail "Empty or unknown state \"${state}\""
       ;;
 

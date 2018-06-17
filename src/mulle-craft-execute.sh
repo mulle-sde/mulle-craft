@@ -157,6 +157,7 @@ build_project()
    log_entry "build_project" "$@"
 
    local project="$1"; shift
+   local name="$1"; shift
    local cmd="$1"; shift
    local destination="$1"; shift
    local configuration="$1"; shift
@@ -197,9 +198,9 @@ build_project()
    # dependencies/share/mulle-craftinfo/<name>.txt
    # <project>/.mulle-craftinfo
    #
-   local name
+   local dirname
 
-   name="`extensionless_basename "${project}"`"
+   dirname="`extensionless_basename "${project}"`"
 
    local stylesubdir
 
@@ -209,11 +210,12 @@ build_project()
    # find proper build directory
    # find proper log directory
    #
+   local buildparentdir
    local builddir
    local logdir
 
-   builddir="${BUILD_DIR:-build}"
-   builddir="`filepath_concat "${builddir}" "${name}" `"
+   buildparentdir="${BUILD_DIR:-build}"
+   builddir="`filepath_concat "${buildparentdir}" "${dirname}" `"
 
    #
    # if projects exist with duplicate names, add a random number at end
@@ -224,7 +226,7 @@ build_project()
    while [ -d "${builddir}" ]
    do
       randomstring="`uuidgen | cut -c'1-6'`"
-      builddir="`filepath_concat "${builddir}" "${name}-${randomstring}" `"
+      builddir="`filepath_concat "${buildparentdir}" "${dirname}-${randomstring}" `"
    done
 
    builddir="`filepath_concat "${builddir}" "${stylesubdir}" `"
@@ -251,6 +253,10 @@ build_project()
 
    args="${OPTIONS_MULLE_MAKE}"
 
+   if [ ! -z "${name}" ]
+   then
+      args="`concat "${args}" "--name '${name}'" `"
+   fi
    if [ ! -z "${logdir}" ]
    then
       args="`concat "${args}" "--log-dir '${logdir}'" `"
@@ -317,6 +323,7 @@ build_dependency_directly()
    log_entry "build_dependency_directly" "$@"
 
    local project="$1"; shift
+   local name="$1"; shift
 
    local rval
 
@@ -349,6 +356,7 @@ build_dependency_directly()
          fi
 
          if ! build_project "${project}" \
+                            "${name}" \
                             "install" \
                             "${DEPENDENCY_DIR}" \
                             "${configuration}" \
@@ -380,6 +388,7 @@ build_dependency_with_dispense()
    log_entry "build_dependency_with_dispense" "$@"
 
    local project="$1"; shift
+   local name="$1"; shift
 
    local rval
 
@@ -401,6 +410,7 @@ build_dependency_with_dispense()
          rmdir_safer "${DEPENDENCY_DIR}.tmp" || return 1
 
          if build_project "${project}" \
+                          "${name}" \
                           "install" \
                           "${DEPENDENCY_DIR}.tmp" \
                           "${configuration}" \
@@ -408,7 +418,8 @@ build_dependency_with_dispense()
                           "$@"
          then
             dependencies_begin_update &&
-            exekutor "${MULLE_DISPENSE}" ${MULLE_DISPENSE_FLAGS} dispense \
+            exekutor "${MULLE_DISPENSE}" ${MULLE_TECHNICAL_FLAGS} \
+                        ${MULLE_DISPENSE_FLAGS} dispense \
                         "${DEPENDENCY_DIR}.tmp" "${DEPENDENCY_DIR}${subdir}"  &&
             dependencies_end_update
          else
@@ -434,30 +445,19 @@ build_dependency()
    log_entry "build_dependency" "$@"
 
    local project="$1" ; shift
+   local name="$1" ; shift
    local cmd="$1" ; shift  # unused
    local marks="$1" ; shift
 
-   case "${marks}" in
-      *no-dispense*)
-         build_dependency_directly "${project}" "$@"
+   case ",${marks}," in
+      *,no-dispense,*)
+         build_dependency_directly "${project}" "${name}" "$@"
       ;;
 
       *)
-         build_dependency_with_dispense  "${project}" "$@"
+         build_dependency_with_dispense  "${project}" "${name}" "$@"
       ;;
    esac
-}
-
-
-build_subproject()
-{
-   log_entry "build_subproject" "$@"
-
-   local project="$1" ; shift
-   local cmd="$1" ; shift
-   local marks="$1" ; shift # unused
-
-   build_project "${project}" "${cmd}" "" "" "" "$@"
 }
 
 
@@ -470,6 +470,7 @@ build_buildorder_node()
    log_entry "build_buildorder_node" "$@"
 
    local project="$1";  shift
+   local name="$1"; shift
    local marks="$1";  shift
    local builddir="$1"; shift
 
@@ -508,6 +509,7 @@ build_buildorder_node()
 
    # functionname will be either build_dependency or build_subproject
    BUILD_DIR="${builddir}" build_dependency "${project}" \
+                                            "${name}" \
                                             "install" \
                                             "${marks}" \
                                             "$@"
@@ -570,7 +572,9 @@ do_build_buildorder()
       set +f ; IFS="${DEFAULT_IFS}"
 
       local project
+      local evaledproject
       local marks
+      local name
 
       IFS=";" read project marks <<< "${line}"
 
@@ -579,9 +583,10 @@ do_build_buildorder()
          internal_fail "empty project fail"
       fi
 
-      project="`eval echo "${project}"`"
+      evaledproject="`eval echo "${project}"`"
+      name="${project#'${MULLE_SOURCETREE_SHARE_DIR}/'}"
 
-      build_buildorder_node "${project}" "${marks}" "${builddir}"
+      build_buildorder_node "${evaledproject}" "${name}" "${marks}" "${builddir}" 
       case $? in
          0)
             case ",${marks}," in
@@ -600,10 +605,10 @@ do_build_buildorder()
          1)
             if [ "${OPTION_LENIENT}" = "NO" ]
             then
-               log_debug "Build of \"${project}\" failed, so quit"
+               log_debug "Build of \"${evaledproject}\" failed, so quit"
                return 1
             fi
-            log_fluff "Ignoring build failure of \"${project}\" due to leniency option"
+            log_fluff "Ignoring build failure of \"${evaledproject}\" due to leniency option"
          ;;
 
          # 2 just ignored, but not remembered
