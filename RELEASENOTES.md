@@ -1,3 +1,7 @@
+### 0.6.23
+
+* remove false comment
+
 ### 0.6.22
 
 * propagate name to mulle-make

@@ -83,10 +83,6 @@ determine_buildinfo_dir()
    else
       case "${projecttype}" in
          "dependency")
-            # the directory being edited with mulle-sde dependency definition
-            #            searchpath="`colon_concat "${searchpath}" "buildinfo/${name}/mulle-make.${MULLE_UNAME}" `"
-            #            searchpath="`colon_concat "${searchpath}" "buildinfo/${name}/mulle-make" `"
-            # stuff installed by subprojects
             if [ ! -z "${DEPENDENCY_DIR}" ]
             then
                if [ "${globalonly}" != "YES" ]
