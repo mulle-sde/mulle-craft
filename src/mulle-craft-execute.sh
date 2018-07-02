@@ -200,7 +200,10 @@ build_project()
    #
    local dirname
 
-   dirname="`extensionless_basename "${project}"`"
+   #
+   # remove any non-identifiers and file extension from name
+   #
+   dirname="`tr -c 'a-zA-Z0-9-' '_' <<< "${name%.*}" | sed -e 's/_$//g'`"
 
    local stylesubdir
 
@@ -223,11 +226,19 @@ build_project()
    #
    local randomstring
 
-   while [ -d "${builddir}" ]
-   do
-      randomstring="`uuidgen | cut -c'1-6'`"
-      builddir="`filepath_concat "${buildparentdir}" "${dirname}-${randomstring}" `"
-   done
+   case ",${marks}," in
+      *,no-memo,*)
+         # usally a subproject
+      ;;
+
+      *)
+         while [ -d "${builddir}" ]
+         do
+            randomstring="`uuidgen | cut -c'1-6'`"
+            builddir="`filepath_concat "${buildparentdir}" "${dirname}-${randomstring}" `"
+         done
+      ;;
+   esac
 
    builddir="`filepath_concat "${builddir}" "${stylesubdir}" `"
    logdir="`filepath_concat "${builddir}" ".log" `"
@@ -482,7 +493,7 @@ build_buildorder_node()
       *)
          if [ "${OPTION_BUILD_DEPENDENCY}" = "NO" ]
          then
-            log_fluff "Not building \"${project}\" (complying with user wish)"
+            log_fluff "Not building dependency \"${project}\" (complying with user wish)"
             return 2
          fi
       ;;
@@ -586,11 +597,12 @@ do_build_buildorder()
       evaledproject="`eval echo "${project}"`"
       name="${project#'${MULLE_SOURCETREE_SHARE_DIR}/'}"
 
-      build_buildorder_node "${evaledproject}" "${name}" "${marks}" "${builddir}" 
+      build_buildorder_node "${evaledproject}" "${name}" "${marks}" "${builddir}"
       case $? in
          0)
             case ",${marks}," in
                *,no-memo,*)
+                  # usally a subproject
                ;;
 
                *)
@@ -654,7 +666,7 @@ do_build_mainproject()
 
    builddir="${BUILD_DIR:-build}"
    builddir="`filepath_concat "${builddir}" "${stylesubdir}" `"
-   logdir="`filepath_concat "${builddir}" ".logs" `"
+   logdir="`filepath_concat "${builddir}" ".log" `"
 
    [ $? -eq 1 ] && exit 1
 
@@ -736,6 +748,7 @@ build_common()
             OPTION_LENIENT="NO"
          ;;
 
+         # these are dependency within buildorder, buildorder has also subproj
          --dependency)
             OPTION_BUILD_DEPENDENCY="YES"
          ;;
@@ -838,8 +851,8 @@ ${currentenv}"
       local builddir
       local subdir
 
-      builddir="${OPTION_DEPENDENCY_BUILD_DIR:-${BUILD_DIR}}"
-      builddir="${builddir}/${OPTION_SUBDIR}"
+      builddir="${OPTION_BUILDORDER_BUILD_DIR:-${BUILD_DIR}}"
+      builddir="`filepath_concat "${builddir}" "${OPTION_SUBDIR}"`"
       donefile="${builddir}/.mulle-craft-built"
 
       do_build_buildorder "${BUILDORDER_FILE}" "${builddir}" "${donefile}" "$@"

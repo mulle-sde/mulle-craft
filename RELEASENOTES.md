@@ -1,3 +1,8 @@
+## 0.7.0
+
+* add log command
+
+
 ### 0.6.23
 
 * remove false comment

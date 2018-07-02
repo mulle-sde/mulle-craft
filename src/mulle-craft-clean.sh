@@ -119,11 +119,11 @@ build_clean_main()
             OPTION_TOUCH="YES"
          ;;
 
-         --dependency-build-dir)
+         --buildorder-build-dir)
             [ $# -eq 1 ] && fail "Missing argument to \"$1\""
             shift
 
-            OPTION_DEPENDENCY_BUILD_DIR="$1"
+            OPTION_BUILDORDER_BUILD_DIR="$1"
          ;;
 
          -*)
@@ -159,12 +159,12 @@ build_clean_main()
 
    # centralize this into mulle-craft-environment.sh
 
-   local DEPENDENCY_BUILD_DIR
+   local BUILDORDER_BUILD_DIR
    local donefile
    local escaped
 
-   DEPENDENCY_BUILD_DIR="${OPTION_DEPENDENCY_BUILD_DIR:-${BUILD_DIR}/.buildorder}"
-   donefile="${DEPENDENCY_BUILD_DIR}/.mulle-craft-built"
+   BUILDORDER_BUILD_DIR="${OPTION_BUILDORDER_BUILD_DIR:-${BUILD_DIR}/.buildorder}"
+   donefile="${BUILDORDER_BUILD_DIR}/.mulle-craft-built"
 
    while :
    do
@@ -173,7 +173,7 @@ build_clean_main()
             log_verbose "Cleaning \"${DEPENDENCY_DIR}\" directory"
 
             remove_directory "${DEPENDENCY_DIR}"
-            remove_directory "${DEPENDENCY_BUILD_DIR}"
+            remove_directory "${BUILDORDER_BUILD_DIR}"
          ;;
 
          "build")
@@ -204,7 +204,7 @@ build_clean_main()
 
             if [ "${OPTION_TOUCH}" = "NO" ]
             then
-               remove_directory "${DEPENDENCY_BUILD_DIR}/$1"
+               remove_directory "${BUILDORDER_BUILD_DIR}/$1"
             fi
 
             escaped="`escaped_sed_pattern "$1"`"
