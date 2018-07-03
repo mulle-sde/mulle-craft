@@ -1,3 +1,7 @@
+### 0.7.1
+
+* let log output the main project logs by default
+
 ## 0.7.0
 
 * add log command

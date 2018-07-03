@@ -43,6 +43,14 @@ Usage:
    List available build logs and run arbitrary commands on them like
    'cat' or 'grep'
 
+   Show last project logs with:
+
+      ${MULLE_USAGE_NAME} log cat
+
+   Dump all project logs with:
+
+      ${MULLE_USAGE_NAME} log -p '*' cat
+
 Options:
    -c <configuration>  : restrict to configuration
    -p <project>        : project, leave empty for main project
@@ -317,7 +325,7 @@ build_log_main()
 {
    log_entry "build_log_main" "$@"
 
-   local OPTION_PROJECT_NAME="*"
+   local OPTION_PROJECT_NAME=""
    local OPTION_CONFIGURATION="*"
    local OPTION_TOOL="*"
 
