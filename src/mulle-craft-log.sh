@@ -266,11 +266,11 @@ build_log_command()
    do
       case "$1" in
          -h*|--help|help)
-            build_log_command_usage
+            build_log_usage
          ;;
 
          -*)
-            build_log_command_usage "Unknown option \"$1\""
+            build_log_usage "Unknown option \"$1\""
          ;;
 
          *)

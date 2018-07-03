@@ -1,3 +1,7 @@
+### 0.7.2
+
+* usage bug fix
+
 ### 0.7.1
 
 * let log output the main project logs by default
