@@ -74,7 +74,7 @@ determine_build_subdir()
    [ -z "$configuration" ] && internal_fail "configuration must not be empty"
    [ -z "$sdk" ]           && internal_fail "sdk must not be empty"
 
-   sdk=`echo "${sdk}" | "${SED:-sed}" 's/^\([a-zA-Z]*\).*$/\1/g'`
+   sdk="`LC_ALL=C "${SED:-sed}" 's/^\([a-zA-Z]*\).*$/\1/g' <<< "${sdk}" `"
 
    #
    # for build we do not create "top level" Release files, because it is
@@ -101,7 +101,7 @@ determine_dependencies_subdir()
    [ -z "${sdk}" ]           && internal_fail "sdk must not be empty"
    [ -z "${SDKS}" ]          && internal_fail "SDKS must not be empty"
 
-   sdk=`echo "${sdk}" | "${SED:-sed}" 's/^\([a-zA-Z]*\).*$/\1/g'`
+   sdk="`LC_ALL=C "${SED:-sed}" 's/^\([a-zA-Z]*\).*$/\1/g' <<< "${sdk}" `"
 
    if [ "${style}" = "auto" ]
    then
@@ -156,12 +156,24 @@ build_project()
 {
    log_entry "build_project" "$@"
 
-   local project="$1"; shift
-   local name="$1"; shift
    local cmd="$1"; shift
    local destination="$1"; shift
-   local configuration="$1"; shift
-   local sdk="$1"; shift
+
+   local project="$1"
+   local name="$2"
+   local marks="$3"
+   local builddir="$4"
+   local configuration="$5"
+   local sdk="$6"
+
+   shift 6
+
+   [ -z "${cmd}" ]         && internal_fail "cmd is empty"
+   [ -z "${destination}" ] && internal_fail "destination is empty"
+  
+   [ -z "${project}" ]     && internal_fail "project is empty"
+   [ -z "${name}" ]        && internal_fail "name is empty"
+   [ -z "${builddir}" ]    && internal_fail "builddir is empty"
 
    local includepath
    local frameworkspath
@@ -205,19 +217,16 @@ build_project()
    #
    dirname="`tr -c 'a-zA-Z0-9-' '_' <<< "${name%.*}" | sed -e 's/_$//g'`"
 
-   local stylesubdir
-
-   stylesubdir="`determine_build_subdir "${configuration}" "${sdk}" `" || return 1
-
    #
    # find proper build directory
    # find proper log directory
    #
    local buildparentdir
-   local builddir
+
+   buildparentdir="${builddir}"
+
    local logdir
 
-   buildparentdir="${BUILD_DIR:-build}"
    builddir="`filepath_concat "${buildparentdir}" "${dirname}" `"
 
    #
@@ -240,7 +249,8 @@ build_project()
       ;;
    esac
 
-   builddir="`filepath_concat "${builddir}" "${stylesubdir}" `"
+   mkdir_if_missing "${builddir}" || fail "Could not create build directory"
+
    logdir="`filepath_concat "${builddir}" ".log" `"
 
    local buildinfodir
@@ -333,59 +343,31 @@ build_dependency_directly()
 {
    log_entry "build_dependency_directly" "$@"
 
-   local project="$1"; shift
-   local name="$1"; shift
-
-   local rval
+   local project="$1"
+   local name="$2"
+   local marks="$3"
+   local builddir="$4"
+   local configuration="$5"
+   local sdk="$6"
 
    dependencies_begin_update || return 1
 
-   #
-   # build first configuration and sdk only
-   #
-   local configuration
-   local sdk
    local rval
 
    rval=0
 
-   set -f; IFS=","
-   for configuration in ${CONFIGURATIONS}
-   do
-      if [ -z "${configuration}" ]
+   build_project "install" "${DEPENDENCY_DIR}" "$@"
+   rval=$?
+
+   if [ $rval -ne 0 ]
+   then
+      log_fluff "Build of project \"${project}\" failed with $rval"
+      if [ "${OPTION_LENIENT}" = "NO" ]
       then
-         continue
+         return 1
       fi
-
-      for sdk in ${SDKS}
-      do
-         set +f; IFS="${DEFAULT_IFS}"
-
-         if [ -z "${sdk}" ]
-         then
-            continue
-         fi
-
-         if ! build_project "${project}" \
-                            "${name}" \
-                            "install" \
-                            "${DEPENDENCY_DIR}" \
-                            "${configuration}" \
-                            "${sdk}" \
-                            "$@"
-         then
-            if [ "${OPTION_LENIENT}" = "NO" ]
-            then
-               return 1
-            fi
-            rval=1
-         fi
-
-         set -f; IFS=","
-      done
-
-   done
-   set +f ; IFS="${DEFAULT_IFS}"
+      rval=1
+   fi
 
    dependencies_end_update || return 1
 
@@ -398,54 +380,42 @@ build_dependency_with_dispense()
 {
    log_entry "build_dependency_with_dispense" "$@"
 
-   local project="$1"; shift
-   local name="$1"; shift
+   local project="$1"
+   local name="$2"
+   local marks="$3"
+   local builddir="$4"
+   local configuration="$5"
+   local sdk="$6"
 
    local rval
 
    rval=0
 
-   set -f; IFS=","
-   for configuration in ${CONFIGURATIONS}
-   do
-      for sdk in ${SDKS}
-      do
-         IFS="${DEFAULT_IFS}"
+   rmdir_safer "${DEPENDENCY_DIR}.tmp" || return 1
 
-         local subdir
+   build_project "install" "${DEPENDENCY_DIR}.tmp" "$@"
+   rval=$?
 
-         subdir="`determine_dependencies_subdir "${configuration}" \
-                                                "${sdk}" \
-                                                "${DISPENSE_STYLE}"`"
+   if [ $rval -eq 0 ]
+   then
+      stylesubdir="`determine_dependencies_subdir "${configuration}" \
+                                                  "${sdk}" \
+                                                  "${MULLE_DISPENSE_STYLE}" `"
 
-         rmdir_safer "${DEPENDENCY_DIR}.tmp" || return 1
-
-         if build_project "${project}" \
-                          "${name}" \
-                          "install" \
-                          "${DEPENDENCY_DIR}.tmp" \
-                          "${configuration}" \
-                          "${sdk}" \
-                          "$@"
-         then
-            dependencies_begin_update &&
-            exekutor "${MULLE_DISPENSE}" ${MULLE_TECHNICAL_FLAGS} \
-                        ${MULLE_DISPENSE_FLAGS} dispense \
-                        "${DEPENDENCY_DIR}.tmp" "${DEPENDENCY_DIR}${subdir}"  &&
-            dependencies_end_update
-         else
-            log_fluff "build_project \"${project}\" failed"
-            if [ "${OPTION_LENIENT}" = "NO" ]
-            then
-               return 1
-            fi
-            rval=1
-         fi
-
-         set -f; IFS=","
-      done
-   done
-   set +f ; IFS="${DEFAULT_IFS}"
+      dependencies_begin_update &&
+      exekutor "${MULLE_DISPENSE}" ${MULLE_TECHNICAL_FLAGS} \
+                  ${MULLE_DISPENSE_FLAGS} dispense \
+                  "${DEPENDENCY_DIR}.tmp" \
+                  "${DEPENDENCY_DIR}${stylesubdir}" &&
+      dependencies_end_update
+   else
+      log_fluff "Build of project \"${project}\" failed with $rval"
+      if [ "${OPTION_LENIENT}" = "NO" ]
+      then
+         return 1
+      fi
+      rval=1
+   fi
 
    return $rval
 }
@@ -455,18 +425,22 @@ build_dependency()
 {
    log_entry "build_dependency" "$@"
 
-   local project="$1" ; shift
-   local name="$1" ; shift
-   local cmd="$1" ; shift  # unused
-   local marks="$1" ; shift
+   local cmd="$1"; shift  # don't need it
+
+#   local project="$1"
+#   local name="$2"
+   local marks="$3"
+#   local builddir="$4"
+#   local configuration="$5"
+#   local sdk="$6"
 
    case ",${marks}," in
       *,no-dispense,*)
-         build_dependency_directly "${project}" "${name}" "$@"
+         build_dependency_directly "$@"
       ;;
 
       *)
-         build_dependency_with_dispense  "${project}" "${name}" "$@"
+         build_dependency_with_dispense "$@"
       ;;
    esac
 }
@@ -480,10 +454,12 @@ build_buildorder_node()
 {
    log_entry "build_buildorder_node" "$@"
 
-   local project="$1";  shift
-   local name="$1"; shift
-   local marks="$1";  shift
-   local builddir="$1"; shift
+   local project="$1"
+#   local name="$2"
+   local marks="$3"
+#   local builddir="$4"
+#   local configuration="$5"
+#   local sdk="$6"
 
    case ",${marks}," in
       *,no-dependency,*)
@@ -512,55 +488,30 @@ build_buildorder_node()
 
    log_verbose "Build ${C_MAGENTA}${C_BOLD}${project}${C_VERBOSE}"
 
-   mkdir_if_missing "${builddir}" || fail "Could not create build directory"
-
-   [ -z "${DEPENDENCY_DIR}" ] && fail "DEPENDENCY_DIR is undefined"
-   [ -z "${CONFIGURATIONS}" ] && internal_fail "CONFIGURATIONS is empty"
-   [ -z "${SDKS}" ]           && internal_fail "SDKS is empty"
-
-   # functionname will be either build_dependency or build_subproject
-   BUILD_DIR="${builddir}" build_dependency "${project}" \
-                                            "${name}" \
-                                            "install" \
-                                            "${marks}" \
-                                            "$@"
+   build_dependency "install" "$@"
 }
 
 
-do_build_buildorder()
+_do_build_buildorder()
 {
-   log_entry "do_build_buildorder" "$@"
-
-   local buildorderfile="$1"
+   local buildorder="$1"
    local builddir="$2"
-   local donefile="$3"
+   local configuration="$3"
+   local sdk="$4"
 
-   # shellcheck source=mulle-env-dependencies.sh
-   [ -z "${MULLE_CRAFT_DEPENDENCY_SH}" ] && . "${MULLE_CRAFT_LIBEXEC_DIR}/mulle-craft-dependencies.sh"
+   local donefile
+   local subdir
 
-   local buildorder
+   subdir="`determine_build_subdir "${configuration}" "${sdk}" `"
+   builddir="`filepath_concat "${builddir}" "${subdir}" `"
 
-   buildorder="`egrep -v '^#' "${buildorderfile}" 2> /dev/null`"
-   [ $? -eq 2 ] && fail "Buildorder \"${buildorderfile}\" is missing"
+   mkdir_if_missing "${builddir}"
 
-   #
-   # Do this once initially, even if there are no dependencies
-   # That allows tarballs to be installed. Also now the existance of the
-   # dependencies folders, means something
-   #
-   dependencies_begin_update || exit 1
-   dependencies_end_update || exit 1
-
-   if [ -z "${buildorder}" ]
-   then
-      log_verbose "The buildorder file is empty, nothing to build (${buildorderfile#${MULLE_USER_PWD}/})"
-      return
-   fi
+   donefile="${builddir}/.mulle-craft-built"
 
    local remaining
 
    remaining="${buildorder}"
-
    if [ ! -z "${donefile}" ]
    then
       if [ -f "${donefile}" ]
@@ -597,7 +548,12 @@ do_build_buildorder()
       evaledproject="`eval echo "${project}"`"
       name="${project#'${MULLE_SOURCETREE_SHARE_DIR}/'}"
 
-      build_buildorder_node "${evaledproject}" "${name}" "${marks}" "${builddir}"
+      build_buildorder_node "${evaledproject}" \
+                            "${name}" \
+                            "${marks}" \
+                            "${builddir}" \
+                            "${configuration}" \
+                            "${sdk}" 
       case $? in
          0)
             case ",${marks}," in
@@ -629,6 +585,64 @@ do_build_buildorder()
 
    set +f ; IFS="${DEFAULT_IFS}"
 }
+
+
+do_build_buildorder()
+{
+   log_entry "do_build_buildorder" "$@"
+
+   local buildorderfile="$1"
+   local builddir="$2"
+
+   # shellcheck source=mulle-env-dependencies.sh
+   [ -z "${MULLE_CRAFT_DEPENDENCY_SH}" ] && . "${MULLE_CRAFT_LIBEXEC_DIR}/mulle-craft-dependencies.sh"
+
+   local buildorder
+
+   buildorder="`egrep -v '^#' "${buildorderfile}" 2> /dev/null`"
+   [ $? -eq 2 ] && fail "Buildorder \"${buildorderfile}\" is missing"
+
+   #
+   # Do this once initially, even if there are no dependencies
+   # That allows tarballs to be installed. Also now the existance of the
+   # dependencies folders, means something
+   #
+   dependencies_begin_update || exit 1
+   dependencies_end_update || exit 1
+
+   if [ -z "${buildorder}" ]
+   then
+      log_verbose "The buildorder file is empty, nothing to build (${buildorderfile#${MULLE_USER_PWD}/})"
+      return
+   fi
+
+   [ -z "${DEPENDENCY_DIR}" ] && fail "DEPENDENCY_DIR is undefined"
+   [ -z "${CONFIGURATIONS}" ] && internal_fail "CONFIGURATIONS is empty"
+   [ -z "${SDKS}" ]           && internal_fail "SDKS is empty"
+
+   local configuration
+   local sdk
+
+   set -f; IFS=","
+   for configuration in ${CONFIGURATIONS}
+   do
+      for sdk in ${SDKS}
+      do
+         set +f; IFS="${DEFAULT_IFS}"
+
+         if ! _do_build_buildorder "${buildorder}" \
+                                   "${builddir}"\
+                                   "${configuration}" \
+                                   "${sdk}"
+         then
+            return 1
+         fi 
+         set -f; IFS=","
+      done
+   done
+   set +f ; IFS="${DEFAULT_IFS}"
+}
+
 
 
 do_build_mainproject()
@@ -847,15 +861,13 @@ ${currentenv}"
          fail "Missing buildorder file \"${BUILDORDER_FILE}\""
       fi
 
-      local donefile
       local builddir
       local subdir
 
       builddir="${OPTION_BUILDORDER_BUILD_DIR:-${BUILD_DIR}}"
       builddir="`filepath_concat "${builddir}" "${OPTION_SUBDIR}"`"
-      donefile="${builddir}/.mulle-craft-built"
 
-      do_build_buildorder "${BUILDORDER_FILE}" "${builddir}" "${donefile}" "$@"
+      do_build_buildorder "${BUILDORDER_FILE}" "${builddir}"
       return $?
    fi
 

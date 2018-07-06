@@ -1,3 +1,7 @@
+### 0.7.3
+
+* fix multiple configuration builds
+
 ### 0.7.2
 
 * usage bug fix

@@ -164,7 +164,6 @@ build_clean_main()
    local escaped
 
    BUILDORDER_BUILD_DIR="${OPTION_BUILDORDER_BUILD_DIR:-${BUILD_DIR}/.buildorder}"
-   donefile="${BUILDORDER_BUILD_DIR}/.mulle-craft-built"
 
    while :
    do
@@ -204,14 +203,18 @@ build_clean_main()
 
             if [ "${OPTION_TOUCH}" = "NO" ]
             then
-               remove_directory "${BUILDORDER_BUILD_DIR}/$1"
+               remove_directory "${BUILDORDER_BUILD_DIR}"/*/"$1"
             fi
 
             escaped="`escaped_sed_pattern "$1"`"
-            if [ -f "${donefile}" ]
-            then
-               inplace_sed -n -e "/${escaped};/q;p" "${donefile}"
-            fi
+
+            for donefile in "${BUILDORDER_BUILD_DIR}"/*/.mulle-craft-built
+            do
+               if [ -f "${donefile}" ]
+               then
+                  inplace_sed -n -e "/${escaped};/q;p" "${donefile}"
+               fi
+            done
          ;;
       esac
 
