@@ -170,7 +170,7 @@ build_project()
 
    [ -z "${cmd}" ]         && internal_fail "cmd is empty"
    [ -z "${destination}" ] && internal_fail "destination is empty"
-  
+
    [ -z "${project}" ]     && internal_fail "project is empty"
    [ -z "${name}" ]        && internal_fail "name is empty"
    [ -z "${builddir}" ]    && internal_fail "builddir is empty"
@@ -255,7 +255,11 @@ build_project()
 
    local buildinfodir
 
-   buildinfodir="`determine_buildinfo_dir "${name}" "${project}" "dependency"`"
+   buildinfodir="`determine_buildinfo_dir "${name}" \
+                                          "${project}" \
+                                          "dependency" \
+                                          "${OPTION_PLATFORM}" \
+                                          "${OPTION_LOCAL}" `"
    case $? in
       0|2)
       ;;
@@ -289,6 +293,8 @@ build_project()
    if [ ! -z "${buildinfodir}" ]
    then
       args="`concat "${args}" "--info-dir '${buildinfodir}'" `"
+   else
+      args="`concat "${args}" "--info-dir 'NONE'" `"
    fi
    if [ ! -z "${configuration}" ]
    then
@@ -361,7 +367,6 @@ build_dependency_directly()
 
    if [ $rval -ne 0 ]
    then
-      log_fluff "Build of project \"${project}\" failed with $rval"
       if [ "${OPTION_LENIENT}" = "NO" ]
       then
          return 1
@@ -396,28 +401,34 @@ build_dependency_with_dispense()
    build_project "install" "${DEPENDENCY_DIR}.tmp" "$@"
    rval=$?
 
-   if [ $rval -eq 0 ]
+   if [ $rval -ne 0 ]
    then
-      stylesubdir="`determine_dependencies_subdir "${configuration}" \
-                                                  "${sdk}" \
-                                                  "${MULLE_DISPENSE_STYLE}" `"
-
-      dependencies_begin_update &&
-      exekutor "${MULLE_DISPENSE}" ${MULLE_TECHNICAL_FLAGS} \
-                  ${MULLE_DISPENSE_FLAGS} dispense \
-                  "${DEPENDENCY_DIR}.tmp" \
-                  "${DEPENDENCY_DIR}${stylesubdir}" &&
-      dependencies_end_update
-   else
-      log_fluff "Build of project \"${project}\" failed with $rval"
-      if [ "${OPTION_LENIENT}" = "NO" ]
-      then
-         return 1
-      fi
-      rval=1
+      return $rval
    fi
 
-   return $rval
+   local stylesubdir
+   local options
+
+   # ugliness for zlib
+   case ",${marks}," in
+      *',no-rootheader,'*)
+         options="--header-dir include/${name}"
+      ;;
+   esac
+
+   stylesubdir="`determine_dependencies_subdir "${configuration}" \
+                                               "${sdk}" \
+                                               "${MULLE_DISPENSE_STYLE}" `"
+
+   dependencies_begin_update &&
+   exekutor "${MULLE_DISPENSE}" \
+               ${MULLE_TECHNICAL_FLAGS} \
+               ${MULLE_DISPENSE_FLAGS} \
+                  dispense \
+                     ${options} \
+                     "${DEPENDENCY_DIR}.tmp" \
+                     "${DEPENDENCY_DIR}${stylesubdir}" &&
+   dependencies_end_update
 }
 
 
@@ -553,7 +564,7 @@ _do_build_buildorder()
                             "${marks}" \
                             "${builddir}" \
                             "${configuration}" \
-                            "${sdk}" 
+                            "${sdk}"
       case $? in
          0)
             case ",${marks}," in
@@ -636,7 +647,7 @@ do_build_buildorder()
                                    "${sdk}"
          then
             return 1
-         fi 
+         fi
          set -f; IFS=","
       done
    done
@@ -660,11 +671,18 @@ do_build_mainproject()
 
    log_verbose "Build ${C_MAGENTA}${C_BOLD}${name}${C_VERBOSE} with ${MULLE_MAKE}"
 
-   buildinfodir="`determine_buildinfo_dir "${name}" "${PWD}" "mainproject"`"
+   buildinfodir="`determine_buildinfo_dir "${name}" \
+                                          "${PWD}" \
+                                          "mainproject" \
+                                          "${OPTION_PLATFORM}" \
+                                          "${OPTION_LOCAL}" `"
 
+   # always set --info-dir
    if [ ! -z "${buildinfodir}" ]
    then
       OPTIONS_MULLE_MAKE_PROJECT="`concat "${OPTIONS_MULLE_MAKE_PROJECT}" "--info-dir '${buildinfodir}'" `"
+   else
+      OPTIONS_MULLE_MAKE_PROJECT="`concat "${OPTIONS_MULLE_MAKE_PROJECT}" "--info-dir 'NONE'" `"
    fi
 
    local stylesubdir
@@ -732,6 +750,8 @@ build_common()
    local OPTION_BUILD_DEPENDENCY="DEFAULT"
    local OPTIONS_MULLE_MAKE_PROJECT=
    local OPTION_SUBDIR=".buildorder"
+   local OPTION_PLATFORM="YES"
+   local OPTION_LOCAL="YES"
 
    while [ $# -ne 0 ]
    do
@@ -781,6 +801,14 @@ build_common()
 
          --release)
             CONFIGURATIONS="Release"
+         ;;
+
+         --no-platform|--no-platform-buildinfo)
+            OPTION_PLATFORM="NO"
+         ;;
+
+         --no-local|--no-local-buildinfo)
+            OPTION_LOCAL="NO"
          ;;
 
          --sdk)

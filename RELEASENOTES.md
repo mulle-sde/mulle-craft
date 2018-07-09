@@ -1,3 +1,8 @@
+## 0.8.0
+
+* rename --global to --no-platform, add --no-local option
+
+
 ### 0.7.3
 
 * fix multiple configuration builds

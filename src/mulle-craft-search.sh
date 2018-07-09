@@ -44,7 +44,8 @@ Usage:
 
 Options:
    --project-dir <dir> : project directory
-   --global            : search for global buildinfo only
+   --no-platform       : ignore platform specific buildinfo
+   --no-local          : ignore local .mulle-make buildinfo
 
 Environment:
    DEPENDENCY_DIR    : place to put dependencies into (generally required)
@@ -64,7 +65,8 @@ determine_buildinfo_dir()
    local name="$1"
    local projectdir="$2"
    local projecttype="$3"
-   local globalonly="$4"
+   local allowplatform="$4"
+   local allowlocal="$5"
 
    [ -z "${name}" ] && internal_fail "name must not be null"
 
@@ -85,7 +87,7 @@ determine_buildinfo_dir()
          "dependency")
             if [ ! -z "${DEPENDENCY_DIR}" ]
             then
-               if [ "${globalonly}" != "YES" ]
+               if [ "${allowplatform}" = "YES" ]
                then
                   searchpath="`colon_concat "${searchpath}" "${DEPENDENCY_DIR}/share/mulle-craft/${name}.${MULLE_UNAME}" `"
                fi
@@ -104,11 +106,14 @@ determine_buildinfo_dir()
 
       if [ ! -z "${projectdir}" ]
       then
-         if [ "${globalonly}" != "YES" ]
+         if [ "${allowlocal}" = "YES" ]
          then
-            searchpath="`colon_concat "${searchpath}" "${projectdir}/.mulle-make.${MULLE_UNAME}" `"
+            if [ "${allowplatform}" = "YES" ]
+            then
+               searchpath="`colon_concat "${searchpath}" "${projectdir}/.mulle-make.${MULLE_UNAME}" `"
+            fi
+            searchpath="`colon_concat "${searchpath}" "${projectdir}/.mulle-make" `"
          fi
-         searchpath="`colon_concat "${searchpath}" "${projectdir}/.mulle-make" `"
       fi
    fi
 
@@ -138,7 +143,8 @@ build_search_main()
    log_entry "build_common" "$@"
 
    local OPTION_PROJECT_DIR
-   local OPTION_GLOBAL
+   local OPTION_PLATFORM="YES"
+   local OPTION_LOCAL="YES"
 
    while [ $# -ne 0 ]
    do
@@ -154,8 +160,12 @@ build_search_main()
             OPTION_PROJECT_DIR="$1"  # could be global env
          ;;
 
-         --global)
-            OPTION_GLOBAL="YES"
+         --no-platform|--no-platform-buildinfo)
+            OPTION_PLATFORM="NO"
+         ;;
+
+         --no-local|--no-local-buildinfo)
+            OPTION_LOCAL="NO"
          ;;
 
          -*)
@@ -188,6 +198,10 @@ build_search_main()
 			fail "Specify --project-dir <dir> for dependency \"$1\""
 		fi
 
-	   determine_buildinfo_dir "$1" "${OPTION_PROJECT_DIR}" "dependency" "${OPTION_GLOBAL}"
+	   determine_buildinfo_dir "$1" \
+                              "${OPTION_PROJECT_DIR}" \
+                              "dependency" \
+                              "${OPTION_PLATFORM}" \
+                              "${OPTION_LOCAL}"
 	fi
 }

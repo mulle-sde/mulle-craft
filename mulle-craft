@@ -29,10 +29,10 @@
 #   ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
 #   POSSIBILITY OF SUCH DAMAGE.
 #
-[ "${TRACE}" = "YES" ] && set -x && : "$0" "$@"
+[ "${TRACE}" = "YES" -o "${MULLE_CRAFT_TRACE}" = "YES" ] && set -x && : "$0" "$@"
 
 
-MULLE_EXECUTABLE_VERSION=0.7.3
+MULLE_EXECUTABLE_VERSION=0.8.0
 
 
 trap_fail()
@@ -86,7 +86,7 @@ EOF
 
 main()
 {
-   local MULLE_FLAG_MAGNUM_FORCE="NONE"
+   local MULLE_FLAG_MAGNUM_FORCE="NO"
    local MULLE_FLAG_IGNORE_GRAVEYARD="NO"
 
    # technical flags
@@ -127,7 +127,7 @@ main()
          ;;
 
          -f|--force)
-            MULLE_FLAG_MAGNUM_FORCE="BOTH"
+            MULLE_FLAG_MAGNUM_FORCE="YES"
          ;;
 
          --motd)
