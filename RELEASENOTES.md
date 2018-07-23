@@ -1,3 +1,7 @@
+### 0.8.2
+
+* pretty up code
+
 ### 0.8.1
 
 * add `MULLE_CRAFT_MAIN_PROJECT_MAKE_FLAGS` to figure out problems in travis os x

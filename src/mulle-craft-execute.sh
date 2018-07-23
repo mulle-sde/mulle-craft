@@ -424,7 +424,7 @@ build_dependency_with_dispense()
    exekutor "${MULLE_DISPENSE}" \
                ${MULLE_TECHNICAL_FLAGS} \
                ${MULLE_DISPENSE_FLAGS} \
-                  dispense \
+                 'dispense' \
                      ${options} \
                      "${DEPENDENCY_DIR}.tmp" \
                      "${DEPENDENCY_DIR}${stylesubdir}" &&
@@ -446,7 +446,7 @@ build_dependency()
 #   local sdk="$6"
 
    case ",${marks}," in
-      *,no-dispense,*)
+      *',no-dispense,'*)
          build_dependency_directly "$@"
       ;;
 
@@ -473,7 +473,7 @@ build_buildorder_node()
 #   local sdk="$6"
 
    case ",${marks}," in
-      *,no-dependency,*)
+      *',no-dependency,'*)
          # subproject or something else
       ;;
 
@@ -492,7 +492,7 @@ build_buildorder_node()
          # nice
       ;;
 
-      *",only-os-"*","*|*",no-os-${MULLE_UNAME},"*)
+      *',only-os-'*','*|*",no-os-${MULLE_UNAME},"*)
          fail "The buildorder ${C_RESET_BOLD}${BUILDORDER_FILE#${MULLE_USER_PWD}/}${C_ERROR} was made for a different platform. Time to clean. "
       ;;
    esac
@@ -716,11 +716,8 @@ do_build_mainproject()
    fi
 
    # never install the project, use mulle-make for that
-   if ! eval_exekutor "'${MULLE_MAKE}'" \
-                        "${MULLE_MAKE_FLAGS}" \
-                        "${MULLE_CRAFT_MAIN_PROJECT_MAKE_FLAGS}" \
-                           "build" \
-                           "${OPTIONS_MULLE_MAKE_PROJECT}" "$@"
+   if ! eval_exekutor "'${MULLE_MAKE}'" "${MULLE_MAKE_FLAGS}" \
+                        "build" "${OPTIONS_MULLE_MAKE_PROJECT}" "$@"
    then
       log_fluff "Project build failed"
       return 1
