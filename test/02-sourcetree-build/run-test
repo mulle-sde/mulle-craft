@@ -44,9 +44,18 @@ expect_content()
 
    local diffs
 
-   diffs="`diff "${output}" "${expect}"`"
+   diffs="`diff -b "${output}" "${expect}"`"
    if [ $? -ne 0 ]
    then
+      # fix for mingw
+      if [ `wc -l <<< "${diffs}"` -eq 2 ] 
+      then
+         if egrep -q 'CMAKE_LINKER:PATH=' <<< "${diffs}"
+         then 
+            return 0
+         fi
+      fi
+
       log_error "Unexpected output generated"
       cat <<EOF >&2
 ----------------
@@ -111,10 +120,10 @@ main()
    #
    # Check that some simple pass through stuff works
    #
-   run_test "${directory}" "cmake.txt" "make.txt" all --debug
+   run_test "${directory}" "cmake.txt" "make.txt" project --debug
    log_verbose "----- #1 PASSED -----"
 
-   run_test "${directory}" "cmake2.txt" "make.txt" sourcetree --debug
+   run_test "${directory}" "cmake2.txt" "make.txt" buildorder --debug --buildorder-file "${PWD}/buildorder"
    log_verbose "----- #2 PASSED -----"
 
    log_info "----- ALL PASSED -----"

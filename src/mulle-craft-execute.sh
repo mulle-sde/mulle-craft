@@ -339,9 +339,15 @@ build_project()
       fi
    done
 
+   log_debug "args=${args}"
+   log_debug "auxargs=${auxargs}"
+
    eval_exekutor "'${MULLE_MAKE}'" "${MULLE_MAKE_FLAGS}" \
-                          "${cmd}" "${args}" "${auxargs}" \
-                          "${project}" "${destination}"
+                    "${cmd}" \
+                       "${args}" \
+                       "${auxargs}" \
+                       "${project}" \
+                       "${destination}"
 }
 
 
@@ -715,9 +721,23 @@ do_build_mainproject()
       OPTIONS_MULLE_MAKE_PROJECT="`concat "${OPTIONS_MULLE_MAKE_PROJECT}" "--sdk '${SDKS%%,*}'" `"
    fi
 
+
+   local auxargs
+   local i
+
+   for i in "$@"
+   do
+      if [ -z "${auxargs}" ]
+      then
+         auxargs="'${i}'"
+      else
+         auxargs="${auxargs} '${i}'"
+      fi
+   done
+
    # never install the project, use mulle-make for that
    if ! eval_exekutor "'${MULLE_MAKE}'" "${MULLE_MAKE_FLAGS}" \
-                        "build" "${OPTIONS_MULLE_MAKE_PROJECT}" "$@"
+                        "build" "${OPTIONS_MULLE_MAKE_PROJECT}" "${auxargs}"
    then
       log_fluff "Project build failed"
       return 1

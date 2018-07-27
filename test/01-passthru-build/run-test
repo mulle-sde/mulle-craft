@@ -24,7 +24,7 @@ expect_content()
       then
          return
       fi
-      fail "Did not produce \"${output}\" as expected"
+      fail "Did not produce file \"${output}\" as expected"
    else
       if [ -z "${expect}" ]
       then
@@ -44,9 +44,18 @@ expect_content()
 
    local diffs
 
-   diffs="`diff "${output}" "${expect}"`"
+   diffs="`diff -b "${output}" "${expect}"`"
    if [ $? -ne 0 ]
    then
+      # fix for mingw
+      if [ `wc -l <<< "${diffs}"` -eq 2 ] 
+      then
+         if egrep -q 'CMAKE_LINKER:PATH=' <<< "${diffs}"
+         then 
+            return 0
+         fi
+      fi
+
       log_error "Unexpected output generated"
       cat <<EOF >&2
 ----------------
@@ -78,7 +87,7 @@ run_test()
    CMAKE="${PWD}/../mock-cmake" \
    MAKE="${PWD}/../mock-make" \
    BUILD_DIR="${directory}/build" \
-      run_mulle_craft all "$@"
+      run_mulle_craft project -- "$@"
 
    if [ "$?" -ne 0 ]
    then
@@ -108,7 +117,7 @@ main()
    #
    # Check that some simple pass through stuff works
    #
-   run_test "cmake.txt" "make.txt" --debug --info-dir "${PWD}/infodir.mulle-make"
+   run_test "cmake.txt" "make.txt" --debug --info-dir "${PWD}/infodir.mulle-make" -DUSER_VARIABLE="VfL Bochum 1848"
    log_verbose "----- #1 PASSED -----"
 
    log_info "----- ALL PASSED -----"

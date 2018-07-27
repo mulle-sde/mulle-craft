@@ -14,11 +14,11 @@ main()
 {
    _options_mini_main "$@"
 
-   MULLE_MAKE="`which mulle-craft`" || exit 1
+   MULLE_CRAFT="`which mulle-craft`" || exit 1
 
    local i
 
-   log_verbose "mulle-craft: `mulle-craft version` (`mulle-craft library-path`)"
+   log_verbose "mulle-craft: `mulle-craft version` (`mulle-craft libexec-dir`)"
 
    for i in "${TEST_DIR}"/*
    do
