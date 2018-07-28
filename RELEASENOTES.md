@@ -1,3 +1,8 @@
+## 0.9.0
+
+* fixes for mingw
+
+
 ### 0.8.2
 
 * pretty up code
