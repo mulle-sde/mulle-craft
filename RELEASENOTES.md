@@ -1,3 +1,7 @@
+### 0.9.1
+
+* buildorder no-require flag is recognized
+
 ## 0.9.0
 
 * fixes for mingw

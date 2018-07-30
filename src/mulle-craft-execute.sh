@@ -479,6 +479,16 @@ build_buildorder_node()
 #   local sdk="$6"
 
    case ",${marks}," in
+      *',no-require,'*) # |*",no-require-${MULLE_UNAME},"*)
+         if [ ! -d "${project}" ]
+         then
+            log_verbose "\"${project}\" does not exist, but it's not required"
+            return 2
+         fi
+      ;;
+   esac
+
+   case ",${marks}," in
       *',no-dependency,'*)
          # subproject or something else
       ;;
