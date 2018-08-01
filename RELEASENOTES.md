@@ -1,3 +1,7 @@
+### 0.9.2
+
+* fix debug build with buildinfo
+
 ### 0.9.1
 
 * buildorder no-require flag is recognized

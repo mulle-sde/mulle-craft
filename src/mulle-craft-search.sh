@@ -67,6 +67,7 @@ determine_buildinfo_dir()
    local projecttype="$3"
    local allowplatform="$4"
    local allowlocal="$5"
+   local configuration="$6"
 
    [ -z "${name}" ] && internal_fail "name must not be null"
 
@@ -87,6 +88,15 @@ determine_buildinfo_dir()
          "dependency")
             if [ ! -z "${DEPENDENCY_DIR}" ]
             then
+               if [ ! -z "${configuration}" ]
+               then
+                  if [ "${allowplatform}" = "YES" ]
+                  then
+                     searchpath="`colon_concat "${searchpath}" "${DEPENDENCY_DIR}/${configuration}/share/mulle-craft/${name}.${MULLE_UNAME}" `"
+                  fi
+                  searchpath="`colon_concat "${searchpath}" "${DEPENDENCY_DIR}/${configuration}/share/mulle-craft/${name}" `"
+               fi
+
                if [ "${allowplatform}" = "YES" ]
                then
                   searchpath="`colon_concat "${searchpath}" "${DEPENDENCY_DIR}/share/mulle-craft/${name}.${MULLE_UNAME}" `"

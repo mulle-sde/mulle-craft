@@ -259,7 +259,8 @@ build_project()
                                           "${project}" \
                                           "dependency" \
                                           "${OPTION_PLATFORM}" \
-                                          "${OPTION_LOCAL}" `"
+                                          "${OPTION_LOCAL}" \
+                                          "${configuration}" `"
    case $? in
       0|2)
       ;;
@@ -691,7 +692,8 @@ do_build_mainproject()
                                           "${PWD}" \
                                           "mainproject" \
                                           "${OPTION_PLATFORM}" \
-                                          "${OPTION_LOCAL}" `"
+                                          "${OPTION_LOCAL}" \
+                                          "${CONFIGURATIONS%%,*}" `"
 
    # always set --info-dir
    if [ ! -z "${buildinfodir}" ]
