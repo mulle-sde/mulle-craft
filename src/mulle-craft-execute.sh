@@ -48,7 +48,6 @@ Options:
    --release         : compile for release only
    --sdk <sdk>       : specify sdk to build against
    --                : pass remaining options to mulle-make
-   -V                : more verbose output from make tools
 
 Environment:
    ADDICTION_DIR     : place to get addictions from (optional)
@@ -848,10 +847,6 @@ build_common()
             shift
 
             SDKS="$1"
-         ;;
-
-         -V|--verbose-make)
-            OPTIONS_MULLE_MAKE_PROJECT="`concat "${OPTIONS_MULLE_MAKE_PROJECT}" "'$1'"`"
          ;;
 
          --)

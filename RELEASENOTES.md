@@ -1,3 +1,8 @@
+## 0.10.0
+
+* remove -V option that was passed to mulle-make
+
+
 ### 0.9.2
 
 * fix debug build with buildinfo
