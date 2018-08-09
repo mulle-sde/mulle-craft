@@ -135,7 +135,7 @@ determine_buildinfo_dir()
       set +f ; IFS="${DEFAULT_IFS}"
       if [ ! -z "${buildinfodir}" ] && [ -d "${buildinfodir}" ]
       then
-         log_verbose "Info directory \"${buildinfodir}\" found"
+         log_fluff "Info directory \"${buildinfodir}\" found"
          echo "${buildinfodir}"
          return 0
       fi

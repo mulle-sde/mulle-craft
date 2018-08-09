@@ -151,17 +151,15 @@ build_clean_main()
       return $?
    fi
 
-#  # shellcheck source=src/mulle-craft-execute.sh
-#  if [ -z "${MULLE_CRAFT_EXECUTE_SH}" ]
-#  then
-#     . "${MULLE_CRAFT_LIBEXEC_DIR}/mulle-craft-execute.sh"
-#  fi
+  # shellcheck source=src/mulle-craft-execute.sh
+  if [ -z "${MULLE_CRAFT_EXECUTE_SH}" ]
+  then
+     . "${MULLE_CRAFT_LIBEXEC_DIR}/mulle-craft-execute.sh"
+  fi
 
    # centralize this into mulle-craft-environment.sh
 
    local BUILDORDER_BUILD_DIR
-   local donefile
-   local escaped
 
    BUILDORDER_BUILD_DIR="${OPTION_BUILDORDER_BUILD_DIR:-${BUILD_DIR}/.buildorder}"
 
@@ -199,12 +197,19 @@ build_clean_main()
          ;;
 
          *)
-            log_verbose "Cleaning \"${1}\" dependency"
+            log_verbose "Cleaning dependency \"${1}\""
+
+            local directory
+
+            directory="`build_directory_name "$1"`"
 
             if [ "${OPTION_TOUCH}" = "NO" ]
             then
-               remove_directory "${BUILDORDER_BUILD_DIR}"/*/"$1"
+               remove_directories "${BUILDORDER_BUILD_DIR}"/*/"${directory}"
             fi
+
+            local donefile
+            local escaped
 
             escaped="`escaped_sed_pattern "$1"`"
 

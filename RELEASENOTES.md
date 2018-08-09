@@ -1,3 +1,8 @@
+## 0.11.0
+
+* support of mixed Release/Debug builds with ``<name>`_MAP_CONFIGURATIONS`
+
+
 ## 0.10.0
 
 * remove -V option that was passed to mulle-make

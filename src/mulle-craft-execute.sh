@@ -151,14 +151,29 @@ determine_dependencies_subdir()
 }
 
 
+#
+# remove any non-identifiers and file extension from name
+#
+build_directory_name()
+{
+   log_entry "build_directory_name" "$@"
+
+   local name="$1"
+
+   tr -c 'a-zA-Z0-9-' '_' <<< "${name%.*}" | sed -e 's/_$//g'
+}
+
+
 build_project()
 {
    log_entry "build_project" "$@"
 
-   local cmd="$1"; shift
-   local destination="$1"; shift
+   local cmd="$1"
+   local destination="$2"
 
-   local project="$1"
+   shift 2
+
+   local project="$1";
    local name="$2"
    local marks="$3"
    local builddir="$4"
@@ -209,12 +224,9 @@ build_project()
    # dependencies/share/mulle-craftinfo/<name>.txt
    # <project>/.mulle-craftinfo
    #
-   local dirname
+   local directory
 
-   #
-   # remove any non-identifiers and file extension from name
-   #
-   dirname="`tr -c 'a-zA-Z0-9-' '_' <<< "${name%.*}" | sed -e 's/_$//g'`"
+   directory="`build_directory_name "${name}" `"
 
    #
    # find proper build directory
@@ -223,10 +235,7 @@ build_project()
    local buildparentdir
 
    buildparentdir="${builddir}"
-
-   local logdir
-
-   builddir="`filepath_concat "${buildparentdir}" "${dirname}" `"
+   builddir="`filepath_concat "${buildparentdir}" "${directory}" `"
 
    #
    # if projects exist with duplicate names, add a random number at end
@@ -243,12 +252,14 @@ build_project()
          while [ -d "${builddir}" ]
          do
             randomstring="`uuidgen | cut -c'1-6'`"
-            builddir="`filepath_concat "${buildparentdir}" "${dirname}-${randomstring}" `"
+            builddir="`filepath_concat "${buildparentdir}" "${directory}-${randomstring}" `"
          done
       ;;
    esac
 
    mkdir_if_missing "${builddir}" || fail "Could not create build directory"
+
+   local logdir
 
    logdir="`filepath_concat "${builddir}" ".log" `"
 
@@ -521,20 +532,16 @@ build_buildorder_node()
 
 _do_build_buildorder()
 {
-   local buildorder="$1"
-   local builddir="$2"
-   local configuration="$3"
-   local sdk="$4"
+   local buildorder="$1"; shift
+   local builddir="$1"; shift
+   local configuration="$1"; shift
+   local sdk="$1"; shift
 
    local donefile
-   local subdir
-
-   subdir="`determine_build_subdir "${configuration}" "${sdk}" `"
-   builddir="`filepath_concat "${builddir}" "${subdir}" `"
 
    mkdir_if_missing "${builddir}"
 
-   donefile="${builddir}/.mulle-craft-built"
+   donefile="${builddir}/${configuration}/.mulle-craft-built"
 
    local remaining
 
@@ -575,12 +582,64 @@ _do_build_buildorder()
       evaledproject="`eval echo "${project}"`"
       name="${project#'${MULLE_SOURCETREE_SHARE_DIR}/'}"
 
+      if [ -z "${MULLE_CASE_SH}" ]
+      then
+         . "${MULLE_BASHFUNCTIONS_LIBEXEC_DIR}/mulle-case.sh" || exit 1
+      fi
+
+      local base_identifier
+
+      base_identifier="`tweaked_de_camel_case "${name}"`"
+      base_identifier="`tr 'a-z-' 'A-Z_' <<< "${base_identifier}" | tr -d -c 'A-Z_' `"
+
+      #
+      # Map some configurations (e.g. Debug -> Release for mulle-objc-runtime)
+      # You can also map to empty, to skip a configuration
+      #
+      local identifier
+      local value
+      local mapped
+      local escaped
+      local mapped_configuration
+
+      identifier="${base_identifier}_MAP_CONFIGURATIONS"
+      value="`eval echo \\\$${identifier}`"
+
+      log_debug "${identifier}=\"${value}\" ($configuration)"
+
+      mapped_configuration="${configuration}"
+
+      if [ ! -z "${value}" ]
+      then
+         case ",${value}," in
+            *",${configuration}->"*","*)
+               escaped="`escaped_sed_pattern "${configuration}" `"
+               mapped="`LC_ALL=C sed -n -e "s/.*,${escaped}->\([^,]*\),.*/\\1/p" <<< ",${value},"`"
+               if [ -z "${mapped}" ]
+               then
+                  log_verbose "Configuration \"${configuration}\" skipped due to \"${identifier}\""
+                  continue
+               fi
+
+               log_verbose "Configuration \"${configuration}\" mapped to \"${mapped}\" due to environment variable \"${identifier}\""
+               mapped_configuration="${mapped}"
+            ;;
+         esac
+      fi
+
+      local subdir
+      local mapped_builddir
+
+      subdir="`determine_build_subdir "${mapped_configuration}" "${sdk}" `"
+      mapped_builddir="`filepath_concat "${builddir}" "${subdir}" `"
+
       build_buildorder_node "${evaledproject}" \
                             "${name}" \
                             "${marks}" \
-                            "${builddir}" \
-                            "${configuration}" \
-                            "${sdk}"
+                            "${mapped_builddir}" \
+                            "${mapped_configuration}" \
+                            "${sdk}" \
+                            "$@"
       case $? in
          0)
             case ",${marks}," in
@@ -618,8 +677,8 @@ do_build_buildorder()
 {
    log_entry "do_build_buildorder" "$@"
 
-   local buildorderfile="$1"
-   local builddir="$2"
+   local buildorderfile="$1"; shift
+   local builddir="$1"; shift
 
    # shellcheck source=mulle-env-dependencies.sh
    [ -z "${MULLE_CRAFT_DEPENDENCY_SH}" ] && . "${MULLE_CRAFT_LIBEXEC_DIR}/mulle-craft-dependencies.sh"
@@ -647,20 +706,29 @@ do_build_buildorder()
    [ -z "${CONFIGURATIONS}" ] && internal_fail "CONFIGURATIONS is empty"
    [ -z "${SDKS}" ]           && internal_fail "SDKS is empty"
 
+   local configurations
+   local sdks
+
+   configurations="${CONFIGURATIONS}"
+   sdks="${SDKS}"
+
+   # patch this with environment variables ?
+
    local configuration
    local sdk
 
    set -f; IFS=","
-   for configuration in ${CONFIGURATIONS}
+   for configuration in ${configurations}
    do
-      for sdk in ${SDKS}
+      for sdk in ${sdks}
       do
          set +f; IFS="${DEFAULT_IFS}"
 
          if ! _do_build_buildorder "${buildorder}" \
                                    "${builddir}"\
                                    "${configuration}" \
-                                   "${sdk}"
+                                   "${sdk}" \
+                                   "$@"
          then
             return 1
          fi
@@ -922,7 +990,7 @@ ${currentenv}"
       builddir="${OPTION_BUILDORDER_BUILD_DIR:-${BUILD_DIR}}"
       builddir="`filepath_concat "${builddir}" "${OPTION_SUBDIR}"`"
 
-      do_build_buildorder "${BUILDORDER_FILE}" "${builddir}"
+      do_build_buildorder "${BUILDORDER_FILE}" "${builddir}" "$@"
       return $?
    fi
 
