@@ -40,12 +40,12 @@ build_search_usage()
 Usage:
    ${MULLE_USAGE_NAME} search [options] [dependency]
 
-   Search for a buildinfo for the project or the given dependency.
+   Search for a craftinfo for the project or the given dependency.
 
 Options:
    --project-dir <dir> : project directory
-   --no-platform       : ignore platform specific buildinfo
-   --no-local          : ignore local .mulle-make buildinfo
+   --no-platform       : ignore platform specific craftinfo
+   --no-local          : ignore local .mulle-make craftinfo
 
 Environment:
    DEPENDENCY_DIR    : place to put dependencies into (generally required)
@@ -54,12 +54,12 @@ EOF
 }
 
 
-determine_buildinfo_dir()
+determine_craftinfo_dir()
 {
-   log_entry "determine_buildinfo_dir" "$@"
+   log_entry "determine_craftinfo_dir" "$@"
 
    #
-   # upper case for the sake of sameness for ppl setting BUILDINFO_PATH
+   # upper case for the sake of sameness for ppl setting CRAFTINFO_PATH
    # in the environment ?=??
    #
    local name="$1"
@@ -71,7 +71,7 @@ determine_buildinfo_dir()
 
    [ -z "${name}" ] && internal_fail "name must not be null"
 
-   local buildinfodir
+   local craftinfodir
    local searchpath
 
    if [ ! -z "${INFO_DIR}" ]
@@ -80,9 +80,9 @@ determine_buildinfo_dir()
       return
    fi
 
-   if [ ! -z "${BUILDINFO_PATH}" ]
+   if [ ! -z "${CRAFTINFO_PATH}" ]
    then
-      searchpath="`eval echo "${BUILDINFO_PATH}"`"
+      searchpath="`eval echo "${CRAFTINFO_PATH}"`"
    else
       case "${projecttype}" in
          "dependency")
@@ -127,22 +127,22 @@ determine_buildinfo_dir()
       fi
    fi
 
-   log_fluff "Buildinfo search order: ${searchpath}"
+   log_fluff "Craftinfo search order: ${searchpath}"
 
    set -f ; IFS=":"
-   for buildinfodir in ${searchpath}
+   for craftinfodir in ${searchpath}
    do
       set +f ; IFS="${DEFAULT_IFS}"
-      if [ ! -z "${buildinfodir}" ] && [ -d "${buildinfodir}" ]
+      if [ ! -z "${craftinfodir}" ] && [ -d "${craftinfodir}" ]
       then
-         log_fluff "Info directory \"${buildinfodir}\" found"
-         echo "${buildinfodir}"
+         log_fluff "Craftinfo directory \"${craftinfodir}\" found"
+         echo "${craftinfodir}"
          return 0
       fi
    done
    set +f ; IFS="${DEFAULT_IFS}"
 
-   log_fluff "No buildinfo found"
+   log_fluff "No craftinfo found"
 
    return 2
 }
@@ -170,11 +170,11 @@ build_search_main()
             OPTION_PROJECT_DIR="$1"  # could be global env
          ;;
 
-         --no-platform|--no-platform-buildinfo)
+         --no-platform|--no-platform-craftinfo)
             OPTION_PLATFORM="NO"
          ;;
 
-         --no-local|--no-local-buildinfo)
+         --no-local|--no-local-craftinfo)
             OPTION_LOCAL="NO"
          ;;
 
@@ -201,14 +201,14 @@ build_search_main()
          name="`fast_basename "${PWD}"`"
       fi
 
-	   determine_buildinfo_dir "${name}" "${OPTION_PROJECT_DIR:-${PWD}}" "mainproject" "${OPTION_GLOBAL}"
+	   determine_craftinfo_dir "${name}" "${OPTION_PROJECT_DIR:-${PWD}}" "mainproject" "${OPTION_GLOBAL}"
 	else
 		if [ -z "${OPTION_PROJECT_DIR}" ]
 		then
 			fail "Specify --project-dir <dir> for dependency \"$1\""
 		fi
 
-	   determine_buildinfo_dir "$1" \
+	   determine_craftinfo_dir "$1" \
                               "${OPTION_PROJECT_DIR}" \
                               "dependency" \
                               "${OPTION_PLATFORM}" \

@@ -1,3 +1,8 @@
+## 0.12.0
+
+* rename buildinfo to craftinfo/makeinfo to have two different terms
+
+
 ## 0.11.0
 
 * support of mixed Release/Debug builds with ``<name>`_MAP_CONFIGURATIONS`

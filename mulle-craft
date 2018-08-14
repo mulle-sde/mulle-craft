@@ -32,7 +32,7 @@
 [ "${TRACE}" = "YES" -o "${MULLE_CRAFT_TRACE}" = "YES" ] && set -x && : "$0" "$@"
 
 
-MULLE_EXECUTABLE_VERSION=0.11.0
+MULLE_EXECUTABLE_VERSION=0.12.0
 
 
 trap_fail()
@@ -69,7 +69,7 @@ Commands:
    clean              : clean output
    log                : inspect build logs
    project            : build main project without a buildorder file (default)
-   search             : search for a buildinfo
+   search             : search for craftinfos (dependeny) or makeinfo (project)
 EOF
 
    if [ "${MULLE_FLAG_LOG_VERBOSE}" = "NO" ]

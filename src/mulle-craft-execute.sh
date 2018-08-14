@@ -52,7 +52,7 @@ Options:
 Environment:
    ADDICTION_DIR     : place to get addictions from (optional)
    BUILD_DIR         : place for build products and by-products
-   BUILDINFO_PATH    : places to find mulle-craftinfos
+   CRAFTINFO_PATH    : places to find craftinfos
    DEPENDENCY_DIR    : place to put dependencies into (generally required)
 EOF
   exit 1
@@ -218,7 +218,7 @@ build_project()
    fi
 
    #
-   # locate proper buildinfo path
+   # locate proper craftinfo path
    # searchpath:
    #
    # dependencies/share/mulle-craftinfo/<name>.txt
@@ -263,9 +263,9 @@ build_project()
 
    logdir="`filepath_concat "${builddir}" ".log" `"
 
-   local buildinfodir
+   local craftinfodir
 
-   buildinfodir="`determine_buildinfo_dir "${name}" \
+   craftinfodir="`determine_craftinfo_dir "${name}" \
                                           "${project}" \
                                           "dependency" \
                                           "${OPTION_PLATFORM}" \
@@ -301,9 +301,9 @@ build_project()
    then
       args="`concat "${args}" "--build-dir '${builddir}'" `"
    fi
-   if [ ! -z "${buildinfodir}" ]
+   if [ ! -z "${craftinfodir}" ]
    then
-      args="`concat "${args}" "--info-dir '${buildinfodir}'" `"
+      args="`concat "${args}" "--info-dir '${craftinfodir}'" `"
    else
       args="`concat "${args}" "--info-dir 'NONE'" `"
    fi
@@ -744,7 +744,7 @@ do_build_mainproject()
 {
    log_entry "do_build_mainproject" "$@"
 
-   local buildinfodir
+   local craftinfodir
    local name
 
    name="${PROJECT_NAME}"
@@ -755,7 +755,7 @@ do_build_mainproject()
 
    log_verbose "Build ${C_MAGENTA}${C_BOLD}${name}${C_VERBOSE} with ${MULLE_MAKE}"
 
-   buildinfodir="`determine_buildinfo_dir "${name}" \
+   craftinfodir="`determine_craftinfo_dir "${name}" \
                                           "${PWD}" \
                                           "mainproject" \
                                           "${OPTION_PLATFORM}" \
@@ -763,9 +763,9 @@ do_build_mainproject()
                                           "${CONFIGURATIONS%%,*}" `"
 
    # always set --info-dir
-   if [ ! -z "${buildinfodir}" ]
+   if [ ! -z "${craftinfodir}" ]
    then
-      OPTIONS_MULLE_MAKE_PROJECT="`concat "${OPTIONS_MULLE_MAKE_PROJECT}" "--info-dir '${buildinfodir}'" `"
+      OPTIONS_MULLE_MAKE_PROJECT="`concat "${OPTIONS_MULLE_MAKE_PROJECT}" "--info-dir '${craftinfodir}'" `"
    else
       OPTIONS_MULLE_MAKE_PROJECT="`concat "${OPTIONS_MULLE_MAKE_PROJECT}" "--info-dir 'NONE'" `"
    fi
@@ -902,11 +902,11 @@ build_common()
             CONFIGURATIONS="Release"
          ;;
 
-         --no-platform|--no-platform-buildinfo)
+         --no-platform|--no-platform-craftinfo)
             OPTION_PLATFORM="NO"
          ;;
 
-         --no-local|--no-local-buildinfo)
+         --no-local|--no-local-craftinfo)
             OPTION_LOCAL="NO"
          ;;
 
