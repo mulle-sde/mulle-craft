@@ -54,9 +54,9 @@ EOF
 }
 
 
-determine_craftinfo_dir()
+r_determine_craftinfo_dir()
 {
-   log_entry "determine_craftinfo_dir" "$@"
+   log_entry "r_determine_craftinfo_dir" "$@"
 
    #
    # upper case for the sake of sameness for ppl setting CRAFTINFO_PATH
@@ -76,7 +76,7 @@ determine_craftinfo_dir()
 
    if [ ! -z "${INFO_DIR}" ]
    then
-      echo "${INFO_DIR}"
+      RVAL="${INFO_DIR}"
       return
    fi
 
@@ -92,16 +92,20 @@ determine_craftinfo_dir()
                then
                   if [ "${allowplatform}" = "YES" ]
                   then
-                     searchpath="`colon_concat "${searchpath}" "${DEPENDENCY_DIR}/${configuration}/share/mulle-craft/${name}.${MULLE_UNAME}" `"
+                     r_colon_concat "${searchpath}" "${DEPENDENCY_DIR}/${configuration}/share/mulle-craft/${name}.${MULLE_UNAME}"
+                     searchpath="${RVAL}"
                   fi
-                  searchpath="`colon_concat "${searchpath}" "${DEPENDENCY_DIR}/${configuration}/share/mulle-craft/${name}" `"
+                  r_colon_concat "${searchpath}" "${DEPENDENCY_DIR}/${configuration}/share/mulle-craft/${name}"
+                  searchpath="${RVAL}"
                fi
 
                if [ "${allowplatform}" = "YES" ]
                then
-                  searchpath="`colon_concat "${searchpath}" "${DEPENDENCY_DIR}/share/mulle-craft/${name}.${MULLE_UNAME}" `"
+                  r_colon_concat "${searchpath}" "${DEPENDENCY_DIR}/share/mulle-craft/${name}.${MULLE_UNAME}"
+                  searchpath="${RVAL}"
                fi
-               searchpath="`colon_concat "${searchpath}" "${DEPENDENCY_DIR}/share/mulle-craft/${name}" `"
+               r_colon_concat "${searchpath}" "${DEPENDENCY_DIR}/share/mulle-craft/${name}"
+               searchpath="${RVAL}"
             fi
          ;;
 
@@ -120,9 +124,11 @@ determine_craftinfo_dir()
          then
             if [ "${allowplatform}" = "YES" ]
             then
-               searchpath="`colon_concat "${searchpath}" "${projectdir}/.mulle-make.${MULLE_UNAME}" `"
+               r_colon_concat "${searchpath}" "${projectdir}/.mulle-make.${MULLE_UNAME}"
+               searchpath="${RVAL}"
             fi
-            searchpath="`colon_concat "${searchpath}" "${projectdir}/.mulle-make" `"
+            r_colon_concat "${searchpath}" "${projectdir}/.mulle-make"
+            searchpath="${RVAL}"
          fi
       fi
    fi
@@ -136,7 +142,7 @@ determine_craftinfo_dir()
       if [ ! -z "${craftinfodir}" ] && [ -d "${craftinfodir}" ]
       then
          log_fluff "Craftinfo directory \"${craftinfodir}\" found"
-         echo "${craftinfodir}"
+         RVAL="${craftinfodir}"
          return 0
       fi
    done
@@ -144,6 +150,7 @@ determine_craftinfo_dir()
 
    log_fluff "No craftinfo found"
 
+   RVAL=""
    return 2
 }
 
@@ -190,6 +197,7 @@ build_search_main()
       shift
    done
 
+   local RVAL
 
    if [ $# -eq 0 ]
    then
@@ -198,20 +206,23 @@ build_search_main()
       name="${PROJECT_NAME}"
       if [ -z "${PROJECT_NAME}" ]
       then
-         name="`fast_basename "${PWD}"`"
+         r_fast_basename "${PWD}"
+         name="${RVAL}"
       fi
 
-	   determine_craftinfo_dir "${name}" "${OPTION_PROJECT_DIR:-${PWD}}" "mainproject" "${OPTION_GLOBAL}"
+	   r_determine_craftinfo_dir "${name}" "${OPTION_PROJECT_DIR:-${PWD}}" "mainproject" "${OPTION_GLOBAL}"
 	else
 		if [ -z "${OPTION_PROJECT_DIR}" ]
 		then
 			fail "Specify --project-dir <dir> for dependency \"$1\""
 		fi
 
-	   determine_craftinfo_dir "$1" \
+	   r_determine_craftinfo_dir "$1" \
                               "${OPTION_PROJECT_DIR}" \
                               "dependency" \
                               "${OPTION_PLATFORM}" \
                               "${OPTION_LOCAL}"
 	fi
+
+   [ ! -z "${RVAL}" ] && echo "${RVAL}"
 }

@@ -96,8 +96,10 @@ project_log_dirs()
    if [ ! -z "${BUILDORDER_BUILD_DIR}" ]
    then
       local sed_escaped_value
+      local RVAL
 
-      sed_escaped_value="`escaped_sed_pattern "${BUILDORDER_BUILD_DIR}"`"
+      r_escaped_sed_pattern "${BUILDORDER_BUILD_DIR}"
+      sed_escaped_value="${RVAL}"
       rexekutor find "${BUILD_DIR}" -type d -name .log | rexekutor egrep -v "^${sed_escaped_value}"
    else
       rexekutor find "${BUILD_DIR}" -type d -name .log
@@ -130,6 +132,7 @@ list_tool_logs()
    local i
    local s
    local cmdline
+   local RVAL
 
    cmdline="${MULLE_USAGE_NAME} log cat"
 
@@ -147,8 +150,10 @@ list_tool_logs()
    do
       if [ "${mode}" = "CMD" ]
       then
-         i="`fast_basename "${i}"`"
-         s="`concat "${s}" "\"${i%%.log}\"" " "`"
+         r_fast_basename "${i}"
+         i="${RVAL}"
+         r_concat "${s}" "\"${i%%.log}\"" " "
+         s="${RVAL}"
       else
          echo "${i#${MULLE_USER_PWD}/}"
       fi

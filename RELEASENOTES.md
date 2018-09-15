@@ -1,3 +1,8 @@
+## 0.13.0
+
+* use `r_` functions of mulle-bashfunctions 1.8.0
+
+
 ## 0.12.0
 
 * rename buildinfo to craftinfo/makeinfo to have two different terms

@@ -43,17 +43,20 @@ Usage:
    ${USAGE_INFO}
 
 Options:
+   --f <buildorder>  : specify buildorder file
    --debug           : compile for debug only
    --lenient         : do not stop on errors
+   --no-protect      : do not make dependency read-only
+   --rebuild         : rebuild every dependency buildorder
    --release         : compile for release only
    --sdk <sdk>       : specify sdk to build against
    --                : pass remaining options to mulle-make
 
 Environment:
    ADDICTION_DIR     : place to get addictions from (optional)
-   BUILD_DIR         : place for build products and by-products
+   BUILD_DIR         : place for build products and by-products (required)
    CRAFTINFO_PATH    : places to find craftinfos
-   DEPENDENCY_DIR    : place to put dependencies into (generally required)
+   DEPENDENCY_DIR    : place to put dependencies into
 EOF
   exit 1
 }
@@ -63,9 +66,9 @@ EOF
 # if there are multiple configurations, make Release the default
 # if Release is not in multiple configurations, then there is no default
 #
-determine_build_subdir()
+r_determine_build_subdir()
 {
-   log_entry "determine_build_subdir" "$@"
+   log_entry "r_determine_build_subdir" "$@"
 
    local configuration="$1"
    local sdk="$2"
@@ -81,26 +84,35 @@ determine_build_subdir()
    #
    if [ "${sdk}" = "Default" ]
    then
-      echo "/${configuration}"
+      RVAL="/${configuration}"
    else
-      echo "/${configuration}-${sdk}"
+      RVAL="/${configuration}-${sdk}"
    fi
 }
 
 
-determine_dependencies_subdir()
+r_determine_dependencies_subdir()
 {
-   log_entry "determine_dependencies_subdir" "$@"
+   log_entry "r_determine_dependencies_subdir" "$@"
 
    local configuration="$1"
    local sdk="$2"
-   local style="${3:-auto}"
+   local style="$3"
 
    [ -z "${configuration}" ] && internal_fail "configuration must not be empty"
    [ -z "${sdk}" ]           && internal_fail "sdk must not be empty"
    [ -z "${SDKS}" ]          && internal_fail "SDKS must not be empty"
 
    sdk="`LC_ALL=C "${SED:-sed}" 's/^\([a-zA-Z]*\).*$/\1/g' <<< "${sdk}" `"
+
+   #
+   # default style is none, as it its the easiest and least error
+   # prone. Renamed from MULLE_DISPENSE_STYLE.
+   #
+   if [ -z "${style}" ]
+   then
+      style="${MULLE_CRAFT_DISPENSE_STYLE:-none}"
+   fi
 
    if [ "${style}" = "auto" ]
    then
@@ -113,16 +125,17 @@ determine_dependencies_subdir()
       fi
    fi
 
+   RVAL=""
    case "${style}" in
       "none")
       ;;
 
       "configuration-strict")
-         echo "/${configuration}"
+         RVAL="/${configuration}"
       ;;
 
       "configuration-sdk-strict")
-         echo "/${configuration}-${sdk}"
+         RVAL="/${configuration}-${sdk}"
       ;;
 
       "configuration-sdk")
@@ -130,17 +143,17 @@ determine_dependencies_subdir()
          then
             if [ "${configuration}" != "Release" ]
             then
-               echo "/${configuration}"
+               RVAL="/${configuration}"
             fi
          else
-            echo "/${configuration}-${sdk}"
+            RVAL="/${configuration}-${sdk}"
          fi
       ;;
 
       "configuration")
          if [ "${configuration}" != "Release" ]
          then
-            echo "/${configuration}"
+            RVAL="/${configuration}"
          fi
       ;;
 
@@ -192,14 +205,20 @@ build_project()
    local includepath
    local frameworkspath
    local libpath
+   local RVAL
 
    if [ ! -z "${DEPENDENCY_DIR}" ]
    then
-      includepath="`dependencies_include_path "${configuration}" "${sdk}"`" || return 1
-      libpath="`dependencies_lib_path "${configuration}" "${sdk}"`" || return 1
+      r_dependencies_include_path "${configuration}" "${sdk}"
+      includepath="${RVAL}"
+
+      r_dependencies_lib_path "${configuration}" "${sdk}"
+      libpath="${RVAL}"
+
       case "${MULLE_UNAME}" in
          darwin)
-            frameworkspath="`dependencies_frameworks_path "${configuration}" "${sdk}"`" || return 1
+            r_dependencies_frameworks_path "${configuration}" "${sdk}"
+            frameworkspath="${RVAL}"
          ;;
       esac
    fi
@@ -208,12 +227,14 @@ build_project()
    then
       if [ -d "${ADDICTION_DIR}/include" ]
       then
-         includepath="`add_path "${includepath}" "${ADDICTION_DIR}/include"`"
+         r_colon_concat "${includepath}" "${ADDICTION_DIR}/include"
+         includepath="${RVAL}"
       fi
 
       if [ -d "${ADDICTION_DIR}/lib" ]
       then
-         libpath="`add_path "${libpath}" "${ADDICTION_DIR}/lib"`"
+         r_colon_concat "${libpath}" "${ADDICTION_DIR}/lib"
+         libpath="${RVAL}"
       fi
    fi
 
@@ -235,13 +256,16 @@ build_project()
    local buildparentdir
 
    buildparentdir="${builddir}"
-   builddir="`filepath_concat "${buildparentdir}" "${directory}" `"
+
+   r_filepath_concat "${buildparentdir}" "${directory}"
+   builddir="${RVAL}"
 
    #
    # if projects exist with duplicate names, add a random number at end
    # to differentiate
    #
    local randomstring
+   local oldproject
 
    case ",${marks}," in
       *,no-memo,*)
@@ -249,28 +273,43 @@ build_project()
       ;;
 
       *)
-         while [ -d "${builddir}" ]
-         do
-            randomstring="`uuidgen | cut -c'1-6'`"
-            builddir="`filepath_concat "${buildparentdir}" "${directory}-${randomstring}" `"
-         done
+         #
+         # allow name dupes, but try to avoid proliferation of
+         # builddirs
+         #
+         if [ -d "${builddir}" ]
+         then
+            oldproject="`cat "${builddir}/.project" 2> /dev/null`"
+            if [ ! -z "${oldproject}" -a "${oldproject}" != "${project}" ]
+            then
+               while [ -d "${builddir}" ]
+               do
+                  randomstring="`uuidgen | cut -c'1-6'`"
+                  r_filepath_concat "${buildparentdir}" "${directory}-${randomstring}"
+                  builddir="${RVAL}"
+               done
+            fi
+         fi
       ;;
    esac
 
    mkdir_if_missing "${builddir}" || fail "Could not create build directory"
 
+   # memo project to avoid clobbering builddirs
+   redirect_exekutor "${builddir}/.project" echo "${project}"
+
    local logdir
-
-   logdir="`filepath_concat "${builddir}" ".log" `"
-
    local craftinfodir
 
-   craftinfodir="`determine_craftinfo_dir "${name}" \
-                                          "${project}" \
-                                          "dependency" \
-                                          "${OPTION_PLATFORM}" \
-                                          "${OPTION_LOCAL}" \
-                                          "${configuration}" `"
+   r_filepath_concat "${builddir}" ".log"
+   logdir="${RVAL}"
+
+   r_determine_craftinfo_dir "${name}" \
+                             "${project}" \
+                             "dependency" \
+                             "${OPTION_PLATFORM}" \
+                             "${OPTION_LOCAL}" \
+                             "${configuration}"
    case $? in
       0|2)
       ;;
@@ -279,6 +318,7 @@ build_project()
          exit 1
       ;;
    esac
+   craftinfodir="${RVAL}"
 
    # subdir for configuration / sdk
 
@@ -291,45 +331,56 @@ build_project()
 
    if [ ! -z "${name}" ]
    then
-      args="`concat "${args}" "--name '${name}'" `"
+      r_concat "${args}" "--name '${name}'"
+      args="${RVAL}"
    fi
    if [ ! -z "${logdir}" ]
    then
-      args="`concat "${args}" "--log-dir '${logdir}'" `"
+      r_concat "${args}" "--log-dir '${logdir}'"
+      args="${RVAL}"
    fi
    if [ ! -z "${builddir}" ]
    then
-      args="`concat "${args}" "--build-dir '${builddir}'" `"
+      r_concat "${args}" "--build-dir '${builddir}'"
+      args="${RVAL}"
    fi
    if [ ! -z "${craftinfodir}" ]
    then
-      args="`concat "${args}" "--info-dir '${craftinfodir}'" `"
+      r_concat "${args}" "--info-dir '${craftinfodir}'"
+      args="${RVAL}"
    else
-      args="`concat "${args}" "--info-dir 'NONE'" `"
+      r_concat "${args}" "--info-dir 'NONE'"
+      args="${RVAL}"
    fi
    if [ ! -z "${configuration}" ]
    then
-      args="`concat "${args}" "--configuration '${configuration}'" `"
+      r_concat "${args}" "--configuration '${configuration}'"
+      args="${RVAL}"
    fi
    if [ ! -z "${sdk}" ]
    then
-      args="`concat "${args}" "--sdk '${sdk}'" `"
+      r_concat "${args}" "--sdk '${sdk}'"
+      args="${RVAL}"
    fi
    if [ ! -z "${includepath}" ]
    then
-      args="`concat "${args}" "--include-path '${includepath}'" `"
+      r_concat "${args}" "--include-path '${includepath}'"
+      args="${RVAL}"
    fi
    if [ ! -z "${libpath}" ]
    then
-      args="`concat "${args}" "--lib-path '${libpath}'" `"
+      r_concat "${args}" "--lib-path '${libpath}'"
+      args="${RVAL}"
    fi
    if [ ! -z "${frameworkspath}" ]
    then
-      args="`concat "${args}" "--frameworks-path '${frameworkspath}'" `"
+      r_concat "${args}" "--frameworks-path '${frameworkspath}'"
+      args="${RVAL}"
    fi
    if [ ! -z "${destination}" ]
    then
-      args="`concat "${args}" "--prefix '${destination}'" `"
+      r_concat "${args}" "--prefix '${destination}'"
+      args="${RVAL}"
    fi
 
    if [ "${cmd}" != "install" ]
@@ -433,9 +484,18 @@ build_dependency_with_dispense()
       ;;
    esac
 
-   stylesubdir="`determine_dependencies_subdir "${configuration}" \
-                                               "${sdk}" \
-                                               "${MULLE_DISPENSE_STYLE}" `"
+   local RVAL
+
+   r_determine_dependencies_subdir "${configuration}" "${sdk}"
+   stylesubdir="${RVAL}"
+
+   #
+   # changed styles, it could lead to problems
+   #
+   if [ -z "${RVAL}" -a -d "${DEPENDENCY_DIR}/Debug" ]
+   then
+      log_warning "There is still an old Debug folder in dependency, which might cause trouble"
+   fi
 
    dependencies_begin_update &&
    exekutor "${MULLE_DISPENSE}" \
@@ -550,11 +610,16 @@ _do_build_buildorder()
    then
       if [ -f "${donefile}" ]
       then
-         remaining="`fgrep -x -v -f "${donefile}" <<< "${buildorder}"`"
-         if [ -z "${remaining}" ]
+         if [ "${OPTION_REBUILD_BUILDORDER}" = "YES" ]
          then
-            log_verbose "Everything in the buildorder has been built already"
-            return
+            remove_file_if_present "${donefile}"
+         else
+            remaining="`fgrep -x -v -f "${donefile}" <<< "${buildorder}"`"
+            if [ -z "${remaining}" ]
+            then
+               log_fluff "Everything in the buildorder has been built already"
+               return
+            fi
          fi
       fi
    fi
@@ -588,9 +653,10 @@ _do_build_buildorder()
       fi
 
       local base_identifier
+      local RVAL
 
-      base_identifier="`tweaked_de_camel_case "${name}"`"
-      base_identifier="`tr 'a-z-' 'A-Z_' <<< "${base_identifier}" | tr -d -c 'A-Z_' `"
+      r_tweaked_de_camel_case "${name}"
+      base_identifier="`tr 'a-z-' 'A-Z_' <<< "${RVAL}" | tr -d -c 'A-Z_' `"
 
       #
       # Map some configurations (e.g. Debug -> Release for mulle-objc-runtime)
@@ -601,6 +667,7 @@ _do_build_buildorder()
       local mapped
       local escaped
       local mapped_configuration
+      local RVAL
 
       identifier="${base_identifier}_MAP_CONFIGURATIONS"
       value="`eval echo \\\$${identifier}`"
@@ -613,7 +680,8 @@ _do_build_buildorder()
       then
          case ",${value}," in
             *",${configuration}->"*","*)
-               escaped="`escaped_sed_pattern "${configuration}" `"
+               r_escaped_sed_pattern "${configuration}"
+               escaped="${RVAL}"
                mapped="`LC_ALL=C sed -n -e "s/.*,${escaped}->\([^,]*\),.*/\\1/p" <<< ",${value},"`"
                if [ -z "${mapped}" ]
                then
@@ -629,9 +697,13 @@ _do_build_buildorder()
 
       local subdir
       local mapped_builddir
+      local RVAL
 
-      subdir="`determine_build_subdir "${mapped_configuration}" "${sdk}" `"
-      mapped_builddir="`filepath_concat "${builddir}" "${subdir}" `"
+      r_determine_build_subdir "${mapped_configuration}" "${sdk}"
+      subdir="${RVAL}"
+
+      r_filepath_concat "${builddir}" "${subdir}"
+      mapped_builddir="${RVAL}"
 
       build_buildorder_node "${evaledproject}" \
                             "${name}" \
@@ -746,33 +818,39 @@ do_build_mainproject()
 
    local craftinfodir
    local name
+   local RVAL
 
    name="${PROJECT_NAME}"
    if [ -z "${PROJECT_NAME}" ]
    then
-      name="`fast_basename "${PWD}"`"
+      r_fast_basename "${PWD}"
+      name="${RVAL}"
    fi
 
-   log_verbose "Build ${C_MAGENTA}${C_BOLD}${name}${C_VERBOSE} with ${MULLE_MAKE}"
+   log_verbose "Craft main project ${C_MAGENTA}${C_BOLD}${name}${C_VERBOSE}"
 
-   craftinfodir="`determine_craftinfo_dir "${name}" \
-                                          "${PWD}" \
-                                          "mainproject" \
-                                          "${OPTION_PLATFORM}" \
-                                          "${OPTION_LOCAL}" \
-                                          "${CONFIGURATIONS%%,*}" `"
+   r_determine_craftinfo_dir "${name}" \
+                             "${PWD}" \
+                             "mainproject" \
+                             "${OPTION_PLATFORM}" \
+                             "${OPTION_LOCAL}" \
+                             "${CONFIGURATIONS%%,*}"
+   craftinfodir="${RVAL}"
 
    # always set --info-dir
    if [ ! -z "${craftinfodir}" ]
    then
-      OPTIONS_MULLE_MAKE_PROJECT="`concat "${OPTIONS_MULLE_MAKE_PROJECT}" "--info-dir '${craftinfodir}'" `"
+      r_concat "${OPTIONS_MULLE_MAKE_PROJECT}" "--info-dir '${craftinfodir}'"
+      OPTIONS_MULLE_MAKE_PROJECT="${RVAL}"
    else
-      OPTIONS_MULLE_MAKE_PROJECT="`concat "${OPTIONS_MULLE_MAKE_PROJECT}" "--info-dir 'NONE'" `"
+      r_concat "${OPTIONS_MULLE_MAKE_PROJECT}" "--info-dir 'NONE'"
+      OPTIONS_MULLE_MAKE_PROJECT="${RVAL}"
    fi
 
    local stylesubdir
 
-   stylesubdir="`determine_build_subdir "${CONFIGURATIONS}" "${SDKS}" `" || return 1
+   r_determine_build_subdir "${CONFIGURATIONS}" "${SDKS}"
+   stylesubdir="${RVAL}"
 
    #
    # find proper build directory
@@ -781,23 +859,29 @@ do_build_mainproject()
    local builddir
    local logdir
 
-   builddir="${BUILD_DIR:-build}"
-   builddir="`filepath_concat "${builddir}" "${stylesubdir}" `"
-   logdir="`filepath_concat "${builddir}" ".log" `"
+   builddir="${BUILD_DIR}"
+   r_filepath_concat "${builddir}" "${stylesubdir}"
+   builddir="${RVAL}"
+   r_filepath_concat "${builddir}" ".log"
+   logdir="${RVAL}"
 
    [ $? -eq 1 ] && exit 1
 
-   OPTIONS_MULLE_MAKE_PROJECT="`concat "${OPTIONS_MULLE_MAKE_PROJECT}" "--build-dir '${builddir}'"`"
-   OPTIONS_MULLE_MAKE_PROJECT="`concat "${OPTIONS_MULLE_MAKE_PROJECT}" "--log-dir '${logdir}'"`"
+   r_concat "${OPTIONS_MULLE_MAKE_PROJECT}" "--build-dir '${builddir}'"
+   OPTIONS_MULLE_MAKE_PROJECT="${RVAL}"
+   r_concat "${OPTIONS_MULLE_MAKE_PROJECT}" "--log-dir '${logdir}'"
+   OPTIONS_MULLE_MAKE_PROJECT="${RVAL}"
 
    # ugly hackage
    if [ ! -z "${CONFIGURATIONS}" ]
    then
-      OPTIONS_MULLE_MAKE_PROJECT="`concat "${OPTIONS_MULLE_MAKE_PROJECT}" "--configuration '${CONFIGURATIONS%%,*}'" `"
+      r_concat "${OPTIONS_MULLE_MAKE_PROJECT}" "--configuration '${CONFIGURATIONS%%,*}'"
+      OPTIONS_MULLE_MAKE_PROJECT="${RVAL}"
    fi
    if [ ! -z "${SDKS}" ]
    then
-      OPTIONS_MULLE_MAKE_PROJECT="`concat "${OPTIONS_MULLE_MAKE_PROJECT}" "--sdk '${SDKS%%,*}'" `"
+      r_concat "${OPTIONS_MULLE_MAKE_PROJECT}" "--sdk '${SDKS%%,*}'"
+      OPTIONS_MULLE_MAKE_PROJECT="${RVAL}"
    fi
 
 
@@ -836,6 +920,7 @@ do_build_mainproject()
    fi
 }
 
+
 #
 # mulle-craft isn't rules so much by command line arguments
 # but uses mostly ENVIRONMENT variables
@@ -851,6 +936,8 @@ build_common()
    local OPTION_SUBDIR=".buildorder"
    local OPTION_PLATFORM="YES"
    local OPTION_LOCAL="YES"
+   local OPTION_REBUILD_BUILDORDER="NO"
+   local OPTION_PROTECT_DEPENDENCY="YES"
 
    while [ $# -ne 0 ]
    do
@@ -892,6 +979,22 @@ build_common()
 
          --no-dependency)
             OPTION_BUILD_DEPENDENCY="NO"
+         ;;
+
+         --protect)
+            OPTION_PROTECT_DEPENDENCY="YES"
+         ;;
+
+         --no-protect)
+            OPTION_PROTECT_DEPENDENCY="NO"
+         ;;
+
+         --rebuild)
+            OPTION_REBUILD_BUILDORDER="YES"
+         ;;
+
+         --no-rebuild)
+            OPTION_REBUILD_BUILDORDER="NO"
          ;;
 
          --debug)
@@ -951,6 +1054,24 @@ build_common()
    [ -z "${BUILD_DIR}" ] && internal_fail "BUILD_DIR not set"
    [ -z "${MULLE_UNAME}" ] && internal_fail "MULLE_UNAME not set"
 
+   r_absolutepath "${BUILD_DIR}"
+   BUILD_DIR="${RVAL}"
+   if [ ! -z "${ADDICTION_DIR}" ]
+   then
+      r_absolutepath "${ADDICTION_DIR}"
+      ADDICTION_DIR="${RVAL}"
+   fi
+   if [ ! -z "${DEPENDENCY_DIR}" ]
+   then
+      r_absolutepath "${DEPENDENCY_DIR}"
+      DEPENDENCY_DIR="${RVAL}"
+   fi
+   if [ ! -z "${CRAFTINFO_PATH}" ]
+   then
+      r_absolutepath "${CRAFTINFO_PATH}"
+      CRAFTINFO_PATH="${RVAL}"
+   fi
+
    filenameenv="${BUILD_DIR}/.mulle-craft"
    currentenv="${MULLE_UNAME};${MULLE_HOSTNAME};${LOGNAME:-`id -u`}"
 
@@ -986,10 +1107,11 @@ ${currentenv}"
 
       local builddir
       local subdir
+      local RVAL
 
       builddir="${OPTION_BUILDORDER_BUILD_DIR:-${BUILD_DIR}}"
-      builddir="`filepath_concat "${builddir}" "${OPTION_SUBDIR}"`"
-
+      r_filepath_concat "${builddir}" "${OPTION_SUBDIR}"
+      builddir="${RVAL}"
       do_build_buildorder "${BUILDORDER_FILE}" "${builddir}" "$@"
       return $?
    fi

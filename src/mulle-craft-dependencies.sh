@@ -127,7 +127,7 @@ dependencies_unprotect()
       return
    fi
 
-   chmod -R ug+w "${DEPENDENCY_DIR}" || fail "could not chmod \"${DEPENDENCY_DIR}\""
+   exekutor chmod -R ug+w "${DEPENDENCY_DIR}" || fail "could not chmod \"${DEPENDENCY_DIR}\""
 }
 
 
@@ -142,7 +142,7 @@ dependencies_protect()
       return
    fi
 
-   chmod -R a-w "${DEPENDENCY_DIR}" || fail "could not chmod \"${DEPENDENCY_DIR}\""
+   exekutor chmod -R a-w "${DEPENDENCY_DIR}" || fail "could not chmod \"${DEPENDENCY_DIR}\""
 }
 
 
@@ -185,8 +185,11 @@ dependencies_clean()
 
    [ -z "${DEPENDENCY_DIR}" ] && internal_fail "DEPENDENCY_DIR not set"
 
-   dependencies_unprotect
-   rmdir_safer "${DEPENDENCY_DIR}"
+   if [ "${OPTION_PROTECT_DEPENDENCY}" = "YES" ]
+   then
+      dependencies_unprotect
+      rmdir_safer "${DEPENDENCY_DIR}"
+   fi
 }
 
 
@@ -195,6 +198,11 @@ dependencies_begin_update()
    log_entry "dependencies_begin_update" "$@"
 
    [ -z "${DEPENDENCY_DIR}" ] && internal_fail "DEPENDENCY_DIR not set"
+
+   if [ "${OPTION_PROTECT_DEPENDENCY}" != "YES" ]
+   then
+      return
+   fi
 
    local state
 
@@ -234,6 +242,11 @@ dependencies_end_update()
 
    [ -z "${DEPENDENCY_DIR}" ] && fail "DEPENDENCY_DIR not set"
 
+   if [ "${OPTION_PROTECT_DEPENDENCY}" != "YES" ]
+   then
+      return
+   fi
+
    redirect_exekutor "${DEPENDENCY_DIR}/.state" \
       echo "ready"
 
@@ -246,17 +259,17 @@ dependencies_end_update()
 # folder in assume order of relevance
 #
 
-dependencies_existing_dirs_path()
+r_dependencies_existing_dirs_path()
 {
-   log_entry "dependencies_existing_dirs_path" "$@"
+   log_entry "r_dependencies_existing_dirs_path" "$@"
 
    local subdirectories="$1"
 
    [ -z "${DEPENDENCY_DIR}" ] && internal_fail "DEPENDENCY_DIR not set"
 
    local subdir
-   local path
 
+   RVAL=""
    set -f ; IFS="
 "
    for subdir in ${subdirectories}
@@ -265,22 +278,17 @@ dependencies_existing_dirs_path()
 
       if [ -d "${DEPENDENCY_DIR}/${subdir}" ]
       then
-         path="`colon_concat "${path}" "${DEPENDENCY_DIR}/${subdir}"`"
+         r_colon_concat "${RVAL}" "${DEPENDENCY_DIR}/${subdir}"
       fi
    done
 
    set +f; IFS="${DEFAULT_IFS}"
-
-   if [ ! -z "${path}" ]
-   then
-      echo "${path}"
-   fi
 }
 
 
-dependencies_dir_locations()
+r_dependencies_dir_locations()
 {
-   log_entry "dependencies_dir_locations" "$@"
+   log_entry "r_dependencies_dir_locations" "$@"
 
    local name="$1"
    local configuration="$2"
@@ -288,84 +296,70 @@ dependencies_dir_locations()
 
    [ -z "${DEPENDENCY_DIR}" ] && internal_fail "DEPENDENCY_DIR not set"
 
+   RVAL=""
    if [ ! -z "${configuration}" ]
    then
       if [ ! -z "${sdk}" ]
       then
-         echo "${configuration}-${sdk}/${name}"
+         r_add_line "${RVAL}" "${configuration}-${sdk}/${name}"
       fi
-      echo "${configuration}/${name}"
+      r_add_line "${RVAL}" "${configuration}/${name}"
    fi
-   echo "${name}"
+   r_add_line "${RVAL}" "${name}"
+
    case "${name}" in
       lib|include)
-         echo "usr/${name}
-usr/local/${name}"
+         r_add_line "${RVAL}" "usr/${name}"
+         r_add_line "${RVAL}" "usr/local/${name}"
       ;;
    esac
 }
 
 
-dependencies_include_path()
+r_dependencies_include_path()
 {
-   log_entry "dependencies_include_path" "$@"
+   log_entry "r_dependencies_include_path" "$@"
 
    local configuration="$1"
    local sdk="$2"
 
-   local subdirectories
-
-   subdirectories="`dependencies_dir_locations "include" \
-                                               "${configuration}" \
-                                               "${sdk}"`"
-   dependencies_existing_dirs_path "${subdirectories}"
+   r_dependencies_dir_locations "include" "${configuration}" "${sdk}"
+   r_dependencies_existing_dirs_path "${RVAL}"
 }
 
 
-dependencies_lib_path()
+r_dependencies_lib_path()
 {
-   log_entry "dependencies_lib_path" "$@"
+   log_entry "r_dependencies_lib_path" "$@"
 
    local configuration="$1"
    local sdk="$2"
 
-   local subdirectories
-
-   subdirectories="`dependencies_dir_locations "lib" \
-                                               "${configuration}" \
-                                               "${sdk}"`"
-   dependencies_existing_dirs_path "${subdirectories}"
+   r_dependencies_dir_locations "lib" "${configuration}" "${sdk}"
+   r_dependencies_existing_dirs_path "${RVAL}"
 }
 
 
-dependencies_frameworks_path()
+r_dependencies_frameworks_path()
 {
    log_entry "dependencies_frameworks_path" "$@"
 
    local configuration="$1"
    local sdk="$2"
 
-   local subdirectories
-
-   subdirectories="`dependencies_dir_locations "Frameworks" \
-                                               "${configuration}" \
-                                               "${sdk}"`"
-   dependencies_existing_dirs_path "${subdirectories}"
+   r_dependencies_dir_locations "Frameworks" "${configuration}" "${sdk}"
+   r_dependencies_existing_dirs_path "${RVAL}"
 }
 
 
-dependencies_share_path()
+r_dependencies_share_path()
 {
    log_entry "dependencies_share_path" "$@"
 
    local configuration="$1"
    local sdk="$2"
 
-   local subdirectories
-
-   subdirectories="`dependencies_dir_locations "share" \
-                                               "${configuration}" \
-                                               "${sdk}"`"
-   dependencies_existing_dirs_path "${subdirectories}"
+   r_dependencies_dir_locations "share" "${configuration}" "${sdk}"
+   r_dependencies_existing_dirs_path "${RVAL}"
 }
 

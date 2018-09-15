@@ -210,8 +210,10 @@ build_clean_main()
 
             local donefile
             local escaped
+            local RVAL
 
-            escaped="`escaped_sed_pattern "$1"`"
+            r_escaped_sed_pattern "$1"
+            escaped="${RVAL}"
 
             for donefile in "${BUILDORDER_BUILD_DIR}"/*/.mulle-craft-built
             do

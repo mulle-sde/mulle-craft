@@ -32,7 +32,7 @@
 [ "${TRACE}" = "YES" -o "${MULLE_CRAFT_TRACE}" = "YES" ] && set -x && : "$0" "$@"
 
 
-MULLE_EXECUTABLE_VERSION=0.12.0
+MULLE_EXECUTABLE_VERSION=0.13.0
 
 
 trap_fail()
@@ -104,6 +104,7 @@ main()
 
    local MULLE_FLAG_MOTD="DEFAULT"
    local FLAG_OUTSIDE_ENV="NO"
+   local RVAL
 
    #
    # simple option handling
@@ -112,7 +113,8 @@ main()
    do
       if options_technical_flags "$1"
       then
-         MULLE_MAKE_FLAGS="`concat "${MULLE_MAKE_FLAGS}" "$1"`"
+         r_concat "${MULLE_MAKE_FLAGS}" "$1"
+         MULLE_MAKE_FLAGS="${RVAL}"
          shift
          continue
       fi
