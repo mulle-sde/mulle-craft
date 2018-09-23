@@ -176,6 +176,55 @@ build_directory_name()
    tr -c 'a-zA-Z0-9-' '_' <<< "${name%.*}" | sed -e 's/_$//g'
 }
 
+# sets
+#   _includepath
+#   _frameworkspath
+#   _libpath
+#   _binpath
+#
+__set_various_paths()
+{
+   local configuration="$1"
+   local sdk="$2"
+
+   local RVAL
+
+   _binpath="${PATH}"
+
+   if [ ! -z "${ADDICTION_DIR}" ]
+   then
+      if [ -d "${ADDICTION_DIR}/include" ]
+      then
+         r_colon_concat "${_includepath}" "${ADDICTION_DIR}/include"
+         _includepath="${RVAL}"
+      fi
+
+      if [ -d "${ADDICTION_DIR}/lib" ]
+      then
+         r_colon_concat "${_libpath}" "${ADDICTION_DIR}/lib"
+         _libpath="${RVAL}"
+      fi
+
+      if [ -d "${ADDICTION_DIR}/bin" ]
+      then
+         r_colon_concat "${ADDICTION_DIR}/bin" "${_binpath}"
+         _binpath="${RVAL}"
+      fi
+   fi
+
+   if [ -d "${DEPENDENCY_DIR}/bin" ]
+   then
+      r_colon_concat "${DEPENDENCY_DIR}/bin" "${_binpath}"
+      _binpath="${RVAL}"
+   fi
+
+   if [ -d "${DEPENDENCY_DIR}/${configuration}/bin" ]
+   then
+      r_colon_concat "${DEPENDENCY_DIR}/${configuration}/bin" "${_binpath}"
+      _binpath="${RVAL}"
+   fi
+}
+
 
 build_project()
 {
@@ -201,42 +250,6 @@ build_project()
    [ -z "${project}" ]     && internal_fail "project is empty"
    [ -z "${name}" ]        && internal_fail "name is empty"
    [ -z "${builddir}" ]    && internal_fail "builddir is empty"
-
-   local includepath
-   local frameworkspath
-   local libpath
-   local RVAL
-
-   if [ ! -z "${DEPENDENCY_DIR}" ]
-   then
-      r_dependencies_include_path "${configuration}" "${sdk}"
-      includepath="${RVAL}"
-
-      r_dependencies_lib_path "${configuration}" "${sdk}"
-      libpath="${RVAL}"
-
-      case "${MULLE_UNAME}" in
-         darwin)
-            r_dependencies_frameworks_path "${configuration}" "${sdk}"
-            frameworkspath="${RVAL}"
-         ;;
-      esac
-   fi
-
-   if [ ! -z "${ADDICTION_DIR}" ]
-   then
-      if [ -d "${ADDICTION_DIR}/include" ]
-      then
-         r_colon_concat "${includepath}" "${ADDICTION_DIR}/include"
-         includepath="${RVAL}"
-      fi
-
-      if [ -d "${ADDICTION_DIR}/lib" ]
-      then
-         r_colon_concat "${libpath}" "${ADDICTION_DIR}/lib"
-         libpath="${RVAL}"
-      fi
-   fi
 
    #
    # locate proper craftinfo path
@@ -322,6 +335,29 @@ build_project()
 
    # subdir for configuration / sdk
 
+   local _includepath
+   local _frameworkspath
+   local _libpath
+   local _binpath
+
+   if [ ! -z "${DEPENDENCY_DIR}" ]
+   then
+      r_dependencies_include_path "${configuration}" "${sdk}"
+      _includepath="${RVAL}"
+
+      r_dependencies_lib_path "${configuration}" "${sdk}"
+      _libpath="${RVAL}"
+
+      case "${MULLE_UNAME}" in
+         darwin)
+            r_dependencies_frameworks_path "${configuration}" "${sdk}"
+            _frameworkspath="${RVAL}"
+         ;;
+      esac
+   fi
+
+   __set_various_paths "${configuration}" "${sdk}"
+
    #
    # call mulle-make with all we've got now
    #
@@ -362,24 +398,34 @@ build_project()
       r_concat "${args}" "--sdk '${sdk}'"
       args="${RVAL}"
    fi
+   if [ "${_binpath}" != "${PATH}" ]
+   then
+      r_concat "${args}" "--path '${_binpath}'"
+      args="${RVAL}"
+   fi
    if [ ! -z "${includepath}" ]
    then
-      r_concat "${args}" "--include-path '${includepath}'"
+      r_concat "${args}" "--include-path '${_includepath}'"
       args="${RVAL}"
    fi
    if [ ! -z "${libpath}" ]
    then
-      r_concat "${args}" "--lib-path '${libpath}'"
+      r_concat "${args}" "--lib-path '${_libpath}'"
       args="${RVAL}"
    fi
    if [ ! -z "${frameworkspath}" ]
    then
-      r_concat "${args}" "--frameworks-path '${frameworkspath}'"
+      r_concat "${args}" "--frameworks-path '${_frameworkspath}'"
       args="${RVAL}"
    fi
    if [ ! -z "${destination}" ]
    then
       r_concat "${args}" "--prefix '${destination}'"
+      args="${RVAL}"
+   fi
+   if [ "${OPTION_ALLOW_SCRIPT}" = "YES" ]
+   then
+      r_concat "${args}" "--allow-script"
       args="${RVAL}"
    fi
 
@@ -867,6 +913,12 @@ do_build_mainproject()
 
    [ $? -eq 1 ] && exit 1
 
+   if [ ! -z "${PROJECT_LANGUAGE}" ]
+   then
+      r_concat "${OPTIONS_MULLE_MAKE_PROJECT}" "--language '${PROJECT_LANGUAGE}'"
+      OPTIONS_MULLE_MAKE_PROJECT="${RVAL}"
+   fi
+
    r_concat "${OPTIONS_MULLE_MAKE_PROJECT}" "--build-dir '${builddir}'"
    OPTIONS_MULLE_MAKE_PROJECT="${RVAL}"
    r_concat "${OPTIONS_MULLE_MAKE_PROJECT}" "--log-dir '${logdir}'"
@@ -883,7 +935,11 @@ do_build_mainproject()
       r_concat "${OPTIONS_MULLE_MAKE_PROJECT}" "--sdk '${SDKS%%,*}'"
       OPTIONS_MULLE_MAKE_PROJECT="${RVAL}"
    fi
-
+   if [ "${OPTION_ALLOW_SCRIPT}" = "YES" ]
+   then
+      r_concat "${OPTIONS_MULLE_MAKE_PROJECT}" "--allow-script"
+      OPTIONS_MULLE_MAKE_PROJECT="${RVAL}"
+   fi
 
    local auxargs
    local i
@@ -938,6 +994,7 @@ build_common()
    local OPTION_LOCAL="YES"
    local OPTION_REBUILD_BUILDORDER="NO"
    local OPTION_PROTECT_DEPENDENCY="YES"
+   local OPTION_ALLOW_SCRIPT="DEFAULT"
 
    while [ $# -ne 0 ]
    do
@@ -969,6 +1026,14 @@ build_common()
          ;;
 
          # these are dependency within buildorder, buildorder has also subproj
+         --allow-script)
+            OPTION_ALLOW_SCRIPT="YES"
+         ;;
+
+         --no-allow-script)
+            OPTION_ALLOW_SCRIPT="NO"
+         ;;
+
          --dependency)
             OPTION_BUILD_DEPENDENCY="YES"
          ;;
