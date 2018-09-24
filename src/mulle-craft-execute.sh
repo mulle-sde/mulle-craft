@@ -403,17 +403,17 @@ build_project()
       r_concat "${args}" "--path '${_binpath}'"
       args="${RVAL}"
    fi
-   if [ ! -z "${includepath}" ]
+   if [ ! -z "${_includepath}" ]
    then
       r_concat "${args}" "--include-path '${_includepath}'"
       args="${RVAL}"
    fi
-   if [ ! -z "${libpath}" ]
+   if [ ! -z "${_libpath}" ]
    then
       r_concat "${args}" "--lib-path '${_libpath}'"
       args="${RVAL}"
    fi
-   if [ ! -z "${frameworkspath}" ]
+   if [ ! -z "${_frameworkspath}" ]
    then
       r_concat "${args}" "--frameworks-path '${_frameworkspath}'"
       args="${RVAL}"
