@@ -68,7 +68,7 @@ remove_directory()
    then
       rmdir_safer "$1"
    else
-      log_fluff "Clean candidate \"$1\" is not present"
+      log_fluff "Clean target \"$1\" is not present"
    fi
 }
 
