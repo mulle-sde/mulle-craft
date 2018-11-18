@@ -29,10 +29,10 @@
 #   ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
 #   POSSIBILITY OF SUCH DAMAGE.
 #
-[ "${TRACE}" = "YES" -o "${MULLE_CRAFT_TRACE}" = "YES" ] && set -x && : "$0" "$@"
+[ "${TRACE}" = 'YES' -o "${MULLE_CRAFT_TRACE}" = 'YES' ] && set -x && : "$0" "$@"
 
 
-MULLE_EXECUTABLE_VERSION=0.13.0
+MULLE_EXECUTABLE_VERSION=0.14.0
 
 
 trap_fail()
@@ -48,7 +48,7 @@ Usage:
    ${MULLE_USAGE_NAME} [flags] [command]
 
    Build projects given by supplied \`buildorder\`. Then build the main
-   project.
+   project. See the various commands for more help.
 
 Flags:
 EOF
@@ -57,8 +57,11 @@ EOF
       options_technical_flags_usage "              : "
 
       cat <<EOF
+   -b <dir>           : specify build directory
+   -d <dir>           : specify definitons directory for dependencies
    -f <file>          : specify buildorder file, mandatory for some commands
    -e                 : use mulle-craft outside of mulle-env
+   -p <dir>           : specify project directory
 EOF
    ) | LC_ALL=C sort
 
@@ -67,12 +70,13 @@ EOF
 Commands:
    buildorder         : build projects using a buildorder file
    clean              : clean output
+   list               : list remaining builds in buildorder file
    log                : inspect build logs
    project            : build main project without a buildorder file (default)
    search             : search for craftinfos (dependeny) or makeinfo (project)
 EOF
 
-   if [ "${MULLE_FLAG_LOG_VERBOSE}" = "NO" ]
+   if [ "${MULLE_FLAG_LOG_VERBOSE}" = 'NO' ]
    then
       cat <<EOF
 
@@ -86,24 +90,24 @@ EOF
 
 main()
 {
-   local MULLE_FLAG_MAGNUM_FORCE="NO"
-   local MULLE_FLAG_IGNORE_GRAVEYARD="NO"
+   local MULLE_FLAG_MAGNUM_FORCE='NO'
+   local MULLE_FLAG_IGNORE_GRAVEYARD='NO'
 
    # technical flags
    local MULLE_TRACE
-   local MULLE_FLAG_EXEKUTOR_DRY_RUN="NO"
-   local MULLE_FLAG_LOG_LOCAL="NO"
-   local MULLE_FLAG_LOG_DEBUG="NO"
-   local MULLE_FLAG_LOG_EXEKUTOR="NO"
-   local MULLE_FLAG_LOG_FLUFF="NO"
-   local MULLE_FLAG_LOG_SCRIPTS="NO"
-   local MULLE_FLAG_LOG_SETTINGS="NO"
-   local MULLE_FLAG_LOG_VERBOSE="NO"
-   local MULLE_FLAG_LOG_MERGE="NO"
-   local MULLE_TRACE_POSTPONE="NO"
+   local MULLE_FLAG_EXEKUTOR_DRY_RUN='NO'
+   local MULLE_FLAG_LOG_LOCAL='NO'
+   local MULLE_FLAG_LOG_DEBUG='NO'
+   local MULLE_FLAG_LOG_EXEKUTOR='NO'
+   local MULLE_FLAG_LOG_FLUFF='NO'
+   local MULLE_FLAG_LOG_SCRIPTS='NO'
+   local MULLE_FLAG_LOG_SETTINGS='NO'
+   local MULLE_FLAG_LOG_VERBOSE='NO'
+   local MULLE_FLAG_LOG_MERGE='NO'
+   local MULLE_TRACE_POSTPONE='NO'
 
    local MULLE_FLAG_MOTD="DEFAULT"
-   local FLAG_OUTSIDE_ENV="NO"
+   local FLAG_OUTSIDE_ENV='NO'
    local RVAL
 
    #
@@ -113,8 +117,6 @@ main()
    do
       if options_technical_flags "$1"
       then
-         r_concat "${MULLE_MAKE_FLAGS}" "$1"
-         MULLE_MAKE_FLAGS="${RVAL}"
          shift
          continue
       fi
@@ -124,46 +126,53 @@ main()
             usage
          ;;
 
-         -e)
-            FLAG_OUTSIDE_ENV="YES"
-         ;;
-
-         -f|--force)
-            MULLE_FLAG_MAGNUM_FORCE="YES"
-         ;;
-
-         --motd)
-            MULLE_FLAG_MOTD="YES"
-         ;;
-
-         --no-motd)
-            MULLE_FLAG_MOTD="NO"
-         ;;
-
-         --version)
-            echo "${MULLE_EXECUTABLE_VERSION}"
-            exit 0
-         ;;
-
-         --build-dir)
+         -b|--build-dir)
             [ $# -eq 1 ] && build_execute_usage "Missing argument to \"$1\""
             shift
 
             BUILD_DIR="$1"
          ;;
 
-         --info-dir)
+         -d|--definition-dir)
             [ $# -eq 1 ] && build_execute_usage "Missing argument to \"$1\""
             shift
 
             INFO_DIR="$1"
          ;;
 
-         --d|--project-dir)
+         -e)
+            FLAG_OUTSIDE_ENV='YES'
+         ;;
+
+         -f|--force)
+            MULLE_FLAG_MAGNUM_FORCE='YES'
+         ;;
+
+         -p|--project-dir)
             [ $# -eq 1 ] && build_execute_usage "Missing argument to \"$1\""
             shift
 
             exekutor cd "$1" || exit 1
+         ;;
+
+         --buildorder-build-dir)
+            [ $# -eq 1 ] && fail "Missing argument to \"$1\""
+            shift
+
+            BUILDORDER_BUILD_DIR="$1"
+         ;;
+
+         --motd)
+            MULLE_FLAG_MOTD='YES'
+         ;;
+
+         --no-motd)
+            MULLE_FLAG_MOTD='NO'
+         ;;
+
+         --version)
+            echo "${MULLE_EXECUTABLE_VERSION}"
+            exit 0
          ;;
 
          -*)
@@ -183,7 +192,7 @@ main()
 
    case "${MULLE_VIRTUAL_ROOT}" in
       "")
-         if [ "${FLAG_OUTSIDE_ENV}" = "NO" ]
+         if [ "${FLAG_OUTSIDE_ENV}" = 'NO' ]
          then
             fail "To run ${MULLE_EXECUTABLE_NAME} outside of mulle-env, pass the -e flag"
          fi
@@ -214,12 +223,22 @@ main()
    MULLE_DISPENSE="${MULLE_DISPENSE:-`command -v mulle-dispense`}"
    [ -z "${MULLE_DISPENSE}" ] && fail "mulle-dispense not in PATH"
 
+   BUILD_DIR="${BUILD_DIR:-build}"
+   BUILDORDER_BUILD_DIR="${BUILDORDER_BUILD_DIR:-${BUILD_DIR}/.buildorder}"
+
    #
    # project can give the default way to build this
    #
    cmd="${cmd:-${MULLE_CRAFT_DEFAULT_CMD}}"
 
    case "${cmd:-project}" in
+      buildorder)
+         # shellcheck source=src/mulle-craft-execute.sh
+         . "${MULLE_CRAFT_LIBEXEC_DIR}/mulle-craft-execute.sh"
+
+         build_buildorder_main "$@"
+      ;;
+
       clean)
          # shellcheck source=src/mulle-craft-clean.sh
          . "${MULLE_CRAFT_LIBEXEC_DIR}/mulle-craft-clean.sh"
@@ -231,13 +250,19 @@ main()
          echo "${MULLE_CRAFT_LIBEXEC_DIR}"
       ;;
 
+      list)
+         # shellcheck source=src/mulle-craft-execute.sh
+         . "${MULLE_CRAFT_LIBEXEC_DIR}/mulle-craft-execute.sh"
+
+         list_buildorder_main "$@"
+      ;;
+
       log)
          # shellcheck source=src/mulle-craft-log.sh
          . "${MULLE_CRAFT_LIBEXEC_DIR}/mulle-craft-log.sh"
 
          build_log_main "$@"
       ;;
-
 
       install)
          log_info "mulle-craft doesn't install. Use mulle-make directly."
@@ -258,11 +283,11 @@ main()
          build_search_main "$@"
       ;;
 
-      buildorder)
-         # shellcheck source=src/mulle-craft-execute.sh
-         . "${MULLE_CRAFT_LIBEXEC_DIR}/mulle-craft-execute.sh"
+      status)
+         # shellcheck source=src/mulle-craft-status.sh
+         . "${MULLE_CRAFT_LIBEXEC_DIR}/mulle-craft-status.sh"
 
-         build_buildorder_main "$@"
+         status_main "$@"
       ;;
 
       uname)
@@ -275,8 +300,10 @@ main()
       ;;
 
       *)
-         log_error "${MULLE_EXECUTABLE_FAIL_PREFIX}: Unknown command \"${cmd}\""
-         usage
+         # shellcheck source=src/mulle-craft-execute.sh
+         . "${MULLE_CRAFT_LIBEXEC_DIR}/mulle-craft-execute.sh"
+
+         build_single_dependency_main "${cmd}" "$@"
       ;;
    esac
 }

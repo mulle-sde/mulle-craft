@@ -42,13 +42,15 @@ Usage:
 
    Remove build products. By default BUILD_DIR is removed, which will
    rebuild everything. You can also specify the names of the projects to clean
-   and rebuild. There are three special names: "all", "dependency", "project".
+   and rebuild. There are four special names: "all",
+   "buildorder", dependency", "project".
 
 Options:
    -b <dir>         : specify build directory
 
 Names:
    all              : clean build folder
+   buildorder       : clean buildorder only
    dependency       : clean dependency folder
    project          : clean main project
 
@@ -99,7 +101,7 @@ build_clean_main()
 
    local OPTION_DEPENDENCY="DEFAULT"
    local OPTION_SOURCETREE_BUILD_DIR
-   local OPTION_TOUCH="NO"
+   local OPTION_TOUCH='NO'
 
    while :
    do
@@ -108,22 +110,8 @@ build_clean_main()
             build_clean_usage
          ;;
 
-         -b|--build-dir)
-            [ $# -eq 1 ] && fail "Missing argument to \"$1\""
-            shift
-
-            BUILD_DIR="$1"
-         ;;
-
          --touch)
-            OPTION_TOUCH="YES"
-         ;;
-
-         --buildorder-build-dir)
-            [ $# -eq 1 ] && fail "Missing argument to \"$1\""
-            shift
-
-            OPTION_BUILDORDER_BUILD_DIR="$1"
+            OPTION_TOUCH='YES'
          ;;
 
          -*)
@@ -159,25 +147,27 @@ build_clean_main()
 
    # centralize this into mulle-craft-environment.sh
 
-   local BUILDORDER_BUILD_DIR
-
-   BUILDORDER_BUILD_DIR="${OPTION_BUILDORDER_BUILD_DIR:-${BUILD_DIR}/.buildorder}"
-
    while :
    do
       case "$1" in
-         "dependency")
-            log_verbose "Cleaning \"${DEPENDENCY_DIR}\" directory"
-
-            remove_directory "${DEPENDENCY_DIR}"
-            remove_directory "${BUILDORDER_BUILD_DIR}"
-         ;;
-
          "build")
             log_verbose "Cleaning \"build\""
 
             remove_directory "${BUILD_DIR}"
             return
+         ;;
+
+         "buildorder")
+            log_verbose "Cleaning \"${DEPENDENCY_DIR}\" directory"
+
+            remove_directory "${BUILDORDER_BUILD_DIR}"
+         ;;
+
+         "dependency")
+            log_verbose "Cleaning \"${DEPENDENCY_DIR}\" directory"
+
+            remove_directory "${DEPENDENCY_DIR}"
+            remove_directory "${BUILDORDER_BUILD_DIR}"
          ;;
 
          "project")
@@ -197,31 +187,60 @@ build_clean_main()
          ;;
 
          *)
-            log_verbose "Cleaning dependency \"${1}\""
+            local cleantarget
+
+            cleantarget="$1"
+
+            local escaped
+            local donefile
+#            local targets
+#            local matches
+#
+#            r_escaped_grep_pattern "$1"
+#            escaped="${RVAL}"
+#
+#            for donefile in "${BUILDORDER_BUILD_DIR}"/*/.mulle-craft-built
+#            do
+#               matches="`rexekutor sed -s -e 's/^\([^;]*);/\1/' -e 's/^.*\//' "${donefile}"`"
+#               r_add_line "${targets}" "${matches}"
+#               targets="${RVAL}"
+#            done
+#
+#            log_fluff "Available clean targets: `sort -u <<< "${targets}"`"
+#
+#            if ! rexekutor fgrep -x -s -q "${cleantarget}" <<< "${targets}"
+#            then
+#               fail "Unknown clean target \"${cleantarget}\".
+#${C_VERBOSE}
+#Available targets:
+#   ${C_RESET}
+#   `cat "${targets}" | sort -u | sed 's/^/   /'`
+#"
+#            fi
+
+            log_verbose "Cleaning target \"${cleantarget}\""
 
             local directory
 
-            directory="`build_directory_name "$1"`"
-
-            if [ "${OPTION_TOUCH}" = "NO" ]
+            directory="`build_directory_name "${cleantarget}"`"
+            if [ "${OPTION_TOUCH}" = 'NO' ]
             then
                remove_directories "${BUILDORDER_BUILD_DIR}"/*/"${directory}"
             fi
 
-            local donefile
-            local escaped
-            local RVAL
-
-            r_escaped_sed_pattern "$1"
+            r_escaped_sed_pattern "${cleantarget}"
             escaped="${RVAL}"
 
             for donefile in "${BUILDORDER_BUILD_DIR}"/*/.mulle-craft-built
             do
                if [ -f "${donefile}" ]
                then
-                  inplace_sed -n -e "/${escaped};/q;p" "${donefile}"
+                  inplace_sed -n -e "/^${escaped};/q;p" "${donefile}"
+                  inplace_sed -n -e "/^.*\/${escaped};/q;p" "${donefile}"
                fi
             done
+
+            log_debug "Done cleaning"
          ;;
       esac
 

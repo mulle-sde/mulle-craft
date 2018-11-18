@@ -38,25 +38,27 @@ build_execute_usage()
 
     cat <<EOF >&2
 Usage:
-   ${MULLE_USAGE_NAME} ${BUILD_STYLE} [options]
+   ${MULLE_USAGE_NAME} ${USAGE_BUILD_STYLE} [options]
 
    ${USAGE_INFO}
 
 Options:
-   --f <buildorder>  : specify buildorder file
-   --debug           : compile for debug only
-   --lenient         : do not stop on errors
-   --no-protect      : do not make dependency read-only
-   --rebuild         : rebuild every dependency buildorder
-   --release         : compile for release only
-   --sdk <sdk>       : specify sdk to build against
-   --                : pass remaining options to mulle-make
+   --all                           : rebuild everything (doesn't clean)
+   --buildorder-file <buildorder>  : specify buildorder file
+   --debug                         : compile for debug only
+   --lenient                       : do not stop on errors
+   --no-protect                    : do not make dependency read-only
+   --release                       : compile for release only
+   --sdk <sdk>                     : specify sdk to build against
+   --                              : pass remaining options to mulle-make
 
 Environment:
-   ADDICTION_DIR     : place to get addictions from (optional)
-   BUILD_DIR         : place for build products and by-products (required)
-   CRAFTINFO_PATH    : places to find craftinfos
-   DEPENDENCY_DIR    : place to put dependencies into
+   ADDICTION_DIR           : place to get addictions from (optional)
+   BUILD_DIR               : place for build products (required)
+   CRAFTINFO_PATH          : places to find craftinfos
+   DEPENDENCY_DIR          : place to put dependencies into
+   DEPENDENCY_TARBALL_PATH : tarballs to preinstall into dependency
+   MULLE_SDE_USE_SCRIPT    : enables building with scripts
 EOF
   exit 1
 }
@@ -91,9 +93,9 @@ r_determine_build_subdir()
 }
 
 
-r_determine_dependencies_subdir()
+r_determine_dependency_subdir()
 {
-   log_entry "r_determine_dependencies_subdir" "$@"
+   log_entry "r_determine_dependency_subdir" "$@"
 
    local configuration="$1"
    local sdk="$2"
@@ -176,6 +178,7 @@ build_directory_name()
    tr -c 'a-zA-Z0-9-' '_' <<< "${name%.*}" | sed -e 's/_$//g'
 }
 
+
 # sets
 #   _includepath
 #   _frameworkspath
@@ -226,6 +229,76 @@ __set_various_paths()
 }
 
 
+r_effective_project_builddir()
+{
+   log_entry "r_effective_project_builddir" "$@"
+
+   local name="$1"
+   local buildparentdir="$2"
+
+   #
+   # locate proper craftinfo path
+   # searchpath:
+   #
+   # dependency/share/mulle-craftinfo/<name>.txt
+   # <project>/.mulle-craftinfo
+   #
+   local directory
+
+   directory="`build_directory_name "${name}" `"
+
+   #
+   # find proper build directory
+   # find proper log directory
+   #
+   local builddir
+
+   r_filepath_concat "${buildparentdir}" "${directory}"
+   builddir="${RVAL}"
+
+   r_absolutepath "${builddir}"
+   builddir="${RVAL}"
+
+   #
+   # allow name dupes, but try to avoid proliferation of
+   # builddirs
+   #
+   if [ -d "${builddir}" ]
+   then
+      local oldproject
+
+      oldproject="`cat "${builddir}/.project" 2> /dev/null`"
+      if [ ! -z "${oldproject}" -a "${oldproject}" = "${project}" ]
+      then
+         RVAL="${builddir}"
+         return 0
+      fi
+
+      #
+      # if projects exist with duplicate names, add a random number at end
+      # to differentiate
+      #
+      local randomstring
+
+      while [ -d "${builddir}" ]
+      do
+         randomstring="`uuidgen | cut -c'1-6'`"
+         r_filepath_concat "${buildparentdir}" "${directory}-${randomstring}"
+         builddir="${RVAL}"
+      done
+   fi
+
+   mkdir_if_missing "${builddir}" || fail "Could not create build directory"
+
+   # memo project to avoid clobbering builddirs
+   redirect_exekutor "${builddir}/.project" echo "${project}" || \
+      fail "Could not write into ${builddir}"
+
+   RVAL="${builddir}"
+   return 0
+}
+
+
 build_project()
 {
    log_entry "build_project" "$@"
@@ -252,64 +325,18 @@ build_project()
    [ -z "${builddir}" ]    && internal_fail "builddir is empty"
 
    #
-   # locate proper craftinfo path
-   # searchpath:
-   #
-   # dependencies/share/mulle-craftinfo/<name>.txt
-   # <project>/.mulle-craftinfo
-   #
-   local directory
-
-   directory="`build_directory_name "${name}" `"
-
-   #
-   # find proper build directory
-   # find proper log directory
-   #
-   local buildparentdir
-
-   buildparentdir="${builddir}"
-
-   r_filepath_concat "${buildparentdir}" "${directory}"
-   builddir="${RVAL}"
-
-   #
    # if projects exist with duplicate names, add a random number at end
    # to differentiate
    #
-   local randomstring
-   local oldproject
+
+   local flags
 
    case ",${marks}," in
       *,no-memo,*)
          # usally a subproject
-      ;;
-
-      *)
-         #
-         # allow name dupes, but try to avoid proliferation of
-         # builddirs
-         #
-         if [ -d "${builddir}" ]
-         then
-            oldproject="`cat "${builddir}/.project" 2> /dev/null`"
-            if [ ! -z "${oldproject}" -a "${oldproject}" != "${project}" ]
-            then
-               while [ -d "${builddir}" ]
-               do
-                  randomstring="`uuidgen | cut -c'1-6'`"
-                  r_filepath_concat "${buildparentdir}" "${directory}-${randomstring}"
-                  builddir="${RVAL}"
-               done
-            fi
-         fi
+         flags="${OPTION_NO_MEMO_MAKEFLAGS}"
       ;;
    esac
-
-   mkdir_if_missing "${builddir}" || fail "Could not create build directory"
-
-   # memo project to avoid clobbering builddirs
-   redirect_exekutor "${builddir}/.project" echo "${project}"
 
    local logdir
    local craftinfodir
@@ -342,15 +369,15 @@ build_project()
 
    if [ ! -z "${DEPENDENCY_DIR}" ]
    then
-      r_dependencies_include_path "${configuration}" "${sdk}"
+      r_dependency_include_path "${configuration}" "${sdk}"
       _includepath="${RVAL}"
 
-      r_dependencies_lib_path "${configuration}" "${sdk}"
+      r_dependency_lib_path "${configuration}" "${sdk}"
       _libpath="${RVAL}"
 
       case "${MULLE_UNAME}" in
          darwin)
-            r_dependencies_frameworks_path "${configuration}" "${sdk}"
+            r_dependency_frameworks_path "${configuration}" "${sdk}"
             _frameworkspath="${RVAL}"
          ;;
       esac
@@ -364,6 +391,14 @@ build_project()
    local args
 
    args="${OPTIONS_MULLE_MAKE}"
+
+   case ",${marks}," in
+      *',only-standalone,'*)
+         r_concat "${args}" "-DSTANDALONE=ON"
+         args="${RVAL}"
+      ;;
+   esac
+
 
    if [ ! -z "${name}" ]
    then
@@ -382,10 +417,10 @@ build_project()
    fi
    if [ ! -z "${craftinfodir}" ]
    then
-      r_concat "${args}" "--info-dir '${craftinfodir}'"
+      r_concat "${args}" "--definition-dir '${craftinfodir}'"
       args="${RVAL}"
    else
-      r_concat "${args}" "--info-dir 'NONE'"
+      r_concat "${args}" "--definition-dir 'NONE'"
       args="${RVAL}"
    fi
    if [ ! -z "${configuration}" ]
@@ -423,7 +458,8 @@ build_project()
       r_concat "${args}" "--prefix '${destination}'"
       args="${RVAL}"
    fi
-   if [ "${OPTION_ALLOW_SCRIPT}" = "YES" ]
+
+   if [ "${OPTION_ALLOW_SCRIPT}" = 'YES' ]
    then
       r_concat "${args}" "--allow-script"
       args="${RVAL}"
@@ -434,34 +470,74 @@ build_project()
       destination=""
    fi
 
+   local mulle_flags_env_key
+   local mulle_flags_env_value
+
+   r_tweaked_de_camel_case "${name}"
+   mulle_flags_env_key="MULLE_CRAFT_${RVAL}_MAKE_FLAGS"
+   mulle_flags_env_key="`printf "%s" "${mulle_flags_env_key}" | tr -c 'a-zA-Z0-9' '_'`"
+   mulle_flags_env_key="`tr 'a-z' 'A-Z' <<< "${mulle_flags_env_key}"`"
+   mulle_flags_env_value="`eval echo "\\\$$mulle_flags_env_key"`"
+
    local auxargs
    local i
 
+   if [ ! -z "${mulle_flags_env_value}" ]
+   then
+      log_verbose "Found ${C_RESET_BOLD}${mulle_flags_env_key}${C_VERBOSE} \
+set to ${C_RESET_BOLD}${mulle_flags_env_value}${C_VERBOSE}"
+
+      for i in ${mulle_flags_env_value}
+      do
+         r_concat "${auxargs}" "'${i}'"
+         auxargs="${RVAL}"
+      done
+   else
+      log_fluff "Environment variable ${mulle_flags_env_key} is not set."
+   fi
+
    for i in "$@"
    do
-      if [ -z "${auxargs}" ]
-      then
-         auxargs="'${i}'"
-      else
-         auxargs="${auxargs} '${i}'"
-      fi
+      r_concat "${auxargs}" "'${i}'"
+      auxargs="${RVAL}"
    done
 
-   log_debug "args=${args}"
-   log_debug "auxargs=${auxargs}"
+   if [ "${MULLE_FLAG_LOG_SETTINGS}" = 'YES' ]
+   then
+      log_trace2 "flags:                 ${flags}"
+      log_trace2 "MULLE_TECHNICAL_FLAGS: ${MULLE_TECHNICAL_FLAGS}"
+      log_trace2 "MULLE_MAKE_FLAGS:      ${MULLE_MAKE_FLAGS}"
+      log_trace2 "args:                  ${args}"
+      log_trace2 "auxargs:               ${auxargs}"
+      log_trace2 "mulle_flags_env_key:   ${mulle_flags_env_key}"
+      log_trace2 "mulle_flags_env_value: ${mulle_flags_env_value}"
+   fi
 
-   eval_exekutor "'${MULLE_MAKE}'" "${MULLE_MAKE_FLAGS}" \
+   eval_exekutor "'${MULLE_MAKE}'" \
+                        "${flags}" \
+                        "${MULLE_TECHNICAL_FLAGS}" \
+                        "${MULLE_MAKE_FLAGS}" \
                     "${cmd}" \
                        "${args}" \
                        "${auxargs}" \
                        "${project}" \
                        "${destination}"
+   rval=$?
+
+   if [ ${rval} -ne 0 ]
+   then
+      log_fluff "Build of \"${project}\" failed ($rval)"
+   fi
+
+   return $rval
 }
 
 
 build_dependency_directly()
 {
    log_entry "build_dependency_directly" "$@"
+
+   local cmd="$1"; shift
 
    local project="$1"
    local name="$2"
@@ -470,25 +546,24 @@ build_dependency_directly()
    local configuration="$5"
    local sdk="$6"
 
-   dependencies_begin_update || return 1
+   dependency_begin_update || return 1
 
    local rval
+   local RVAL
 
-   rval=0
-
-   build_project "install" "${DEPENDENCY_DIR}" "$@"
+   build_project "${cmd}" "${DEPENDENCY_DIR}" "$@"
    rval=$?
 
    if [ $rval -ne 0 ]
    then
-      if [ "${OPTION_LENIENT}" = "NO" ]
+      if [ "${OPTION_LENIENT}" = 'NO' ]
       then
          return 1
       fi
       rval=1
    fi
 
-   dependencies_end_update || return 1
+   dependency_end_update || return 1
 
    # signal failures downward, even if lenient
    return $rval
@@ -499,6 +574,8 @@ build_dependency_with_dispense()
 {
    log_entry "build_dependency_with_dispense" "$@"
 
+   local cmd="$1"; shift
+
    local project="$1"
    local name="$2"
    local marks="$3"
@@ -510,12 +587,15 @@ build_dependency_with_dispense()
 
    rval=0
 
-   rmdir_safer "${DEPENDENCY_DIR}.tmp" || return 1
+   local tmpdependencydir
 
-   build_project "install" "${DEPENDENCY_DIR}.tmp" "$@"
+   r_filepath_concat "${builddir}" ".dependency"
+   tmpdependencydir="${RVAL}"
+
+   build_project "${cmd}" "${tmpdependencydir}" "$@"
    rval=$?
 
-   if [ $rval -ne 0 ]
+   if [ "${cmd}" != 'install' -o $rval -ne 0 ]
    then
       return $rval
    fi
@@ -532,7 +612,7 @@ build_dependency_with_dispense()
 
    local RVAL
 
-   r_determine_dependencies_subdir "${configuration}" "${sdk}"
+   r_determine_dependency_subdir "${configuration}" "${sdk}"
    stylesubdir="${RVAL}"
 
    #
@@ -540,44 +620,44 @@ build_dependency_with_dispense()
    #
    if [ -z "${RVAL}" -a -d "${DEPENDENCY_DIR}/Debug" ]
    then
-      log_warning "There is still an old Debug folder in dependency, which might cause trouble"
+      log_warning "There is still an old Debug folder in dependency, which \
+might cause trouble"
    fi
 
-   dependencies_begin_update &&
-   exekutor "${MULLE_DISPENSE}" \
-               ${MULLE_TECHNICAL_FLAGS} \
-               ${MULLE_DISPENSE_FLAGS} \
-                 'dispense' \
-                     ${options} \
-                     "${DEPENDENCY_DIR}.tmp" \
-                     "${DEPENDENCY_DIR}${stylesubdir}" &&
-   dependencies_end_update
-}
-
-
-build_dependency()
-{
-   log_entry "build_dependency" "$@"
-
-   local cmd="$1"; shift  # don't need it
-
-#   local project="$1"
-#   local name="$2"
-   local marks="$3"
-#   local builddir="$4"
-#   local configuration="$5"
-#   local sdk="$6"
-
-   case ",${marks}," in
-      *',no-dispense,'*)
-         build_dependency_directly "$@"
+   case "${PARALLEL}" in
+      "")
+         dependency_begin_update || return 1
       ;;
 
-      *)
-         build_dependency_with_dispense "$@"
+      Headers)
+         r_concat "${options}" --only-headers
+         options="${RVAL}"
+      ;;
+
+      Link)
+         r_concat "${options}" --no-headers
+         options="${RVAL}"
       ;;
    esac
+
+
+   exekutor "${MULLE_DISPENSE:-mulle-dispense}" \
+                  ${MULLE_TECHNICAL_FLAGS} \
+                  ${MULLE_DISPENSE_FLAGS} \
+               dispense \
+                  ${options} \
+                  "${tmpdependencydir}" \
+                  "${DEPENDENCY_DIR}${stylesubdir}"
+   rval=$?
+
+   if [ -z "${PARALLEL}" ]
+   then
+      dependency_end_update || return 1
+   fi
+
+   return $rval
 }
+
 
 
 #
@@ -587,6 +667,8 @@ build_dependency()
 build_buildorder_node()
 {
    log_entry "build_buildorder_node" "$@"
+
+   local cmd="$1"; shift
 
    local project="$1"
 #   local name="$2"
@@ -611,9 +693,10 @@ build_buildorder_node()
       ;;
 
       *)
-         if [ "${OPTION_BUILD_DEPENDENCY}" = "NO" ]
+         if [ "${OPTION_BUILD_DEPENDENCY}" = 'NO' ]
          then
-            log_fluff "Not building dependency \"${project}\" (complying with user wish)"
+            log_fluff "Not building dependency \"${project}\" (complying with \
+user wish)"
             return 2
          fi
       ;;
@@ -626,51 +709,483 @@ build_buildorder_node()
       ;;
 
       *',only-os-'*','*|*",no-os-${MULLE_UNAME},"*)
-         fail "The buildorder ${C_RESET_BOLD}${BUILDORDER_FILE#${MULLE_USER_PWD}/}${C_ERROR} was made for a different platform. Time to clean. "
+         fail "The buildorder ${C_RESET_BOLD}${BUILDORDER_FILE#${MULLE_USER_PWD}/}\
+${C_ERROR} was made for a different platform. Time to clean. "
       ;;
    esac
 
    log_verbose "Build ${C_MAGENTA}${C_BOLD}${project}${C_VERBOSE}"
 
-   build_dependency "install" "$@"
+   case ",${marks}," in
+      *',no-dispense,'*)
+         build_dependency_directly "${cmd}" "$@"
+         return $?
+      ;;
+
+      *)
+         build_dependency_with_dispense "${cmd}" "$@"
+         return $?
+      ;;
+   esac
 }
 
 
-_do_build_buildorder()
+handle_build()
 {
-   local buildorder="$1"; shift
-   local builddir="$1"; shift
+   log_entry "handle_build" "$@"
+
+   local cmd="$1"; shift
+
+   local project="$1"; shift
+   local marks="$1"; shift
    local configuration="$1"; shift
    local sdk="$1"; shift
+   local builddir="$1"; shift
 
-   local donefile
+   local evaledproject
+   local name
 
-   mkdir_if_missing "${builddir}"
+   # getting the project name nice is fairly crucial to figure out when
+   # things go wrong
+   evaledproject="`eval echo "${project}"`"
+   name="${project#\$\{MULLE_SOURCETREE_SHARE_DIR\}/}"
+   if [ "${name}" = "${project}" ]
+   then
+      name="${evaledproject#\$\{MULLE_VIRTUAL_ROOT\}/}"
+   fi
 
-   donefile="${builddir}/${configuration}/.mulle-craft-built"
+   if [ "${OPTION_LIST_REMAINING}" = 'YES' ]
+   then
+      echo "${name}" # ;${marks};${mapped_configuration}"
+      return 0
+   fi
+
+   if [ -z "${MULLE_CASE_SH}" ]
+   then
+      . "${MULLE_BASHFUNCTIONS_LIBEXEC_DIR}/mulle-case.sh" || exit 1
+   fi
+
+   local base_identifier
+   local RVAL
+
+   r_tweaked_de_camel_case "${name}"
+   base_identifier="`tr 'a-z-' 'A-Z_' <<< "${RVAL}" | tr -d -c 'A-Z0-9_' `"
+
+   #
+   # Map some configurations (e.g. Debug -> Release for mulle-objc-runtime)
+   # You can also map to empty, to skip a configuration
+   #
+   local identifier
+   local value
+
+   identifier="MULLE_CRAFT_${base_identifier}_MAP_CONFIGURATIONS"
+   value="`eval echo \\\$${identifier}`"
+
+   log_debug "${identifier}=\"${value}\" ($configuration)"
+
+   local mapped
+   local escaped
+
+   if [ ! -z "${value}" ]
+   then
+      case ",${value}," in
+         *",${configuration}->"*","*)
+            r_escaped_sed_pattern "${configuration}"
+            escaped="${RVAL}"
+            mapped="`LC_ALL=C sed -n -e "s/.*,${escaped}->\([^,]*\),.*/\\1/p" <<< ",${value},"`"
+            if [ -z "${mapped}" ]
+            then
+               log_verbose "Configuration \"${configuration}\" skipped due \
+to \"${identifier}\""
+               return 0
+            fi
+
+            log_verbose "Configuration \"${configuration}\" mapped to \
+\"${mapped}\" due to environment variable \"${identifier}\""
+            configuration="${mapped}"
+         ;;
+      esac
+   fi
+
+   local subdir
+
+   r_determine_build_subdir "${configuration}" "${sdk}"
+   subdir="${RVAL}"
+
+   r_filepath_concat "${builddir}" "${subdir}"
+   mapped="${RVAL}"
+
+   r_effective_project_builddir "${name}" "${mapped}"
+   builddir="${RVAL}"
+
+
+   local rval
+
+   build_buildorder_node "${cmd}" \
+                         "${evaledproject}" \
+                         "${name}" \
+                         "${marks}" \
+                         "${builddir}" \
+                         "${configuration}" \
+                         "${sdk}" \
+                         "$@"
+   rval=$?
+
+   log_debug "${C_RESET_BOLD}Build finished with: ${C_MAGENTA}${C_BOLD}${rval}"
+
+   return ${rval}
+}
+
+
+handle_build_rval()
+{
+   log_entry "handle_build_rval" "$@"
+
+   local rval="$1"
+   local marks="$2"
+   local donefile="$3"
+   local line="$4"
+   local project="$5"
+
+   if [ ${rval} -eq 0 ]
+   then
+      case ",${marks}," in
+         *,no-memo,*)
+            log_debug "Not remembering success due to no-memo"
+            # usally a subproject
+         ;;
+
+         *)
+            if [ "${MULLE_FLAG_LOG_SETTINGS}" = 'YES' ]
+            then
+               log_trace2 "donefile   : ${donefile}"
+               log_trace2 "line       : ${line}"
+            fi
+
+            if [ ! -z "${donefile}" ]
+            then
+               redirect_append_exekutor "${donefile}" echo "${line}"
+            else
+               log_debug "Not remembering success as we have no donefile"
+            fi
+         ;;
+      esac
+      return 0
+   fi
+
+   local evaledproject
+
+   evaledproject="`eval echo "${project}"`"
+
+   if [ ${rval} -eq 1 ]
+   then
+      if [ "${OPTION_LENIENT}" = 'NO' ]
+      then
+         log_debug "Build of \"${evaledproject}\" failed, so quit"
+         return 1
+      fi
+         log_fluff "Ignoring build failure of \"${evaledproject}\" due to \
+the enabled leniency option"
+      return 0
+   fi
+
+   log_debug "Build of \"${evaledproject}\" returned ${rval}"
+   return $rval
+}
+
+
+
+handle_build_step()
+{
+   log_entry "handle_build_step" "$@"
+
+   local cmd="$1"; shift
+   local project="$1"; shift
+   local marks="$1"; shift
+   local configuration="$1"; shift
+   local sdk="$1"; shift
+   local builddir="$1"; shift
+   local phase="$1"; shift
+   local statusfile="$1"; shift
+   local line="$1"; shift
+   local donefile="$1"; shift
+
+   local rval
+
+   handle_build "${cmd}" \
+                "${project}" \
+                "${marks}" \
+                "${configuration}" \
+                "${sdk}" \
+                "${builddir}" \
+                "--phase" "${phase}" \
+                "$@"
+   rval=$?
+
+   redirect_append_exekutor "${statusfile}" echo "${project};${phase};${rval}"
+
+   local phasedonefile
+
+   if [ "${phase}" = 'Link' ]
+   then
+      phasedonefile="${donefile}"
+   fi
+
+   if ! handle_build_rval "$rval" \
+                          "${marks}" \
+                          "${phasedonefile}" \
+                          "${line}" \
+                          "${project}"
+   then
+      redirect_append_exekutor "${statusfile}" echo "${rval}"
+   fi
+}
+
+handle_parallel_builds()
+{
+   log_entry "handle_parallel_builds" "$@"
+
+   local parallel="$1"; shift
+   local donefile="$1"; shift
+
+   local configuration="$1"; shift
+   local sdk="$1"; shift
+   local builddir="$1"; shift
+
+   [ -z "${parallel}" ]      && internal_fail "v is empty"
+   [ -z "${donefile}" ]      && internal_fail "donefile is empty"
+   [ -z "${configuration}" ] && internal_fail "configuration is empty"
+   [ -z "${sdk}" ]           && internal_fail "sdk is empty"
+   [ -z "${builddir}" ]      && internal_fail "builddir is empty"
+
+   local line
+   local parallel
+   local statusfile
+   local RVAL
+   local phase
+   local PARALLEL
+   local cmd
+
+   r_make_tmp "mulle-sde"
+   statusfile="${RVAL}"
+
+   local parallel_link="NO"
+
+   #
+   # Check if we have something that can not be linked in parallel.
+   # It's hard to detect, if the user set some "build shared libs" flag though.
+   # So it must be allowed by the commandline too. In that case the
+   # DependenciesAndLibraries.cmake must not be read, since we are just linking
+   # a static library.
+   #
+   if [ "${parallel_link}" = 'YES' ]
+   then
+      # look for a line not having no-singlephase-link
+      if egrep -v -s '[;,]no-singlephase-link[;,]|[;,]no-singlephase-link$' <<< "${parallel}"
+      then
+         log_fluff "Not all parallel builds are marked as no-singlephase-link, use sequential link"
+         parallel_link='NO'
+      else
+         log_fluff "All parallel builds can also be parallel linked"
+      fi
+   else
+      log_fluff "Parallel builds aren't enabled"
+   fi
+
+   if [ "${MULLE_FLAG_LOG_SETTINGS}" = 'YES' ]
+   then
+      log_trace2 "parallel : ${parallel}"
+   fi
+
+   set -f
+   for phase in ${OPTION_PHASES}
+   do
+      log_verbose "Starting phase ${phase}"
+
+      PARALLEL="${phase}"
+
+      case "${phase}" in
+         Headers)
+            dependency_begin_update || return 1
+            cmd='install'
+         ;;
+
+         Compile)
+            cmd='build'
+         ;;
+
+         Link)
+            cmd='install'
+         ;;
+      esac
+
+      local project
+      local marks
+
+      set -f ; IFS="
+"
+      for line in ${parallel}
+      do
+         set +f ; IFS="${DEFAULT_IFS}"
+
+         local project
+         local marks
+
+         IFS=";" read project marks <<< "${line}"
+
+         if [ "${phase}" != 'Link' -o "${parallel_link}" = 'YES'  ]
+         then
+            (
+               handle_build_step "${cmd}" \
+                                 "${project}" \
+                                 "${marks}" \
+                                 "${configuration}" \
+                                 "${sdk}" \
+                                 "${builddir}" \
+                                 "${phase}" \
+                                 "${statusfile}" \
+                                 "${line}" \
+                                 "${donefile}"
+            ) &
+         else
+            handle_build_step "${cmd}" \
+                              "${project}" \
+                              "${marks}" \
+                              "${configuration}" \
+                              "${sdk}" \
+                              "${builddir}" \
+                              "${phase}" \
+                              "${statusfile}" \
+                              "${line}" \
+                              "${donefile}"
+         fi
+      done
+
+      set +f ; IFS="${DEFAULT_IFS}"
+
+      # collect phases
+      log_fluff "Waiting for phase ${phase} to complete"
+
+      wait
+
+      case "${phase}" in
+         Link)
+            dependency_end_update || return 1
+         ;;
+      esac
+
+      log_verbose "Phase ${phase} complete"
+
+      if [ "${MULLE_FLAG_LOG_SETTINGS}" = 'YES' ]
+      then
+         log_trace2 "Errors: `cat "${statusfile}"`"
+      fi
+
+      if egrep -v -s -q ';0$' "${statusfile}"
+      then
+         log_fluff "Errors detected in \"${statusfile}\": `cat "${statusfile}"`"
+         remove_file_if_present "${statusfile}"
+         return 1
+      fi
+   done
+   set +f
+
+   remove_file_if_present "${statusfile}"
+   return 0
+}
+
+
+r_remaining_buildorder_lines()
+{
+   log_entry "r_remaining_buildorder_lines" "$@"
+
+   local buildorder="$1"
+   local donefile="$2"
 
    local remaining
 
    remaining="${buildorder}"
-   if [ ! -z "${donefile}" ]
+   if [ ! -z "${OPTION_SINGLE_DEPENDENCY}" ]
    then
-      if [ -f "${donefile}" ]
+      local escaped
+
+      r_escaped_grep_pattern "${OPTION_SINGLE_DEPENDENCY}"
+      remaining="`egrep "^${RVAL};|\}/${RVAL};" <<< "${remaining}" `"
+      log_debug "Filtered by name: ${remaining}"
+      if [ -z "${remaining}" ]
       then
-         if [ "${OPTION_REBUILD_BUILDORDER}" = "YES" ]
+         fail "\"${OPTION_SINGLE_DEPENDENCY}\" is unknown in the buildorder"
+      fi
+   else
+      if [ ! -z "${donefile}" ]
+      then
+         if [ -f "${donefile}" ]
          then
-            remove_file_if_present "${donefile}"
-         else
-            remaining="`fgrep -x -v -f "${donefile}" <<< "${buildorder}"`"
-            if [ -z "${remaining}" ]
+            if [ "${OPTION_REBUILD_BUILDORDER}" = 'YES' ]
             then
-               log_fluff "Everything in the buildorder has been built already"
-               return
+               remove_file_if_present "${donefile}"
+            else
+               remaining="`rexekutor fgrep -x -v -f "${donefile}" <<< "${remaining}"`"
+               if [ -z "${remaining}" ]
+               then
+                  RVAL=""
+                  return 1
+               fi
             fi
          fi
       fi
    fi
 
+   RVAL="${remaining}"
+   return 0
+}
+
+
+_do_build_buildorder()
+{
+   log_entry "_do_build_buildorder" "$@"
+
+   local buildorder="$1"; shift
+   local builddir="$1"; shift
+   local configuration="$1"; shift
+   local sdk="$1"; shift
+
+   local remaining
+   local donefile
+
+   if [ "${MULLE_FLAG_LOG_SETTINGS}" = 'YES' ]
+   then
+      log_trace2 "buildorder: ${buildorder}"
+   fi
+
+   donefile="${builddir}/${configuration}/.mulle-craft-built"
+   if [ -f "${donefile}" ]
+   then
+      log_fluff "Donefile \"${donefile}\" is present"
+      if [ "${MULLE_FLAG_LOG_SETTINGS}" = 'YES' ]
+      then
+         log_trace2 "donefile: `cat "${donefile}"`"
+      fi
+      if ! r_remaining_buildorder_lines "${buildorder}" "${donefile}"
+      then
+         log_fluff "Everything in the buildorder has been built already"
+         return
+      fi
+      remaining="${RVAL}"
+   else
+      log_fluff "Donefile \"${donefile}\" is not present, build it all"
+      remaining="${buildorder}"
+   fi
+
+   if [ "${MULLE_FLAG_LOG_SETTINGS}" = 'YES' ]
+   then
+      log_trace2 "remaining :  ${remaining}"
+   fi
+
+   mkdir_if_missing "${builddir}"
+
    local line
+   local parallel
 
    set -f ; IFS="
 "
@@ -679,9 +1194,7 @@ _do_build_buildorder()
       set +f ; IFS="${DEFAULT_IFS}"
 
       local project
-      local evaledproject
       local marks
-      local name
 
       IFS=";" read project marks <<< "${line}"
 
@@ -690,104 +1203,74 @@ _do_build_buildorder()
          internal_fail "empty project fail"
       fi
 
-      evaledproject="`eval echo "${project}"`"
-      name="${project#'${MULLE_SOURCETREE_SHARE_DIR}/'}"
-
-      if [ -z "${MULLE_CASE_SH}" ]
+      if [ "${OPTION_LIST_REMAINING}" = 'NO' -a -z "${OPTION_SINGLE_DEPENDENCY}" ]
       then
-         . "${MULLE_BASHFUNCTIONS_LIBEXEC_DIR}/mulle-case.sh" || exit 1
-      fi
-
-      local base_identifier
-      local RVAL
-
-      r_tweaked_de_camel_case "${name}"
-      base_identifier="`tr 'a-z-' 'A-Z_' <<< "${RVAL}" | tr -d -c 'A-Z_' `"
-
-      #
-      # Map some configurations (e.g. Debug -> Release for mulle-objc-runtime)
-      # You can also map to empty, to skip a configuration
-      #
-      local identifier
-      local value
-      local mapped
-      local escaped
-      local mapped_configuration
-      local RVAL
-
-      identifier="${base_identifier}_MAP_CONFIGURATIONS"
-      value="`eval echo \\\$${identifier}`"
-
-      log_debug "${identifier}=\"${value}\" ($configuration)"
-
-      mapped_configuration="${configuration}"
-
-      if [ ! -z "${value}" ]
-      then
-         case ",${value}," in
-            *",${configuration}->"*","*)
-               r_escaped_sed_pattern "${configuration}"
-               escaped="${RVAL}"
-               mapped="`LC_ALL=C sed -n -e "s/.*,${escaped}->\([^,]*\),.*/\\1/p" <<< ",${value},"`"
-               if [ -z "${mapped}" ]
-               then
-                  log_verbose "Configuration \"${configuration}\" skipped due to \"${identifier}\""
-                  continue
-               fi
-
-               log_verbose "Configuration \"${configuration}\" mapped to \"${mapped}\" due to environment variable \"${identifier}\""
-               mapped_configuration="${mapped}"
+         case ",${marks}," in
+            *,no-singlephase,*)
+               r_add_line "${parallel}" "${line}"
+               parallel="${RVAL}"
+               log_fluff "Collected ${line} for parallel build"
+               continue
             ;;
          esac
       fi
 
-      local subdir
-      local mapped_builddir
-      local RVAL
+      if [ ! -z "${parallel}" ]
+      then
+         if ! handle_parallel_builds "${parallel}" \
+                                     "${donefile}" \
+                                     "${configuration}" \
+                                     "${sdk}" \
+                                     "${builddir}" \
+                                     "$@"
+         then
+            return 1
+         fi
+         parallel=""
 
-      r_determine_build_subdir "${mapped_configuration}" "${sdk}"
-      subdir="${RVAL}"
+         log_fluff "Handle ${line} for serial build"
+         # fall thru for single build now
+      fi
 
-      r_filepath_concat "${builddir}" "${subdir}"
-      mapped_builddir="${RVAL}"
+      handle_build "install" \
+                   "${project}" \
+                   "${marks}" \
+                   "${configuration}" \
+                   "${sdk}" \
+                   "${builddir}" \
+                   "$@"
+      rval=$?
 
-      build_buildorder_node "${evaledproject}" \
-                            "${name}" \
-                            "${marks}" \
-                            "${mapped_builddir}" \
-                            "${mapped_configuration}" \
-                            "${sdk}" \
-                            "$@"
-      case $? in
-         0)
-            case ",${marks}," in
-               *,no-memo,*)
-                  # usally a subproject
-               ;;
+      if [ ! -z "${OPTION_SINGLE_DEPENDENCY}" ]
+      then
+         return $rval
+      fi
 
-               *)
-                  if [ ! -z "${donefile}" ]
-                  then
-                     redirect_append_exekutor "${donefile}" echo "${line}"
-                  fi
-               ;;
-            esac
-         ;;
-
-         1)
-            if [ "${OPTION_LENIENT}" = "NO" ]
-            then
-               log_debug "Build of \"${evaledproject}\" failed, so quit"
-               return 1
-            fi
-            log_fluff "Ignoring build failure of \"${evaledproject}\" due to leniency option"
-         ;;
-
-         # 2 just ignored, but not remembered
-      esac
+      if ! handle_build_rval "$rval" \
+                             "${marks}" \
+                             "${donefile}" \
+                             "${line}" \
+                             "${evaledproject}"
+      then
+         return 1
+      fi
    done
-
    set +f ; IFS="${DEFAULT_IFS}"
+
+   # left over parallel
+   if [ ! -z "${parallel}" ]
+   then
+      if ! handle_parallel_builds "${parallel}" \
+                                  "${donefile}" \
+                                  "${configuration}" \
+                                  "${sdk}" \
+                                  "${builddir}" \
+                                  "$@"
+      then
+         return 1
+      fi
+   fi
+   return 0
 }
 
 
@@ -798,25 +1281,30 @@ do_build_buildorder()
    local buildorderfile="$1"; shift
    local builddir="$1"; shift
 
+   [ -z "${buildorderfile}" ] && internal_fail "buildorderfile is missing"
+   [ -z "${builddir}" ] && internal_fail "builddir is missing"
+
    # shellcheck source=mulle-env-dependencies.sh
-   [ -z "${MULLE_CRAFT_DEPENDENCY_SH}" ] && . "${MULLE_CRAFT_LIBEXEC_DIR}/mulle-craft-dependencies.sh"
+   [ -z "${MULLE_CRAFT_DEPENDENCY_SH}" ] && \
+      . "${MULLE_CRAFT_LIBEXEC_DIR}/mulle-craft-dependency.sh"
 
    local buildorder
 
    buildorder="`egrep -v '^#' "${buildorderfile}" 2> /dev/null`"
-   [ $? -eq 2 ] && fail "Buildorder \"${buildorderfile}\" is missing"
+   [ $? -eq 2 ] && fail "Buildorder file \"${buildorderfile}\" is missing"
 
    #
    # Do this once initially, even if there are no dependencies
    # That allows tarballs to be installed. Also now the existance of the
-   # dependencies folders, means something
+   # dependency folders, means something
    #
-   dependencies_begin_update || exit 1
-   dependencies_end_update || exit 1
+   dependency_begin_update || exit 1
+   dependency_end_update || exit 1
 
    if [ -z "${buildorder}" ]
    then
-      log_verbose "The buildorder file is empty, nothing to build (${buildorderfile#${MULLE_USER_PWD}/})"
+      log_verbose "The buildorder file is empty, nothing to build \
+(${buildorderfile#${MULLE_USER_PWD}/})"
       return
    fi
 
@@ -886,10 +1374,10 @@ do_build_mainproject()
    # always set --info-dir
    if [ ! -z "${craftinfodir}" ]
    then
-      r_concat "${OPTIONS_MULLE_MAKE_PROJECT}" "--info-dir '${craftinfodir}'"
+      r_concat "${OPTIONS_MULLE_MAKE_PROJECT}" "--definition-dir '${craftinfodir}'"
       OPTIONS_MULLE_MAKE_PROJECT="${RVAL}"
    else
-      r_concat "${OPTIONS_MULLE_MAKE_PROJECT}" "--info-dir 'NONE'"
+      r_concat "${OPTIONS_MULLE_MAKE_PROJECT}" "--definition-dir 'NONE'"
       OPTIONS_MULLE_MAKE_PROJECT="${RVAL}"
    fi
 
@@ -935,7 +1423,7 @@ do_build_mainproject()
       r_concat "${OPTIONS_MULLE_MAKE_PROJECT}" "--sdk '${SDKS%%,*}'"
       OPTIONS_MULLE_MAKE_PROJECT="${RVAL}"
    fi
-   if [ "${OPTION_ALLOW_SCRIPT}" = "YES" ]
+   if [ "${OPTION_ALLOW_SCRIPT}" = 'YES' ]
    then
       r_concat "${OPTIONS_MULLE_MAKE_PROJECT}" "--allow-script"
       OPTIONS_MULLE_MAKE_PROJECT="${RVAL}"
@@ -955,14 +1443,18 @@ do_build_mainproject()
    done
 
    # never install the project, use mulle-make for that
-   if ! eval_exekutor "'${MULLE_MAKE}'" "${MULLE_MAKE_FLAGS}" \
-                        "build" "${OPTIONS_MULLE_MAKE_PROJECT}" "${auxargs}"
+   if ! eval_exekutor "'${MULLE_MAKE}'" \
+                           "${MULLE_TECHNICAL_FLAGS}" \
+                           "${MULLE_MAKE_FLAGS}" \
+                        "build" \
+                           "${OPTIONS_MULLE_MAKE_PROJECT}" \
+                           "${auxargs}"
    then
       log_fluff "Project build failed"
       return 1
    fi
 
-   if [ "${MULLE_FLAG_MOTD}" = "NO" ]
+   if [ "${MULLE_FLAG_MOTD}" = 'NO' ]
    then
       log_fluff "Not showing motd on request"
    else
@@ -978,7 +1470,7 @@ do_build_mainproject()
 
 
 #
-# mulle-craft isn't rules so much by command line arguments
+# mulle-craft isn't ruled so much by command line arguments
 # but uses mostly ENVIRONMENT variables
 # These are usually provided with mulle-sde.
 #
@@ -986,15 +1478,19 @@ build_common()
 {
    log_entry "build_common" "$@"
 
-   local OPTION_LENIENT="NO"
+   local OPTION_LENIENT='NO'
    local OPTION_BUILD_DEPENDENCY="DEFAULT"
    local OPTIONS_MULLE_MAKE_PROJECT=
-   local OPTION_SUBDIR=".buildorder"
-   local OPTION_PLATFORM="YES"
-   local OPTION_LOCAL="YES"
-   local OPTION_REBUILD_BUILDORDER="NO"
-   local OPTION_PROTECT_DEPENDENCY="YES"
-   local OPTION_ALLOW_SCRIPT="DEFAULT"
+   local OPTION_PLATFORM='YES'
+   local OPTION_LOCAL='YES'
+   local OPTION_REBUILD_BUILDORDER='NO'
+   local OPTION_PROTECT_DEPENDENCY='YES'
+   local OPTION_ALLOW_SCRIPT="${MULLE_SDE_USE_SCRIPT:-DEFAULT}"
+   local OPTION_SINGLE_DEPENDENCY
+   local OPTION_LIST_REMAINING='NO'
+   local OPTION_CLEAN_TMP='YES'
+   local OPTION_PARALLEL_LINK='YES'
+   local OPTION_PHASES="Headers Compile Link"
 
    while [ $# -ne 0 ]
    do
@@ -1010,32 +1506,44 @@ build_common()
             BUILDORDER_FILE="$1"  # could be global env
          ;;
 
-         -s|--subdir)
-            [ $# -eq 1 ] && build_execute_usage "Missing argument to \"$1\""
-            shift
-
-            OPTION_SUBDIR="$1"  # could be global env
+         -l|--lenient)
+            OPTION_LENIENT='YES'
          ;;
 
-         -l|--lenient)
-            OPTION_LENIENT="YES"
+         --all|--rebuild)
+            OPTION_REBUILD_BUILDORDER='YES'
+         ;;
+
+         --no-rebuild)
+            OPTION_REBUILD_BUILDORDER='NO'
          ;;
 
          --no-lenient)
-            OPTION_LENIENT="NO"
+            OPTION_LENIENT='NO'
+         ;;
+
+         --no-clean-tmp)
+            OPTION_CLEAN_TMP='YES'
+         ;;
+
+         --no-memo-makeflags)
+            [ $# -eq 1 ] && build_execute_usage "Missing argument to \"$1\""
+            shift
+
+            OPTION_NO_MEMO_MAKEFLAGS="$1"  # could be global env
          ;;
 
          # these are dependency within buildorder, buildorder has also subproj
          --allow-script)
-            OPTION_ALLOW_SCRIPT="YES"
+            OPTION_ALLOW_SCRIPT='YES'
          ;;
 
          --no-allow-script)
-            OPTION_ALLOW_SCRIPT="NO"
+            OPTION_ALLOW_SCRIPT='NO'
          ;;
 
          --dependency)
-            OPTION_BUILD_DEPENDENCY="YES"
+            OPTION_BUILD_DEPENDENCY='YES'
          ;;
 
          --only-dependency)
@@ -1043,23 +1551,30 @@ build_common()
          ;;
 
          --no-dependency)
-            OPTION_BUILD_DEPENDENCY="NO"
+            OPTION_BUILD_DEPENDENCY='NO'
+         ;;
+
+         --parallel-link)
+            OPTION_PARALLEL_LINK='YES'
+         ;;
+
+         --no-parallel-link)
+            OPTION_PARALLEL_LINK='NO'
          ;;
 
          --protect)
-            OPTION_PROTECT_DEPENDENCY="YES"
+            OPTION_PROTECT_DEPENDENCY='YES'
          ;;
 
          --no-protect)
-            OPTION_PROTECT_DEPENDENCY="NO"
+            OPTION_PROTECT_DEPENDENCY='NO'
          ;;
 
-         --rebuild)
-            OPTION_REBUILD_BUILDORDER="YES"
-         ;;
+         --configuration)
+            [ $# -eq 1 ] && build_execute_usage "Missing argument to \"$1\""
+            shift
 
-         --no-rebuild)
-            OPTION_REBUILD_BUILDORDER="NO"
+            CONFIGURATIONS="$1"
          ;;
 
          --debug)
@@ -1071,12 +1586,23 @@ build_common()
          ;;
 
          --no-platform|--no-platform-craftinfo)
-            OPTION_PLATFORM="NO"
+            OPTION_PLATFORM='NO'
          ;;
 
          --no-local|--no-local-craftinfo)
-            OPTION_LOCAL="NO"
+            OPTION_LOCAL='NO'
          ;;
+
+         --list-remaining)
+            OPTION_LIST_REMAINING='YES'
+         ;;
+
+         --single-dependency)
+            [ $# -eq 1 ] && build_execute_usage "Missing argument to \"$1\""
+            shift
+
+				OPTION_SINGLE_DEPENDENCY="$1"
+			;;
 
          --sdk)
             [ $# -eq 1 ] && build_execute_usage "Missing argument to \"$1\""
@@ -1104,7 +1630,7 @@ build_common()
 
    if [ -z "${CONFIGURATIONS}" ]
    then
-      CONFIGURATIONS="Release"
+      CONFIGURATIONS="Debug"
    fi
 
    if [ -z "${SDKS}" ]
@@ -1154,7 +1680,7 @@ ${currentenv}"
       . "${MULLE_CRAFT_LIBEXEC_DIR}/mulle-craft-search.sh" || exit 1
    fi
 
-   if [ "${OPTION_USE_BUILDORDER}" = "YES" ]
+   if [ "${OPTION_USE_BUILDORDER}" = 'YES' ]
    then
       #
       # the buildorderfile is created by mulle-sde
@@ -1170,21 +1696,14 @@ ${currentenv}"
          fail "Missing buildorder file \"${BUILDORDER_FILE}\""
       fi
 
-      local builddir
-      local subdir
-      local RVAL
-
-      builddir="${OPTION_BUILDORDER_BUILD_DIR:-${BUILD_DIR}}"
-      r_filepath_concat "${builddir}" "${OPTION_SUBDIR}"
-      builddir="${RVAL}"
-      do_build_buildorder "${BUILDORDER_FILE}" "${builddir}" "$@"
+      do_build_buildorder "${BUILDORDER_FILE}" "${BUILDORDER_BUILD_DIR}" "$@"
       return $?
    fi
 
    #
    # Build the project
    #
-   [ "${OPTION_USE_PROJECT}" = "YES" ] || internal_fail "hein ?"
+   [ "${OPTION_USE_PROJECT}" = 'YES' ] || internal_fail "hein ?"
 
    do_build_mainproject "$@"
 }
@@ -1194,17 +1713,16 @@ build_project_main()
 {
    log_entry "build_project_main" "$@"
 
-   BUILD_STYLE="project"
-
+   USAGE_BUILD_STYLE="project"
    USAGE_INFO="Build the project only.
 "
    local OPTION_USE_PROJECT
    local OPTION_USE_BUILDORDER
    local OPTION_MUST_HAVE_BUILDORDER
 
-   OPTION_USE_PROJECT="YES"
-   OPTION_USE_BUILDORDER="NO"
-   OPTION_MUST_HAVE_BUILDORDER="NO"
+   OPTION_USE_PROJECT='YES'
+   OPTION_USE_BUILDORDER='NO'
+   OPTION_MUST_HAVE_BUILDORDER='NO'
 
    build_common "$@"
 }
@@ -1214,18 +1732,57 @@ build_buildorder_main()
 {
    log_entry "build_buildorder_main" "$@"
 
-   BUILD_STYLE="buildorder"
-
+   USAGE_BUILD_STYLE="buildorder"
    USAGE_INFO="Build the buildorder only.
 "
    local OPTION_USE_PROJECT
    local OPTION_USE_BUILDORDER
    local OPTION_MUST_HAVE_BUILDORDER
 
-   OPTION_USE_PROJECT="NO"
-   OPTION_USE_BUILDORDER="YES"
-   OPTION_MUST_HAVE_BUILDORDER="YES"
+   OPTION_USE_PROJECT='NO'
+   OPTION_USE_BUILDORDER='YES'
+   OPTION_MUST_HAVE_BUILDORDER='YES'
 
    build_common "$@"
+}
+
+
+list_buildorder_main()
+{
+   log_entry "list_buildorder_main" "$@"
+
+   USAGE_BUILD_STYLE="list"
+   USAGE_INFO="List remaining items in buildorder to be built.
+"
+   local OPTION_USE_PROJECT
+   local OPTION_USE_BUILDORDER
+   local OPTION_MUST_HAVE_BUILDORDER
+
+   OPTION_USE_PROJECT='NO'
+   OPTION_USE_BUILDORDER='YES'
+   OPTION_MUST_HAVE_BUILDORDER='YES'
+
+   build_common --list-remaining "$@"
+}
+
+
+build_single_dependency_main()
+{
+   log_entry "build_single_dependency_main" "$@"
+
+   local name="$1"; shift
+
+   USAGE_BUILD_STYLE="buildorder --single-dependency '${name}'"
+   USAGE_INFO="Build a single dependency of the buildorder only.
+"
+   local OPTION_USE_PROJECT
+   local OPTION_USE_BUILDORDER
+   local OPTION_MUST_HAVE_BUILDORDER
+
+   OPTION_USE_PROJECT='NO'
+   OPTION_USE_BUILDORDER='YES'
+   OPTION_MUST_HAVE_BUILDORDER='YES'
+
+   build_common --single-dependency "${name}" "$@"
 }
 

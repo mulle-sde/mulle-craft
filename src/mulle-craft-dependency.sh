@@ -29,7 +29,7 @@
 #   ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
 #   POSSIBILITY OF SUCH DAMAGE.
 #
-MULLE_CRAFT_DEPENDENCIES_SH="included"
+MULLE_CRAFT_DEPENDENCY_SH="included"
 
 
 #
@@ -37,17 +37,17 @@ MULLE_CRAFT_DEPENDENCIES_SH="included"
 # bin share lib  folders and so on. The dependencies folder is
 # write protected by default.
 #
-# You add stuff to ./dependency by callin `dependencies_begin_update`
-# and when you are done you call  `dependencies_end_update`. During that
+# You add stuff to ./dependency by callin `dependency_begin_update`
+# and when you are done you call  `dependency_end_update`. During that
 # time ./dependency is not write protected.
 #
 # The dependency folder can be preloaded with tarball content and directory
-# contents, if the environment variable MULLE_CRAFT_DEPENDENCY_PRELOADS is set
+# contents, if the environment variable DEPENDENCY_TARBALL_PATH is set
 # (it contains a : separated list of tarball paths)
 #
-_dependencies_install_tarballs()
+_dependency_install_tarballs()
 {
-   log_entry "_dependencies_install_tarballs" "$@"
+   log_entry "_dependency_install_tarballs" "$@"
 
    local tarballs
    local tarball
@@ -59,7 +59,7 @@ _dependencies_install_tarballs()
    fi
 
    set -f ; IFS=":"
-   for tarball in ${MULLE_CRAFT_DEPENDENCY_PRELOADS}
+   for tarball in ${DEPENDENCY_TARBALL_PATH}
    do
       set +f ; IFS="${DEFAULT_IFS}"
 
@@ -96,9 +96,9 @@ _dependencies_install_tarballs()
 }
 
 
-dependencies_init()
+dependency_init()
 {
-   log_entry "dependencies_init" "$@"
+   log_entry "dependency_init" "$@"
 
    local project="$1"
 
@@ -107,18 +107,18 @@ dependencies_init()
    mkdir_if_missing "${DEPENDENCY_DIR}"
 
    redirect_exekutor "${DEPENDENCY_DIR}/.state" \
-      echo "initting"
+      echo "initing"
 
-   _dependencies_install_tarballs
+   _dependency_install_tarballs
 
    redirect_exekutor "${DEPENDENCY_DIR}/.state" \
       echo "inited"
 }
 
 
-dependencies_unprotect()
+dependency_unprotect()
 {
-   log_entry "dependencies_unprotect" "$@"
+   log_entry "dependency_unprotect" "$@"
 
    [ -z "${DEPENDENCY_DIR}" ] && internal_fail "DEPENDENCY_DIR not set"
 
@@ -131,9 +131,9 @@ dependencies_unprotect()
 }
 
 
-dependencies_protect()
+dependency_protect()
 {
-   log_entry "dependencies_protect" "$@"
+   log_entry "dependency_protect" "$@"
 
    [ -z "${DEPENDENCY_DIR}" ] && internal_fail "DEPENDENCY_DIR not set"
 
@@ -155,7 +155,7 @@ dependencies_protect()
 #  updating
 # ready
 #
-dependencies_get_state()
+dependency_get_state()
 {
    [ -z "${DEPENDENCY_DIR}" ] && internal_fail "DEPENDENCY_DIR not set"
 
@@ -166,9 +166,9 @@ dependencies_get_state()
 }
 
 
-dependencies_get_timestamp()
+dependency_get_timestamp()
 {
-   log_entry "dependencies_get_timestamp" "$@"
+   log_entry "dependency_get_timestamp" "$@"
 
    [ -z "${DEPENDENCY_DIR}" ] && internal_fail "DEPENDENCY_DIR not set"
 
@@ -179,70 +179,71 @@ dependencies_get_timestamp()
 }
 
 
-dependencies_clean()
+dependency_clean()
 {
-   log_entry "dependencies_clean" "$@"
+   log_entry "dependency_clean" "$@"
 
    [ -z "${DEPENDENCY_DIR}" ] && internal_fail "DEPENDENCY_DIR not set"
 
-   if [ "${OPTION_PROTECT_DEPENDENCY}" = "YES" ]
+   if [ "${OPTION_PROTECT_DEPENDENCY}" = 'YES' ]
    then
-      dependencies_unprotect
+      dependency_unprotect
       rmdir_safer "${DEPENDENCY_DIR}"
    fi
 }
 
 
-dependencies_begin_update()
+dependency_begin_update()
 {
-   log_entry "dependencies_begin_update" "$@"
+   log_entry "dependency_begin_update" "$@"
 
    [ -z "${DEPENDENCY_DIR}" ] && internal_fail "DEPENDENCY_DIR not set"
 
-   if [ "${OPTION_PROTECT_DEPENDENCY}" != "YES" ]
+   if [ "${OPTION_PROTECT_DEPENDENCY}" != 'YES' ]
    then
       return
    fi
 
    local state
 
-   state="`dependencies_get_state`"
+   state="`dependency_get_state`"
    case "${state}" in
       clean)
-         dependencies_init
+         dependency_init
       ;;
 
-      initing)
-         fail "A previous init got stuck. Clean and try again (maybe)"
+      initing|initting) # previous misspell
+         fail "A previous craft got stuck. Suggested remedy:
+   ${C_RESET_BOLD}${MULLE_USAGE_NAME% *} clean dependency"
       ;;
 
       inited|ready)
       ;;
 
       updating)
-         log_warning "dependencies: Updating an incomplete previous update"
+         log_warning "dependencies: Updating an incomplete previous dependency update"
       ;;
 
       *)
-         internal_fail "Empty or unknown state \"${state}\""
+         internal_fail "Empty or unknown dependency state \"${state}\""
       ;;
 
    esac
 
-   dependencies_unprotect
+   dependency_unprotect
 
    redirect_exekutor "${DEPENDENCY_DIR}/.state" \
       echo "updating"
 }
 
 
-dependencies_end_update()
+dependency_end_update()
 {
-   log_entry "dependencies_end_update" "$@"
+   log_entry "dependency_end_update" "$@"
 
    [ -z "${DEPENDENCY_DIR}" ] && fail "DEPENDENCY_DIR not set"
 
-   if [ "${OPTION_PROTECT_DEPENDENCY}" != "YES" ]
+   if [ "${OPTION_PROTECT_DEPENDENCY}" != 'YES' ]
    then
       return
    fi
@@ -250,7 +251,7 @@ dependencies_end_update()
    redirect_exekutor "${DEPENDENCY_DIR}/.state" \
       echo "ready"
 
-   dependencies_protect
+   dependency_protect
 }
 
 
@@ -259,9 +260,9 @@ dependencies_end_update()
 # folder in assume order of relevance
 #
 
-r_dependencies_existing_dirs_path()
+r_dependency_existing_dirs_path()
 {
-   log_entry "r_dependencies_existing_dirs_path" "$@"
+   log_entry "r_dependency_existing_dirs_path" "$@"
 
    local subdirectories="$1"
 
@@ -286,9 +287,9 @@ r_dependencies_existing_dirs_path()
 }
 
 
-r_dependencies_dir_locations()
+r_dependency_dir_locations()
 {
-   log_entry "r_dependencies_dir_locations" "$@"
+   log_entry "r_dependency_dir_locations" "$@"
 
    local name="$1"
    local configuration="$2"
@@ -316,50 +317,50 @@ r_dependencies_dir_locations()
 }
 
 
-r_dependencies_include_path()
+r_dependency_include_path()
 {
-   log_entry "r_dependencies_include_path" "$@"
+   log_entry "r_dependency_include_path" "$@"
 
    local configuration="$1"
    local sdk="$2"
 
-   r_dependencies_dir_locations "include" "${configuration}" "${sdk}"
-   r_dependencies_existing_dirs_path "${RVAL}"
+   r_dependency_dir_locations "include" "${configuration}" "${sdk}"
+   r_dependency_existing_dirs_path "${RVAL}"
 }
 
 
-r_dependencies_lib_path()
+r_dependency_lib_path()
 {
-   log_entry "r_dependencies_lib_path" "$@"
+   log_entry "r_dependency_lib_path" "$@"
 
    local configuration="$1"
    local sdk="$2"
 
-   r_dependencies_dir_locations "lib" "${configuration}" "${sdk}"
-   r_dependencies_existing_dirs_path "${RVAL}"
+   r_dependency_dir_locations "lib" "${configuration}" "${sdk}"
+   r_dependency_existing_dirs_path "${RVAL}"
 }
 
 
-r_dependencies_frameworks_path()
+r_dependency_frameworks_path()
 {
-   log_entry "dependencies_frameworks_path" "$@"
+   log_entry "dependency_frameworks_path" "$@"
 
    local configuration="$1"
    local sdk="$2"
 
-   r_dependencies_dir_locations "Frameworks" "${configuration}" "${sdk}"
-   r_dependencies_existing_dirs_path "${RVAL}"
+   r_dependency_dir_locations "Frameworks" "${configuration}" "${sdk}"
+   r_dependency_existing_dirs_path "${RVAL}"
 }
 
 
-r_dependencies_share_path()
+r_dependency_share_path()
 {
-   log_entry "dependencies_share_path" "$@"
+   log_entry "dependency_share_path" "$@"
 
    local configuration="$1"
    local sdk="$2"
 
-   r_dependencies_dir_locations "share" "${configuration}" "${sdk}"
-   r_dependencies_existing_dirs_path "${RVAL}"
+   r_dependency_dir_locations "share" "${configuration}" "${sdk}"
+   r_dependency_existing_dirs_path "${RVAL}"
 }
 

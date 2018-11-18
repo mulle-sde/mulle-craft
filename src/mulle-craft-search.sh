@@ -71,6 +71,9 @@ r_determine_craftinfo_dir()
 
    [ -z "${name}" ] && internal_fail "name must not be null"
 
+   # replace slashes with underscores
+   name="${name//\//_}"
+
    local craftinfodir
    local searchpath
 
@@ -90,21 +93,25 @@ r_determine_craftinfo_dir()
             then
                if [ ! -z "${configuration}" ]
                then
-                  if [ "${allowplatform}" = "YES" ]
+                  if [ "${allowplatform}" = 'YES' ]
                   then
-                     r_colon_concat "${searchpath}" "${DEPENDENCY_DIR}/${configuration}/share/mulle-craft/${name}.${MULLE_UNAME}"
+                     r_colon_concat "${searchpath}" \
+"${DEPENDENCY_DIR}/${configuration}/share/mulle-craft/${name}/mulle-make.${MULLE_UNAME}"
                      searchpath="${RVAL}"
                   fi
-                  r_colon_concat "${searchpath}" "${DEPENDENCY_DIR}/${configuration}/share/mulle-craft/${name}"
+                  r_colon_concat "${searchpath}" \
+"${DEPENDENCY_DIR}/${configuration}/share/mulle-craft/${name}/mulle-make"
                   searchpath="${RVAL}"
                fi
 
-               if [ "${allowplatform}" = "YES" ]
+               if [ "${allowplatform}" = 'YES' ]
                then
-                  r_colon_concat "${searchpath}" "${DEPENDENCY_DIR}/share/mulle-craft/${name}.${MULLE_UNAME}"
+                  r_colon_concat "${searchpath}" \
+"${DEPENDENCY_DIR}/share/mulle-craft/${name}/mulle-make.${MULLE_UNAME}"
                   searchpath="${RVAL}"
                fi
-               r_colon_concat "${searchpath}" "${DEPENDENCY_DIR}/share/mulle-craft/${name}"
+               r_colon_concat "${searchpath}" \
+"${DEPENDENCY_DIR}/share/mulle-craft/${name}/mulle-make"
                searchpath="${RVAL}"
             fi
          ;;
@@ -120,11 +127,12 @@ r_determine_craftinfo_dir()
 
       if [ ! -z "${projectdir}" ]
       then
-         if [ "${allowlocal}" = "YES" ]
+         if [ "${allowlocal}" = 'YES' ]
          then
-            if [ "${allowplatform}" = "YES" ]
+            if [ "${allowplatform}" = 'YES' ]
             then
-               r_colon_concat "${searchpath}" "${projectdir}/.mulle-make.${MULLE_UNAME}"
+               r_colon_concat "${searchpath}" \
+                              "${projectdir}/.mulle-make.${MULLE_UNAME}"
                searchpath="${RVAL}"
             fi
             r_colon_concat "${searchpath}" "${projectdir}/.mulle-make"
@@ -160,8 +168,8 @@ build_search_main()
    log_entry "build_common" "$@"
 
    local OPTION_PROJECT_DIR
-   local OPTION_PLATFORM="YES"
-   local OPTION_LOCAL="YES"
+   local OPTION_PLATFORM='YES'
+   local OPTION_LOCAL='YES'
 
    while [ $# -ne 0 ]
    do
@@ -178,11 +186,11 @@ build_search_main()
          ;;
 
          --no-platform|--no-platform-craftinfo)
-            OPTION_PLATFORM="NO"
+            OPTION_PLATFORM='NO'
          ;;
 
          --no-local|--no-local-craftinfo)
-            OPTION_LOCAL="NO"
+            OPTION_LOCAL='NO'
          ;;
 
          -*)
@@ -210,7 +218,10 @@ build_search_main()
          name="${RVAL}"
       fi
 
-	   r_determine_craftinfo_dir "${name}" "${OPTION_PROJECT_DIR:-${PWD}}" "mainproject" "${OPTION_GLOBAL}"
+	   r_determine_craftinfo_dir "${name}" \
+                                "${OPTION_PROJECT_DIR:-${PWD}}" \
+                                "mainproject" \
+                                "${OPTION_GLOBAL}"
 	else
 		if [ -z "${OPTION_PROJECT_DIR}" ]
 		then

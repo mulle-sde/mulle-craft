@@ -1,6 +1,6 @@
 #! /usr/bin/env bash
 
-[ "${TRACE}" = "YES" ] && set -x && : "$0" "$@"
+[ "${TRACE}" = 'YES' ] && set -x && : "$0" "$@"
 
 
 run_mulle_craft()
@@ -48,10 +48,10 @@ expect_content()
    if [ $? -ne 0 ]
    then
       # fix for mingw
-      if [ `wc -l <<< "${diffs}"` -eq 2 ] 
+      if [ `wc -l <<< "${diffs}"` -eq 2 ]
       then
          if egrep -q 'CMAKE_LINKER:PATH=' <<< "${diffs}"
-         then 
+         then
             return 0
          fi
       fi

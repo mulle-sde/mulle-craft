@@ -38,22 +38,22 @@ build_log_usage()
 
     cat <<EOF >&2
 Usage:
-   ${MULLE_USAGE_NAME} log [options] <command>
+   ${MULLE_USAGE_NAME} log [options] [command]
 
    List available build logs and run arbitrary commands on them like
-   'cat' or 'grep'
+   'cat' or 'grep', where 'cat' is the default.
 
    Show last project logs with:
 
-      ${MULLE_USAGE_NAME} log cat
+      ${MULLE_USAGE_NAME} log
 
-   Dump all project logs with:
+   Grep for 'error:' through all project logs with:
 
-      ${MULLE_USAGE_NAME} log -p '*' cat
+      ${MULLE_USAGE_NAME} log -p '*' grep 'error:'
 
 Options:
    -c <configuration>  : restrict to configuration
-   -p <project>        : project, leave empty for main project
+   -p <project>        : project, leave out for main project
    -t <tool>           : restrict to tool
 
 Commands:
@@ -146,8 +146,12 @@ list_tool_logs()
       cmdline="${cmdline} -c \"${configuration}\""
    fi
 
+   log_info "${project}"
+
+   shopt -s nullglob
    for i in "${logdir}"/*.log
    do
+      shopt -u nullglob
       if [ "${mode}" = "CMD" ]
       then
          r_fast_basename "${i}"
@@ -158,6 +162,7 @@ list_tool_logs()
          echo "${i#${MULLE_USER_PWD}/}"
       fi
    done
+   shopt -u nullglob
 
 
    if [ "${mode}" = "CMD" ]
@@ -227,7 +232,8 @@ build_log_list()
       do
          IFS="${DEFAULT_IFS}" ; set +o noglob
 
-         configuration="`fast_dirname "${directory#${BUILD_DIR}/}"`"
+         r_fast_dirname "${directory#${BUILD_DIR}/}"
+         configuration="${RVAL}"
 
          list_tool_logs "${OPTION_OUTPUT}" "${directory}" "" "${configuration}"
       done
@@ -250,7 +256,8 @@ build_log_list()
       do
          IFS="${DEFAULT_IFS}" ; set +o noglob
 
-         name_configuration="`fast_dirname "${directory#${BUILDORDER_BUILD_DIR}/}"`"
+         r_fast_dirname "${directory#${BUILDORDER_BUILD_DIR}/}"
+         name_configuration="${RVAL}"
          name="${name_configuration%%/*}"
          configuration="${name_configuration#*/}"
          list_tool_logs "${OPTION_OUTPUT}" "${directory}" "${name}" "${configuration}"
@@ -287,33 +294,60 @@ build_log_command()
    done
 
    local directory
-
-   case "${OPTION_PROJECT_NAME}" in
-      ''|'*')
-         directory="${BUILD_DIR#${PWD}/}"
-         directory="${directory}/${OPTION_CONFIGURATION}/.log/${OPTION_TOOL}.log"
-         # https://stackoverflow.com/questions/2937407/test-whether-a-glob-matches-any-files
-         if compgen -G ${directory} 2> /dev/null
-         then
-            exekutor "${cmd}" "$@" ${directory}
-         else
-            log_verbose "No project logs match"
-         fi
-      ;;
-   esac
+   local logfiles
+   local logfile
 
    case "${OPTION_PROJECT_NAME}" in
       '')
       ;;
 
       *)
-         directory="${BUILDORDER_BUILD_DIR#${PWD}/}/${OPTION_PROJECT_NAME}"
-         directory="${directory}/${OPTION_CONFIGURATION}/.log/${OPTION_TOOL}.log"
-         if compgen -G ${directory} 2> /dev/null
+         directory="${BUILDORDER_BUILD_DIR#${PWD}/}"
+         directory="${directory}/${OPTION_CONFIGURATION}"
+         directory="${directory}/${OPTION_PROJECT_NAME}"
+
+         if rexekutor compgen -G ${directory} > /dev/null 2>&1
          then
-            exekutor "${cmd}" "$@" ${directory}
+            log_info "${OPTION_PROJECT_NAME}"
+
+            logfiles="${directory}/.log/${OPTION_TOOL}.log"
+            shopt -s nullglob
+            for i in ${logfiles}
+            do
+               shopt -u nullglob
+               log_info "${C_RESET_BOLD}${i}:"
+               exekutor "${cmd}" "$@" "${i}"
+            done
+            shopt -u nullglob
          else
             log_verbose "No buildorder logs match"
+         fi
+      ;;
+   esac
+
+   #
+   # TODO: should put a number prefix on logfiles so that it's known that
+   #       cmake is emitted before make
+   #
+   case "${OPTION_PROJECT_NAME}" in
+      ''|'*')
+         log_info "${PROJECT_NAME}"
+
+         directory="${BUILD_DIR#${PWD}/}"
+         # https://stackoverflow.com/questions/2937407/test-whether-a-glob-matches-any-files
+         if rexekutor compgen -G ${directory} > /dev/null 2>&1
+         then
+            logfiles="${directory}/${OPTION_CONFIGURATION}/.log/${OPTION_TOOL}.log"
+            shopt -s nullglob
+            for i in ${logfiles}
+            do
+               shopt -u nullglob
+               log_info "${C_RESET_BOLD}${i}:"
+               exekutor "${cmd}" "$@" "${i}"
+            done
+            shopt -u nullglob
+         else
+            log_verbose "No project logs match"
          fi
       ;;
    esac
@@ -341,11 +375,11 @@ build_log_main()
             build_log_usage
          ;;
 
-         -b|--build-dir)
+         -c|--configuration)
             [ $# -eq 1 ] && fail "Missing argument to \"$1\""
             shift
 
-            BUILD_DIR="$1"
+            OPTION_CONFIGURATION="$1"
          ;;
 
          -p|--project-name)
@@ -355,25 +389,11 @@ build_log_main()
             OPTION_PROJECT_NAME="$1"
          ;;
 
-         -c|--configuration)
-            [ $# -eq 1 ] && fail "Missing argument to \"$1\""
-            shift
-
-            OPTION_CONFIGURATION="$1"
-         ;;
-
          -t|--tool)
             [ $# -eq 1 ] && fail "Missing argument to \"$1\""
             shift
 
             OPTION_TOOL="$1"
-         ;;
-
-         --dependency-build-dir)
-            [ $# -eq 1 ] && fail "Missing argument to \"$1\""
-            shift
-
-            OPTION_BUILDORDER_BUILD_DIR="$1"
          ;;
 
          -*)
@@ -393,13 +413,9 @@ build_log_main()
       fail "Unknown build directory, specify with -b"
    fi
 
-   local BUILDORDER_BUILD_DIR
-
-   BUILDORDER_BUILD_DIR="${OPTION_BUILDORDER_BUILD_DIR:-${BUILD_DIR}/.buildorder}"
-
    local cmd
 
-   cmd="$1"
+   cmd="${1:-cat}"
    [ $# -ne  0 ] && shift
 
    case "${cmd}" in
