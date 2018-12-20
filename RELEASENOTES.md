@@ -1,3 +1,7 @@
+### 0.14.1
+
+* unified installer logic
+
 ## 0.14.0
 
 * add support for triple phase builds
