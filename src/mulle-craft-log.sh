@@ -100,9 +100,9 @@ project_log_dirs()
 
       r_escaped_sed_pattern "${BUILDORDER_BUILD_DIR}"
       sed_escaped_value="${RVAL}"
-      rexekutor find "${BUILD_DIR}" -type d -name .log | rexekutor egrep -v "^${sed_escaped_value}"
+      rexekutor find -H "${BUILD_DIR}" -type d -name .log | rexekutor egrep -v "^${sed_escaped_value}"
    else
-      rexekutor find "${BUILD_DIR}" -type d -name .log
+      rexekutor find -H "${BUILD_DIR}" -type d -name .log
    fi
 }
 
@@ -116,7 +116,7 @@ buildorder_log_dirs()
       return 2
    fi
 
-   rexekutor find "${BUILDORDER_BUILD_DIR}" -type d -name .log
+   rexekutor find -H "${BUILDORDER_BUILD_DIR}" -type d -name .log
 }
 
 

@@ -941,6 +941,7 @@ handle_build_step()
    fi
 }
 
+
 handle_parallel_builds()
 {
    log_entry "handle_parallel_builds" "$@"
@@ -1078,13 +1079,27 @@ handle_parallel_builds()
 
       if [ "${MULLE_FLAG_LOG_SETTINGS}" = 'YES' ]
       then
-         log_trace2 "Errors: `cat "${statusfile}"`"
+         log_trace2 "Return values: `cat "${statusfile}"`"
       fi
 
-      if egrep -v -s -q ';0$' "${statusfile}"
+      local failures
+      local line
+
+      failures="`egrep -v -s ';0$' "${statusfile}"`"
+      remove_file_if_present "${statusfile}"
+
+      if [ ! -z "${failures}" ]
       then
          log_fluff "Errors detected in \"${statusfile}\": `cat "${statusfile}"`"
-         remove_file_if_present "${statusfile}"
+
+         set -f; IFS="
+"
+         for line in ${failures}
+         do
+            log_error "Parallel build of ${i%;*} failed"
+         done
+         set +f; IFS="${DEFAULT_IFS}"
+
          return 1
       fi
    done
@@ -1241,18 +1256,19 @@ _do_build_buildorder()
                    "$@"
       rval=$?
 
-      if [ ! -z "${OPTION_SINGLE_DEPENDENCY}" ]
-      then
-         return $rval
-      fi
-
       if ! handle_build_rval "$rval" \
                              "${marks}" \
                              "${donefile}" \
                              "${line}" \
                              "${evaledproject}"
       then
+         log_error "Serial ${configuration} craft of ${project} failed"
          return 1
+      fi
+
+      if [ ! -z "${OPTION_SINGLE_DEPENDENCY}" ]
+      then
+         return $rval
       fi
    done
    set +f ; IFS="${DEFAULT_IFS}"

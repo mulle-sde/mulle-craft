@@ -1,3 +1,7 @@
+### 0.14.2
+
+* be more verbose on errors, allow `BUILD_DIR` and `BUILDORDER_BUILD_DIR` to be a symlink
+
 ### 0.14.1
 
 * unified installer logic
