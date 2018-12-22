@@ -1,3 +1,7 @@
+### 0.14.8
+
+* fix regression with -- parameter
+
 ### 0.14.7
 
 * fix some usage calls, --buildorder-file is moved to flags for convenience

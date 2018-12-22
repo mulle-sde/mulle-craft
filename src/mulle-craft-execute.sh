@@ -1626,6 +1626,11 @@ build_common()
          ;;
 
          # pass remaining stuff to mulle-make
+         --)
+            shift
+            break
+         ;;
+
          *)
             break
          ;;
