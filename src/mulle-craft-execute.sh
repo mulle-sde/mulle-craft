@@ -879,14 +879,6 @@ handle_build_rval()
 
    if [ ${rval} -eq 1 ]
    then
-      case ",${marks}," in
-         *,no-require,*)
-            log_fluff "Ignoring build failure of \"${evaledproject}\" due to \
-no-require mark"
-            return 0
-         ;;
-      esac
-
       if [ "${OPTION_LENIENT}" = 'NO' ]
       then
          log_debug "Build of \"${evaledproject}\" failed, so quit"
@@ -945,7 +937,7 @@ handle_build_step()
                           "${line}" \
                           "${project}"
    then
-      redirect_append_exekutor "${statusfile}" echo "${rval}"
+      redirect_append_exekutor "${statusfile}" echo "${project};${phase};${rval}"
    fi
 }
 
@@ -1093,7 +1085,8 @@ handle_parallel_builds()
       local failures
       local line
 
-      failures="`egrep -v -s ';0$' "${statusfile}"`"
+      # 0 OK, 2: not-require; 1 error
+      failures="`egrep -s ';1$' "${statusfile}"`"
 
       if [ ! -z "${failures}" ]
       then
@@ -1105,7 +1098,10 @@ handle_parallel_builds()
 "
          for line in ${failures}
          do
-            log_error "Parallel build of \"${line%;*}\" failed in phase \"${phase}\""
+            project="${line%;*}"      # project;phase (remove ;rval)
+            phase="${project#*;}"
+            project="${project%;*}"
+            log_error "Parallel build of \"${project}\" failed in phase \"${phase}\""
          done
          set +f; IFS="${DEFAULT_IFS}"
 

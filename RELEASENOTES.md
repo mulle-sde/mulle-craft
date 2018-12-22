@@ -1,3 +1,7 @@
+### 0.14.5
+
+* parallel build now handles rval 2 correctly
+
 ### 0.14.4
 
 * no-require builds do not error anymore
