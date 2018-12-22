@@ -879,6 +879,14 @@ handle_build_rval()
 
    if [ ${rval} -eq 1 ]
    then
+      case ",${marks}," in
+         *,no-require,*)
+            log_fluff "Ignoring build failure of \"${evaledproject}\" due to \
+no-require mark"
+            return 0
+         ;;
+      esac
+
       if [ "${OPTION_LENIENT}" = 'NO' ]
       then
          log_debug "Build of \"${evaledproject}\" failed, so quit"

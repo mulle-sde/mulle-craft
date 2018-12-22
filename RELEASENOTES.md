@@ -1,3 +1,7 @@
+### 0.14.4
+
+* no-require builds do not error anymore
+
 ### 0.14.3
 
 * fix ...
