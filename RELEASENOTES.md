@@ -1,3 +1,7 @@
+### 0.14.9
+
+* fix missing parallel parameters
+
 ### 0.14.8
 
 * fix regression with -- parameter

@@ -1046,7 +1046,8 @@ handle_parallel_builds()
                                  "${phase}" \
                                  "${statusfile}" \
                                  "${line}" \
-                                 "${donefile}"
+                                 "${donefile}" \
+                                 "$@"
             ) &
          else
             handle_build_step "${cmd}" \
@@ -1058,7 +1059,8 @@ handle_parallel_builds()
                               "${phase}" \
                               "${statusfile}" \
                               "${line}" \
-                              "${donefile}"
+                              "${donefile}" \
+                              "$@"
          fi
       done
 
@@ -1304,10 +1306,6 @@ do_build_buildorder()
 
    [ -z "${buildorderfile}" ] && internal_fail "buildorderfile is missing"
    [ -z "${builddir}" ] && internal_fail "builddir is missing"
-
-   # shellcheck source=mulle-env-dependencies.sh
-   [ -z "${MULLE_CRAFT_DEPENDENCY_SH}" ] && \
-      . "${MULLE_CRAFT_LIBEXEC_DIR}/mulle-craft-dependency.sh"
 
    local buildorder
 
@@ -1706,6 +1704,9 @@ ${currentenv}"
       then
          fail "Missing buildorder file \"${BUILDORDER_FILE}\""
       fi
+
+      [ -z "${MULLE_CRAFT_DEPENDENCY_SH}" ] && \
+         . "${MULLE_CRAFT_LIBEXEC_DIR}/mulle-craft-dependency.sh"
 
       do_build_buildorder "${BUILDORDER_FILE}" "${BUILDORDER_BUILD_DIR}" "$@"
       return $?
