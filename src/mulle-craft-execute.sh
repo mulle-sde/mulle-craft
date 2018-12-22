@@ -1086,17 +1086,18 @@ handle_parallel_builds()
       local line
 
       failures="`egrep -v -s ';0$' "${statusfile}"`"
-      remove_file_if_present "${statusfile}"
 
       if [ ! -z "${failures}" ]
       then
          log_fluff "Errors detected in \"${statusfile}\": `cat "${statusfile}"`"
 
+         remove_file_if_present "${statusfile}"
+
          set -f; IFS="
 "
          for line in ${failures}
          do
-            log_error "Parallel build of ${i%;*} failed"
+            log_error "Parallel build of \"${line%;*}\" failed in phase \"${phase}\""
          done
          set +f; IFS="${DEFAULT_IFS}"
 
