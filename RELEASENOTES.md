@@ -1,3 +1,7 @@
+### 0.14.6
+
+* add quickstatus command
+
 ### 0.14.5
 
 * parallel build now handles rval 2 correctly

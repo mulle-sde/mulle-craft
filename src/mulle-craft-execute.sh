@@ -58,6 +58,7 @@ Environment:
    CRAFTINFO_PATH          : places to find craftinfos
    DEPENDENCY_DIR          : place to put dependencies into
    DEPENDENCY_TARBALL_PATH : tarballs to preinstall into dependency
+   MULLE_SDE_MAKE_FLAGS    : additional flags passed to mulle-make
    MULLE_SDE_USE_SCRIPT    : enables building with scripts
 EOF
   exit 1

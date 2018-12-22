@@ -153,11 +153,16 @@ status_main()
             BUILDORDER_FILE="$1"  # could be global env
          ;;
 
+         --no-memo-makeflags)
+            # ignore
+            shift
+         ;;
+
          --output-no-color)
             OPTION_COLOR="NO"
          ;;
-         -*)
 
+         -*)
             status_usage "Unknown option \"$1\""
          ;;
 
@@ -187,7 +192,7 @@ status_main()
    local configuration
    local donefile
 
-   for configuration in `find "${BUILDORDER_BUILD_DIR}" -type d -mindepth 1 -maxdepth 1 -print`
+   for configuration in `find -H "${BUILDORDER_BUILD_DIR}" -mindepth 1 -maxdepth 1 -type d -print`
    do
       donefile="${configuration}/.mulle-craft-built"
       if [ ! -f "${donefile}" ]

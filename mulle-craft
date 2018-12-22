@@ -32,7 +32,7 @@
 [ "${TRACE}" = 'YES' -o "${MULLE_CRAFT_TRACE}" = 'YES' ] && set -x && : "$0" "$@"
 
 
-MULLE_EXECUTABLE_VERSION=0.14.5
+MULLE_EXECUTABLE_VERSION=0.14.6
 
 
 trap_fail()
@@ -74,6 +74,7 @@ Commands:
    log                : inspect build logs
    project            : build main project without a buildorder file (default)
    search             : search for craftinfos (dependeny) or makeinfo (project)
+   status             : returns 0 if dependency is ready
 EOF
 
    if [ "${MULLE_FLAG_LOG_VERBOSE}" = 'NO' ]
@@ -281,6 +282,13 @@ main()
          . "${MULLE_CRAFT_LIBEXEC_DIR}/mulle-craft-search.sh"
 
          build_search_main "$@"
+      ;;
+
+      quickstatus)
+         # shellcheck source=src/mulle-craft-depedency.sh
+         . "${MULLE_CRAFT_LIBEXEC_DIR}/mulle-craft-dependency.sh"
+
+         quickstatus_main "$@"
       ;;
 
       status)

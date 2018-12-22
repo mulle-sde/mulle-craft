@@ -364,3 +364,15 @@ r_dependency_share_path()
    r_dependency_existing_dirs_path "${RVAL}"
 }
 
+
+
+quickstatus_main()
+{
+   local  state
+
+   state="`dependency_get_state`"
+
+   log_info "Folder ${C_RESET_BOLD}${DEPENDENCY_DIR#${MULLE_USER_PWD}/}${C_INFO} is ${C_MAGENTA}${C_BOLD}${state}"
+
+   [ "${state}" = 'ready' ]
+}
