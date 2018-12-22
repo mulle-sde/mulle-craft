@@ -32,7 +32,7 @@
 [ "${TRACE}" = 'YES' -o "${MULLE_CRAFT_TRACE}" = 'YES' ] && set -x && : "$0" "$@"
 
 
-MULLE_EXECUTABLE_VERSION=0.14.6
+MULLE_EXECUTABLE_VERSION=0.14.7
 
 
 trap_fail()
@@ -43,6 +43,8 @@ trap_fail()
 
 usage()
 {
+   [ $# -ne 0 ] && log_error "$*"
+
    cat <<EOF
 Usage:
    ${MULLE_USAGE_NAME} [flags] [command]
@@ -128,14 +130,14 @@ main()
          ;;
 
          -b|--build-dir)
-            [ $# -eq 1 ] && build_execute_usage "Missing argument to \"$1\""
+            [ $# -eq 1 ] && usage "Missing argument to \"$1\""
             shift
 
             BUILD_DIR="$1"
          ;;
 
          -d|--definition-dir)
-            [ $# -eq 1 ] && build_execute_usage "Missing argument to \"$1\""
+            [ $# -eq 1 ] && usage "Missing argument to \"$1\""
             shift
 
             INFO_DIR="$1"
@@ -150,10 +152,17 @@ main()
          ;;
 
          -p|--project-dir)
-            [ $# -eq 1 ] && build_execute_usage "Missing argument to \"$1\""
+            [ $# -eq 1 ] && usage "Missing argument to \"$1\""
             shift
 
             exekutor cd "$1" || exit 1
+         ;;
+
+         --buildorder-file)
+            [ $# -eq 1 ] && usage "Missing argument to \"$1\""
+            shift
+
+            BUILDORDER_FILE="$1"
          ;;
 
          --buildorder-build-dir)

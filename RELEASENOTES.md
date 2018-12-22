@@ -1,3 +1,7 @@
+### 0.14.7
+
+* fix some usage calls, --buildorder-file is moved to flags for convenience
+
 ### 0.14.6
 
 * add quickstatus command

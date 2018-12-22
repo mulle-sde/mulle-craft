@@ -46,7 +46,7 @@ Usage:
    "buildorder", dependency", "project".
 
 Options:
-   -b <dir>         : specify build directory
+   --touch          : touch instead of clean buildorder to force recompile
 
 Names:
    all              : clean build folder
@@ -112,6 +112,10 @@ build_clean_main()
 
          --touch)
             OPTION_TOUCH='YES'
+         ;;
+
+         --no-memo-makeflags)
+            shift
          ;;
 
          -*)

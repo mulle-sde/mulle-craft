@@ -146,13 +146,6 @@ status_main()
             status_usage
          ;;
 
-         -f|--buildorder-file)
-            [ $# -eq 1 ] && build_execute_usage "Missing argument to \"$1\""
-            shift
-
-            BUILDORDER_FILE="$1"  # could be global env
-         ;;
-
          --no-memo-makeflags)
             # ignore
             shift

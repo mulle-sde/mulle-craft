@@ -43,14 +43,13 @@ Usage:
    ${USAGE_INFO}
 
 Options:
-   --all                           : rebuild everything (doesn't clean)
-   --buildorder-file <buildorder>  : specify buildorder file
-   --debug                         : compile for debug only
-   --lenient                       : do not stop on errors
-   --no-protect                    : do not make dependency read-only
-   --release                       : compile for release only
-   --sdk <sdk>                     : specify sdk to build against
-   --                              : pass remaining options to mulle-make
+   --all         : rebuild everything (doesn't clean)
+   --debug       : compile for debug only
+   --lenient     : do not stop on errors
+   --no-protect  : do not make dependency read-only
+   --release     : compile for release only
+   --sdk <sdk>   : specify sdk to build against
+   --            : pass remaining options to mulle-make
 
 Environment:
    ADDICTION_DIR           : place to get addictions from (optional)
@@ -1521,13 +1520,6 @@ build_common()
             build_execute_usage
          ;;
 
-         -f|--buildorder-file)
-            [ $# -eq 1 ] && build_execute_usage "Missing argument to \"$1\""
-            shift
-
-            BUILDORDER_FILE="$1"  # could be global env
-         ;;
-
          -l|--lenient)
             OPTION_LENIENT='YES'
          ;;
@@ -1633,15 +1625,7 @@ build_common()
             SDKS="$1"
          ;;
 
-         --)
-            shift
-            break
-         ;;
-
-         -*)
-            build_execute_usage "Unknown option \"$1\""
-         ;;
-
+         # pass remaining stuff to mulle-make
          *)
             break
          ;;
