@@ -1,3 +1,7 @@
+### 0.14.11
+
+* return 2 on quickstatus not ready
+
 ### 0.14.10
 
 * improve detection of broken builds

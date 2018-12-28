@@ -380,5 +380,9 @@ quickstatus_main()
 
    log_info "Folder ${C_RESET_BOLD}${DEPENDENCY_DIR#${MULLE_USER_PWD}/}${C_INFO} is ${C_MAGENTA}${C_BOLD}${state}"
 
-   [ "${state}" = 'ready' ]
+   if [ "${state}" = 'ready' ]
+   then
+      return 0
+   fi
+   return 2  # distinguish from error which is 1
 }
