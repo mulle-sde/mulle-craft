@@ -224,6 +224,10 @@ dependency_begin_update()
          log_warning "dependencies: Updating an incomplete previous dependency update"
       ;;
 
+      incomplete)
+         log_warning "dependencies: a previous build failed"
+      ;;
+
       *)
          internal_fail "Empty or unknown dependency state \"${state}\""
       ;;
@@ -237,9 +241,12 @@ dependency_begin_update()
 }
 
 
+# dont call this if your build failed, even if lenient
 dependency_end_update()
 {
    log_entry "dependency_end_update" "$@"
+
+   local rval=$1
 
    [ -z "${DEPENDENCY_DIR}" ] && fail "DEPENDENCY_DIR not set"
 
@@ -248,8 +255,7 @@ dependency_end_update()
       return
    fi
 
-   redirect_exekutor "${DEPENDENCY_DIR}/.state" \
-      echo "ready"
+   redirect_exekutor "${DEPENDENCY_DIR}/.state" echo "ready"
 
    dependency_protect
 }

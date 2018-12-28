@@ -1,6 +1,8 @@
-# mulle-craft, 🚬 Build projects with and without mulle sourcetrees
+# mulle-craft
 
-![Last version](https://img.shields.io/github/tag/mulle-nat/mulle-craft.svg)
+🚬 Build projects with and without mulle sourcetrees
+
+![Last version](https://img.shields.io/github/tag/mulle-sde/mulle-craft.svg)
 
 ... for Linux, OS X, FreeBSD, Windows
 

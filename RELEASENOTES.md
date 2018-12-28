@@ -1,3 +1,7 @@
+### 0.14.10
+
+* improve detection of broken builds
+
 ### 0.14.9
 
 * fix missing parallel parameters

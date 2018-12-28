@@ -554,6 +554,7 @@ build_dependency_directly()
    build_project "${cmd}" "${DEPENDENCY_DIR}" "$@"
    rval=$?
 
+
    if [ $rval -ne 0 ]
    then
       if [ "${OPTION_LENIENT}" = 'NO' ]
@@ -563,7 +564,10 @@ build_dependency_directly()
       rval=1
    fi
 
-   dependency_end_update || return 1
+   if [ $rval -ne 1 ]
+   then
+      dependency_end_update || return 1
+   fi
 
    # signal failures downward, even if lenient
    return $rval
@@ -652,12 +656,14 @@ might cause trouble"
 
    if [ -z "${PARALLEL}" ]
    then
-      dependency_end_update || return 1
+      if [ $rval != 1 ]
+      then
+         dependency_end_update || return 1
+      fi
    fi
 
    return $rval
 }
-
 
 
 #
@@ -1071,12 +1077,6 @@ handle_parallel_builds()
 
       wait
 
-      case "${phase}" in
-         Link)
-            dependency_end_update || return 1
-         ;;
-      esac
-
       log_verbose "Phase ${phase} complete"
 
       if [ "${MULLE_FLAG_LOG_SETTINGS}" = 'YES' ]
@@ -1109,6 +1109,12 @@ handle_parallel_builds()
 
          return 1
       fi
+
+      case "${phase}" in
+         Link)
+            dependency_end_update || return 1
+         ;;
+      esac
    done
    set +f
 
@@ -1493,9 +1499,9 @@ do_build_mainproject()
 # but uses mostly ENVIRONMENT variables
 # These are usually provided with mulle-sde.
 #
-build_common()
+craft_build_common()
 {
-   log_entry "build_common" "$@"
+   log_entry "craft_build_common" "$@"
 
    local OPTION_LENIENT='NO'
    local OPTION_BUILD_DEPENDENCY="DEFAULT"
@@ -1736,7 +1742,7 @@ build_project_main()
    OPTION_USE_BUILDORDER='NO'
    OPTION_MUST_HAVE_BUILDORDER='NO'
 
-   build_common "$@"
+   craft_build_common "$@"
 }
 
 
@@ -1755,7 +1761,7 @@ build_buildorder_main()
    OPTION_USE_BUILDORDER='YES'
    OPTION_MUST_HAVE_BUILDORDER='YES'
 
-   build_common "$@"
+   craft_build_common "$@"
 }
 
 
@@ -1774,7 +1780,7 @@ list_buildorder_main()
    OPTION_USE_BUILDORDER='YES'
    OPTION_MUST_HAVE_BUILDORDER='YES'
 
-   build_common --list-remaining "$@"
+   craft_build_common --list-remaining "$@"
 }
 
 
@@ -1795,6 +1801,6 @@ build_single_dependency_main()
    OPTION_USE_BUILDORDER='YES'
    OPTION_MUST_HAVE_BUILDORDER='YES'
 
-   build_common --single-dependency "${name}" "$@"
+   craft_build_common --single-dependency "${name}" "$@"
 }
 
