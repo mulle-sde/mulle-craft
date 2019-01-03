@@ -32,15 +32,12 @@ _emit_defines()
 
 emit_defines()
 {
-   local escaped_path
+   local escaped_test_path
+   local escaped_tmp_path
 
-   if [ ! -z "${MULLE_TEST_DIR}" ]
-   then
-      escaped_path="`escaped_sed_pattern "${MULLE_TEST_DIR}"`"
-      _emit_defines "$@"| sed "s/${escaped_path}//"
-   else
-      _emit_defines "$@"
-   fi
+   escaped_test_path="`escaped_sed_pattern "${MULLE_TEST_DIR}"`"
+   escaped_tmp_path="`escaped_sed_pattern "${MULLE_TMP_DIR}"`"
+   _emit_defines "$@"| sed -e "s/${escaped_test_path:-^}//" -e "s/${escaped_tmp_path:-^}//"
 }
 
 

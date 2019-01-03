@@ -197,6 +197,8 @@ dependency_begin_update()
 {
    log_entry "dependency_begin_update" "$@"
 
+   local warnonrentry="${1:-nowarn}"
+
    [ -z "${DEPENDENCY_DIR}" ] && internal_fail "DEPENDENCY_DIR not set"
 
    if [ "${OPTION_PROTECT_DEPENDENCY}" != 'YES' ]
@@ -221,7 +223,11 @@ dependency_begin_update()
       ;;
 
       updating)
-         log_warning "dependencies: Updating an incomplete previous dependency update"
+         if [ "${warnonrentry}" = 'warn' ]
+         then
+            log_warning "dependencies: Updating an incomplete previous dependency update"
+         fi
+         return
       ;;
 
       incomplete)

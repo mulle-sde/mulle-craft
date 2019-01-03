@@ -1,6 +1,6 @@
 ##
 ## THESE SETTINGS ARE IGNORED WHEN USING mulle-project.
-## SEE mulle-project/formula-info.sh
+## SEE .mulle/etc/project/formula-info.sh
 ##
 
 #

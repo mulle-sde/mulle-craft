@@ -190,8 +190,6 @@ __set_various_paths()
    local configuration="$1"
    local sdk="$2"
 
-   local RVAL
-
    _binpath="${PATH}"
 
    if [ ! -z "${ADDICTION_DIR}" ]
@@ -236,13 +234,6 @@ r_effective_project_builddir()
    local name="$1"
    local buildparentdir="$2"
 
-   #
-   # locate proper craftinfo path
-   # searchpath:
-   #
-   # dependency/share/mulle-craftinfo/<name>.txt
-   # <project>/.mulle-craftinfo
-   #
    local directory
 
    directory="`build_directory_name "${name}" `"
@@ -253,7 +244,10 @@ r_effective_project_builddir()
    #
    local builddir
 
-   r_filepath_concat "${buildparentdir}" "${directory}"
+   r_filepath_concat "${BUILD_DIR}" "${buildparentdir}"
+   builddir="${RVAL}"
+
+   r_filepath_concat "${builddir}" "${directory}"
    builddir="${RVAL}"
 
    r_absolutepath "${builddir}"
@@ -293,6 +287,8 @@ r_effective_project_builddir()
    # memo project to avoid clobbering builddirs
    redirect_exekutor "${builddir}/.project" echo "${project}" || \
       fail "Could not write into ${builddir}"
+
+   log_verbose "Build directory is \"${builddir}\""
 
    RVAL="${builddir}"
    return 0
@@ -549,8 +545,6 @@ build_dependency_directly()
    dependency_begin_update || return 1
 
    local rval
-   local RVAL
-
    build_project "${cmd}" "${DEPENDENCY_DIR}" "$@"
    rval=$?
 
@@ -596,11 +590,14 @@ build_dependency_with_dispense()
    r_filepath_concat "${builddir}" ".dependency"
    tmpdependencydir="${RVAL}"
 
+   mkdir_if_missing "${tmpdependencydir}"
+
    build_project "${cmd}" "${tmpdependencydir}" "$@"
    rval=$?
 
    if [ "${cmd}" != 'install' -o $rval -ne 0 ]
    then
+      rmdir_safer "${tmpdependencydir}"
       return $rval
    fi
 
@@ -613,8 +610,6 @@ build_dependency_with_dispense()
          options="--header-dir include/${name}"
       ;;
    esac
-
-   local RVAL
 
    r_determine_dependency_subdir "${configuration}" "${sdk}"
    stylesubdir="${RVAL}"
@@ -654,6 +649,8 @@ might cause trouble"
                   "${DEPENDENCY_DIR}${stylesubdir}"
    rval=$?
 
+   rmdir_safer "${tmpdependencydir}"
+
    if [ -z "${PARALLEL}" ]
    then
       if [ $rval != 1 ]
@@ -677,7 +674,7 @@ build_buildorder_node()
    local cmd="$1"; shift
 
    local project="$1"
-#   local name="$2"
+   local name="$2"
    local marks="$3"
 #   local builddir="$4"
 #   local configuration="$5"
@@ -695,7 +692,7 @@ build_buildorder_node()
 
    case ",${marks}," in
       *',no-dependency,'*)
-         # subproject or something else
+         internal_fail "Why are no-dependency nodes given ?"
       ;;
 
       *)
@@ -720,7 +717,7 @@ ${C_ERROR} was made for a different platform. Time to clean. "
       ;;
    esac
 
-   log_verbose "Build ${C_MAGENTA}${C_BOLD}${project}${C_VERBOSE}"
+   log_verbose "Build ${C_MAGENTA}${C_BOLD}${name}${C_VERBOSE}"
 
    case ",${marks}," in
       *',no-dispense,'*)
@@ -751,10 +748,12 @@ handle_build()
    local evaledproject
    local name
 
+   #
    # getting the project name nice is fairly crucial to figure out when
    # things go wrong
+   #
    evaledproject="`eval echo "${project}"`"
-   name="${project#\$\{MULLE_SOURCETREE_SHARE_DIR\}/}"
+   name="${project#\$\{MULLE_SOURCETREE_STASH_DIR\}/}"
    if [ "${name}" = "${project}" ]
    then
       name="${evaledproject#\$\{MULLE_VIRTUAL_ROOT\}/}"
@@ -772,7 +771,6 @@ handle_build()
    fi
 
    local base_identifier
-   local RVAL
 
    r_tweaked_de_camel_case "${name}"
    base_identifier="`tr 'a-z-' 'A-Z_' <<< "${RVAL}" | tr -d -c 'A-Z0-9_' `"
@@ -787,17 +785,16 @@ handle_build()
    identifier="MULLE_CRAFT_${base_identifier}_MAP_CONFIGURATIONS"
    value="`eval echo \\\$${identifier}`"
 
-   log_debug "${identifier}=\"${value}\" ($configuration)"
-
-   local mapped
-   local escaped
-
    if [ ! -z "${value}" ]
    then
       case ",${value}," in
          *",${configuration}->"*","*)
+            local mapped
+            local escaped
+
             r_escaped_sed_pattern "${configuration}"
             escaped="${RVAL}"
+
             mapped="`LC_ALL=C sed -n -e "s/.*,${escaped}->\([^,]*\),.*/\\1/p" <<< ",${value},"`"
             if [ -z "${mapped}" ]
             then
@@ -813,6 +810,16 @@ to \"${identifier}\""
       esac
    fi
 
+   if [ "${MULLE_FLAG_LOG_SETTINGS}" = 'YES' ]
+   then
+      log_trace2 "name          : \"${name}\""
+      log_trace2 "project       : \"${project}\""
+      log_trace2 "evaledproject : \"${evaledproject}\""
+      log_trace2 "sdk           : \"${sdk}\""
+      log_trace2 "${identifier} : \"${value}\""
+      log_trace2 "configuration : \"${configuration}\""
+   fi
+
    local subdir
 
    r_determine_build_subdir "${configuration}" "${sdk}"
@@ -821,7 +828,7 @@ to \"${identifier}\""
    r_filepath_concat "${builddir}" "${subdir}"
    mapped="${RVAL}"
 
-   r_effective_project_builddir "${name}" "${mapped}"
+   r_effective_project_builddir "${name}" "${configuration}"
    builddir="${RVAL}"
 
 
@@ -928,8 +935,6 @@ handle_build_step()
                 "$@"
    rval=$?
 
-   redirect_append_exekutor "${statusfile}" echo "${project};${phase};${rval}"
-
    local phasedonefile
 
    if [ "${phase}" = 'Link' ]
@@ -937,13 +942,16 @@ handle_build_step()
       phasedonefile="${donefile}"
    fi
 
-   if ! handle_build_rval "$rval" \
+   if ! handle_build_rval "${rval}" \
                           "${marks}" \
                           "${phasedonefile}" \
                           "${line}" \
                           "${project}"
    then
-      redirect_append_exekutor "${statusfile}" echo "${project};${phase};${rval}"
+      if [ $rval -ne 0 -a $rval -ne 2 ]
+      then
+         redirect_append_exekutor "${statusfile}" echo "${project};${phase};${rval}"
+      fi
    fi
 }
 
@@ -968,12 +976,12 @@ handle_parallel_builds()
    local line
    local parallel
    local statusfile
-   local RVAL
+
    local phase
    local PARALLEL
    local cmd
 
-   r_make_tmp "mulle-sde"
+   _r_make_tmp_in_dir "${BUILD_DIR}" ".build-status" "f"
    statusfile="${RVAL}"
 
    local parallel_link="NO"
@@ -996,7 +1004,7 @@ handle_parallel_builds()
          log_fluff "All parallel builds can also be parallel linked"
       fi
    else
-      log_fluff "Parallel builds aren't enabled"
+      log_fluff "Parallel linking is not enabled"
    fi
 
    if [ "${MULLE_FLAG_LOG_SETTINGS}" = 'YES' ]
@@ -1085,16 +1093,14 @@ handle_parallel_builds()
       fi
 
       local failures
-      local line
 
-      # 0 OK, 2: not-require; 1 error
-      failures="`egrep -s ';1$' "${statusfile}"`"
+      failures="`cat "${statusfile}"`"
 
       if [ ! -z "${failures}" ]
       then
-         log_fluff "Errors detected in \"${statusfile}\": `cat "${statusfile}"`"
+         log_fluff "Errors detected in \"${statusfile}\": ${failures}"
 
-         remove_file_if_present "${statusfile}"
+         local line
 
          set -f; IFS="
 "
@@ -1106,6 +1112,8 @@ handle_parallel_builds()
             log_error "Parallel build of \"${project}\" failed in phase \"${phase}\""
          done
          set +f; IFS="${DEFAULT_IFS}"
+
+         remove_file_if_present "${statusfile}"
 
          return 1
       fi
@@ -1119,6 +1127,7 @@ handle_parallel_builds()
    set +f
 
    remove_file_if_present "${statusfile}"
+
    return 0
 }
 
@@ -1201,8 +1210,10 @@ _do_build_buildorder()
       fi
       remaining="${RVAL}"
    else
-      log_fluff "Donefile \"${donefile}\" is not present, build it all"
+      log_fluff "Donefile \"${donefile}\" is not present, build everything"
       remaining="${buildorder}"
+
+      mkdir_if_missing "${builddir}/${configuration}"
    fi
 
    if [ "${MULLE_FLAG_LOG_SETTINGS}" = 'YES' ]
@@ -1210,7 +1221,6 @@ _do_build_buildorder()
       log_trace2 "remaining :  ${remaining}"
    fi
 
-   mkdir_if_missing "${builddir}"
 
    local line
    local parallel
@@ -1323,11 +1333,11 @@ do_build_buildorder()
    # That allows tarballs to be installed. Also now the existance of the
    # dependency folders, means something
    #
-   dependency_begin_update || exit 1
-   dependency_end_update || exit 1
+   dependency_begin_update 'warn' || exit 1
 
    if [ -z "${buildorder}" ]
    then
+      dependency_end_update || exit 1
       log_verbose "The buildorder file is empty, nothing to build \
 (${buildorderfile#${MULLE_USER_PWD}/})"
       return
@@ -1377,8 +1387,6 @@ do_build_mainproject()
 
    local craftinfodir
    local name
-   local RVAL
-
    name="${PROJECT_NAME}"
    if [ -z "${PROJECT_NAME}" ]
    then

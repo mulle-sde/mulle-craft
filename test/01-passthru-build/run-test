@@ -9,7 +9,7 @@ run_mulle_craft()
    log_fluff ${MULLE_CRAFT} ${MULLE_CRAFT_FLAGS} "$@"
    log_fluff "####################################"
 
-   exekutor ${MULLE_CRAFT} -e ${MULLE_CRAFT_FLAGS} "$@"
+   exekutor "${MULLE_CRAFT}" ${MULLE_CRAFT_FLAGS} "$@"
 }
 
 
@@ -117,7 +117,7 @@ main()
    #
    # Check that some simple pass through stuff works
    #
-   run_test "cmake.txt" "make.txt" --debug --definition-dir "${PWD}/infodir.mulle-make" -DUSER_VARIABLE="VfL Bochum 1848"
+   run_test "cmake.txt" "make.txt" --debug --definition-dir "${PWD}/definition" -DUSER_VARIABLE="VfL Bochum 1848"
    log_verbose "----- #1 PASSED -----"
 
    log_info "----- ALL PASSED -----"

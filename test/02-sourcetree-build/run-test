@@ -9,7 +9,7 @@ run_mulle_craft()
    log_fluff ${MULLE_CRAFT} ${MULLE_CRAFT_FLAGS} "$@"
    log_fluff "####################################"
 
-   exekutor ${MULLE_CRAFT} -e ${MULLE_CRAFT_FLAGS} "$@"
+   exekutor "${MULLE_CRAFT}" ${MULLE_CRAFT_FLAGS} "$@"
 }
 
 
@@ -83,8 +83,9 @@ run_test()
    local cmake_expect="$1"; shift
    local make_expect="$1"; shift
 
+   MULLE_TMP_DIR="${directory}" \
    MULLE_TEST_DIR="${PWD}" \
-   MULLE_SOURCETREE_FLAGS="-e ${MULLE_SOURCETREE_FLAGS}" \
+   MULLE_SOURCETREE_FLAGS="${MULLE_SOURCETREE_FLAGS}" \
    CMAKE_REDIRECT_FILE="${directory}/cmake-args.txt" \
    MAKE_REDIRECT_FILE="${directory}/make-args.txt" \
    CMAKE="${PWD}/../mock-cmake" \
@@ -92,7 +93,7 @@ run_test()
    BUILD_DIR="${directory}/build" \
       run_mulle_craft "$@"
 
-   if [ "$?" -ne 0 ]
+   if [ $? -ne 0 ]
    then
       exit 1
    fi
@@ -123,7 +124,7 @@ main()
    run_test "${directory}" "cmake.txt" "make.txt" project --debug
    log_verbose "----- #1 PASSED -----"
 
-   run_test "${directory}" "cmake2.txt" "make.txt" buildorder --debug --buildorder-file "${PWD}/buildorder"
+   run_test "${directory}" "cmake2.txt" "make.txt" --buildorder-file "${PWD}/buildorder" buildorder --debug
    log_verbose "----- #2 PASSED -----"
 
    log_info "----- ALL PASSED -----"

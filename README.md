@@ -76,7 +76,7 @@ An *info-folder* with a matching extension is preferred over a matching name
 with no extension.
 
 If mulle-craft finds no info-folder, **mulle-make** will use a project's own
-`.mulle-make` folder, if present.
+`.mulle/etc/craft` folder, if present.
 
 ![Searching](dox/searchpath.png)
 

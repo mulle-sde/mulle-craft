@@ -96,9 +96,7 @@ project_log_dirs()
    if [ ! -z "${BUILDORDER_BUILD_DIR}" ]
    then
       local sed_escaped_value
-      local RVAL
-
-      r_escaped_sed_pattern "${BUILDORDER_BUILD_DIR}"
+         r_escaped_sed_pattern "${BUILDORDER_BUILD_DIR}"
       sed_escaped_value="${RVAL}"
       rexekutor find -H "${BUILD_DIR}" -type d -name .log | rexekutor egrep -v "^${sed_escaped_value}"
    else
@@ -132,8 +130,6 @@ list_tool_logs()
    local i
    local s
    local cmdline
-   local RVAL
-
    cmdline="${MULLE_USAGE_NAME} log cat"
 
    if [ ! -z "${project}" ]

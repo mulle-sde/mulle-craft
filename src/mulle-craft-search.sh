@@ -45,7 +45,7 @@ Usage:
 Options:
    --project-dir <dir> : project directory
    --no-platform       : ignore platform specific craftinfo
-   --no-local          : ignore local .mulle-make craftinfo
+   --no-local          : ignore local .mulle/etc/craft craftinfo
 
 Environment:
    DEPENDENCY_DIR    : place to put dependencies into (generally required)
@@ -96,22 +96,22 @@ r_determine_craftinfo_dir()
                   if [ "${allowplatform}" = 'YES' ]
                   then
                      r_colon_concat "${searchpath}" \
-"${DEPENDENCY_DIR}/${configuration}/share/mulle-craft/${name}/mulle-make.${MULLE_UNAME}"
+"${DEPENDENCY_DIR}/${configuration}/share/mulle-craft/${name}/definition.${MULLE_UNAME}"
                      searchpath="${RVAL}"
                   fi
                   r_colon_concat "${searchpath}" \
-"${DEPENDENCY_DIR}/${configuration}/share/mulle-craft/${name}/mulle-make"
+"${DEPENDENCY_DIR}/${configuration}/share/mulle-craft/${name}/definition"
                   searchpath="${RVAL}"
                fi
 
                if [ "${allowplatform}" = 'YES' ]
                then
                   r_colon_concat "${searchpath}" \
-"${DEPENDENCY_DIR}/share/mulle-craft/${name}/mulle-make.${MULLE_UNAME}"
+"${DEPENDENCY_DIR}/share/mulle-craft/${name}/definition.${MULLE_UNAME}"
                   searchpath="${RVAL}"
                fi
                r_colon_concat "${searchpath}" \
-"${DEPENDENCY_DIR}/share/mulle-craft/${name}/mulle-make"
+"${DEPENDENCY_DIR}/share/mulle-craft/${name}/definition"
                searchpath="${RVAL}"
             fi
          ;;
@@ -132,10 +132,10 @@ r_determine_craftinfo_dir()
             if [ "${allowplatform}" = 'YES' ]
             then
                r_colon_concat "${searchpath}" \
-                              "${projectdir}/.mulle-make.${MULLE_UNAME}"
+                              "${projectdir}/.mulle/etc/craft/definition.${MULLE_UNAME}"
                searchpath="${RVAL}"
             fi
-            r_colon_concat "${searchpath}" "${projectdir}/.mulle-make"
+            r_colon_concat "${searchpath}" "${projectdir}/.mulle/etc/craft/definition"
             searchpath="${RVAL}"
          fi
       fi
@@ -204,8 +204,6 @@ build_search_main()
 
       shift
    done
-
-   local RVAL
 
    if [ $# -eq 0 ]
    then

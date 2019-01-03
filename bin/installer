@@ -83,8 +83,6 @@ r_installer_resolve_symlinks()
 
 installer_resolve_symlinks()
 {
-   local RVAL
-
    r_installer_resolve_symlinks "$@"
 
    [ ! -z "${RVAL}" ] && echo "${RVAL}"

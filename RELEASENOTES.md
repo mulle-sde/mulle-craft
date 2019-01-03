@@ -1,3 +1,9 @@
+## 0.15.0
+
+* use definition instead of mulle-make like mulle-make
+* improved dependency folder setup and incompleteness detection
+
+
 ### 0.14.11
 
 * return 2 on quickstatus not ready

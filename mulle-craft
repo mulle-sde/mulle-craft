@@ -32,7 +32,7 @@
 [ "${TRACE}" = 'YES' -o "${MULLE_CRAFT_TRACE}" = 'YES' ] && set -x && : "$0" "$@"
 
 
-MULLE_EXECUTABLE_VERSION=0.14.11
+MULLE_EXECUTABLE_VERSION=0.15.0
 
 
 trap_fail()
@@ -111,8 +111,6 @@ main()
 
    local MULLE_FLAG_MOTD="DEFAULT"
    local FLAG_OUTSIDE_ENV='NO'
-   local RVAL
-
    #
    # simple option handling
    #
@@ -141,10 +139,6 @@ main()
             shift
 
             INFO_DIR="$1"
-         ;;
-
-         -e)
-            FLAG_OUTSIDE_ENV='YES'
          ;;
 
          -f|--force)
@@ -202,17 +196,11 @@ main()
 
    case "${MULLE_VIRTUAL_ROOT}" in
       "")
-         if [ "${FLAG_OUTSIDE_ENV}" = 'NO' ]
-         then
-            fail "To run ${MULLE_EXECUTABLE_NAME} outside of mulle-env, pass the -e flag"
-         fi
-
          MULLE_VIRTUAL_ROOT="`pwd -P`"
          if [ "${MULLE_VIRTUAL_ROOT}" = "/" ]
          then
             fail "You are running this in root, which is not supported"
          fi
-         export MULLE_VIRTUAL_ROOT
 
          DEPENDENCY_DIR="${DEPENDENCY_DIR:-${MULLE_VIRTUAL_ROOT}/dependency}"
          ADDICTION_DIR="${ADDICTION_DIR:-${MULLE_VIRTUAL_ROOT}/addiction}"
