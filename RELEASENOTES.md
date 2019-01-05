@@ -1,3 +1,15 @@
+### 0.15.2
+
+* add --parallel/--serial option to execute
+* use definition instead of mulle-make like mulle-make
+* improved dependency folder setup and incompleteness detection
+
+### 0.15.1
+
+* add --parallel/--serial option to execute
+* use definition instead of mulle-make like mulle-make
+* improved dependency folder setup and incompleteness detection
+
 ## 0.15.0
 
 * use definition instead of mulle-make like mulle-make

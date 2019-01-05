@@ -56,6 +56,14 @@ expect_content()
          fi
       fi
 
+      if [ "${MULLE_UNAME}" = darwin ]
+      then
+         if [ -z "`egrep -v -e '-isysroot' <<< "${diffs}"`" ]
+         then
+            return 0
+         fi
+      fi
+
       log_error "Unexpected output generated"
       cat <<EOF >&2
 ----------------
@@ -115,7 +123,7 @@ main()
 
    local directory
 
-   directory="`make_tmp_directory`" || exit 1
+   directory="`make_tmp_directory`"
    directory="${directory:-/tmp/build}"
 
    #

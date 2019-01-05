@@ -122,7 +122,7 @@ output_names_with_status()
 "
    for name in ${all_names}
    do
-      if fgrep -x -s -q -e "${name}" <<< "${built_names}"
+      if find_line "${built_names}" "${name}"
       then
          printf "   %b\n" "${ok_prefix}${name}${ok_suffix}"
       else

@@ -191,13 +191,6 @@ build_log_list()
             OPTION_OUTPUT="FILENAME"
          ;;
 
-         -p|--project|--project-name)
-            [ $# -eq 1 ] && fail "Missing argument to \"$1\""
-            shift
-
-            OPTION_PROJECT_NAME="$1"
-         ;;
-
          -c|--configuration)
             [ $# -eq 1 ] && fail "Missing argument to \"$1\""
             shift
@@ -267,8 +260,8 @@ build_log_command()
 {
    log_entry "build_log_command" "$@"
 
-   local cmd="$1"
-   shift
+   local cmd="$1"; shift
+   local name="$1"; shift
 
    while :
    do
@@ -293,20 +286,35 @@ build_log_command()
    local logfiles
    local logfile
 
-   case "${OPTION_PROJECT_NAME}" in
+   case "${name}" in
       '')
       ;;
 
       *)
-         directory="${BUILDORDER_BUILD_DIR#${PWD}/}"
-         directory="${directory}/${OPTION_CONFIGURATION}"
-         directory="${directory}/${OPTION_PROJECT_NAME}"
+         [ -z "${MULLE_CRAFT_EXECUTE_SH}" ] && \
+               . "${MULLE_CRAFT_LIBEXEC_DIR}/mulle-craft-execute.sh"
 
-         if rexekutor compgen -G ${directory} > /dev/null 2>&1
+         local _builddir
+         local _configuration
+         local _evaledproject
+         local _name
+
+         _evaluate_craft_variables "${name}" "${OPTION_CONFIGURATION}" \
+                                             "${OPTION_SDK:-Default}" \
+                                             "${BUILDORDER_BUILD_DIR#${PWD}/}"
+         directory="${_builddir}"
+
+         log_debug "directory: ${directory}"
+
+         logfiles=
+         if rexekutor compgen -G "${directory}" > /dev/null 2>&1
          then
-            log_info "${OPTION_PROJECT_NAME}"
-
+            log_info "${name}"
             logfiles="${directory}/.log/${OPTION_TOOL}.log"
+         fi
+
+         if [ ! -z "${logfiles}" ]
+         then
             shopt -s nullglob
             for i in ${logfiles}
             do
@@ -316,7 +324,7 @@ build_log_command()
             done
             shopt -u nullglob
          else
-            log_verbose "No buildorder logs match"
+            log_verbose "No buildorder logs match for \"${name}\""
          fi
       ;;
    esac
@@ -325,15 +333,22 @@ build_log_command()
    # TODO: should put a number prefix on logfiles so that it's known that
    #       cmake is emitted before make
    #
-   case "${OPTION_PROJECT_NAME}" in
+   case "${name}" in
       ''|'*')
          log_info "${PROJECT_NAME}"
 
          directory="${BUILD_DIR#${PWD}/}"
-         # https://stackoverflow.com/questions/2937407/test-whether-a-glob-matches-any-files
-         if rexekutor compgen -G ${directory} > /dev/null 2>&1
+         log_debug "directory: ${directory}"
+
+         # https://stackoverflow.com/questions/2937407/test-whether-a-glob-matches-any-files#
+         logfiles=
+         if rexekutor compgen -G "${directory}" > /dev/null 2>&1
          then
             logfiles="${directory}/${OPTION_CONFIGURATION}/.log/${OPTION_TOOL}.log"
+         fi
+
+         if [ ! -z "${logfiles}" ]
+         then
             shopt -s nullglob
             for i in ${logfiles}
             do
@@ -360,9 +375,9 @@ build_log_main()
 {
    log_entry "build_log_main" "$@"
 
-   local OPTION_PROJECT_NAME=""
    local OPTION_CONFIGURATION="*"
    local OPTION_TOOL="*"
+   local OPTION_EXECUTABLE=""
 
    while :
    do
@@ -371,18 +386,18 @@ build_log_main()
             build_log_usage
          ;;
 
+         -e|--executable)
+            [ $# -eq 1 ] && fail "Missing argument to \"$1\""
+            shift
+
+            OPTION_EXECUTABLE="$1"
+         ;;
+
          -c|--configuration)
             [ $# -eq 1 ] && fail "Missing argument to \"$1\""
             shift
 
             OPTION_CONFIGURATION="$1"
-         ;;
-
-         -p|--project-name)
-            [ $# -eq 1 ] && fail "Missing argument to \"$1\""
-            shift
-
-            OPTION_PROJECT_NAME="$1"
          ;;
 
          -t|--tool)
@@ -409,13 +424,9 @@ build_log_main()
       fail "Unknown build directory, specify with -b"
    fi
 
-   local cmd
-
-   cmd="${1:-cat}"
-   [ $# -ne  0 ] && shift
-
-   case "${cmd}" in
+   case "$1" in
       list)
+         shift
          build_log_list "$@"
       ;;
 
@@ -424,7 +435,7 @@ build_log_main()
       ;;
 
       *)
-         build_log_command "$cmd" "$@"
+         build_log_command "${OPTION_EXECUTABLE:-cat}" "$@"
       ;;
    esac
 }

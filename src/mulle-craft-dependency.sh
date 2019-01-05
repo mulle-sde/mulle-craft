@@ -201,11 +201,6 @@ dependency_begin_update()
 
    [ -z "${DEPENDENCY_DIR}" ] && internal_fail "DEPENDENCY_DIR not set"
 
-   if [ "${OPTION_PROTECT_DEPENDENCY}" != 'YES' ]
-   then
-      return
-   fi
-
    local state
 
    state="`dependency_get_state`"
@@ -219,7 +214,7 @@ dependency_begin_update()
    ${C_RESET_BOLD}${MULLE_USAGE_NAME% *} clean dependency"
       ;;
 
-      inited|ready)
+      inited|ready|complete)
       ;;
 
       updating)
@@ -231,7 +226,7 @@ dependency_begin_update()
       ;;
 
       incomplete)
-         log_warning "dependencies: a previous build failed"
+         log_warning "dependencies: more projects need to be built successfully"
       ;;
 
       *)
@@ -240,7 +235,11 @@ dependency_begin_update()
 
    esac
 
-   dependency_unprotect
+
+   if [ "${OPTION_PROTECT_DEPENDENCY}" = 'YES' ]
+   then
+      dependency_unprotect
+   fi
 
    redirect_exekutor "${DEPENDENCY_DIR}/.state" \
       echo "updating"
@@ -252,18 +251,23 @@ dependency_end_update()
 {
    log_entry "dependency_end_update" "$@"
 
-   local rval=$1
+   local state="${1:-ready}"
 
    [ -z "${DEPENDENCY_DIR}" ] && fail "DEPENDENCY_DIR not set"
 
-   if [ "${OPTION_PROTECT_DEPENDENCY}" != 'YES' ]
+   if [ "${state}" = "complete" -a  "${OPTION_PROTECT_DEPENDENCY}" = 'YES' ]
    then
-      return
+      exekutor chmod ug+wX "${DEPENDENCY_DIR}"
+      exekutor chmod ug+w  "${DEPENDENCY_DIR}/.state"
    fi
 
-   redirect_exekutor "${DEPENDENCY_DIR}/.state" echo "ready"
+   log_verbose "Dependency folder marked as ${state}"
+   redirect_exekutor "${DEPENDENCY_DIR}/.state" echo "${state}"
 
-   dependency_protect
+   if [ "${OPTION_PROTECT_DEPENDENCY}" = 'YES' ]
+   then
+      dependency_protect
+   fi
 }
 
 
@@ -377,7 +381,6 @@ r_dependency_share_path()
 }
 
 
-
 quickstatus_main()
 {
    local  state
@@ -386,7 +389,7 @@ quickstatus_main()
 
    log_info "Folder ${C_RESET_BOLD}${DEPENDENCY_DIR#${MULLE_USER_PWD}/}${C_INFO} is ${C_MAGENTA}${C_BOLD}${state}"
 
-   if [ "${state}" = 'ready' ]
+   if [ "${state}" = 'complete' ]
    then
       return 0
    fi

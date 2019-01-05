@@ -72,7 +72,8 @@ r_determine_craftinfo_dir()
    [ -z "${name}" ] && internal_fail "name must not be null"
 
    # replace slashes with underscores
-   name="${name//\//_}"
+   r_fast_basename "${name}"
+   name="${RVAL}"
 
    local craftinfodir
    local searchpath

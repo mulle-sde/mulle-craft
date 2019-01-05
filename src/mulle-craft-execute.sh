@@ -68,9 +68,9 @@ EOF
 # if there are multiple configurations, make Release the default
 # if Release is not in multiple configurations, then there is no default
 #
-r_determine_build_subdir()
+r_determine_build_style_subdir()
 {
-   log_entry "r_determine_build_subdir" "$@"
+   log_entry "r_determine_build_style_subdir" "$@"
 
    local configuration="$1"
    local sdk="$2"
@@ -175,7 +175,8 @@ build_directory_name()
 
    local name="$1"
 
-   tr -c 'a-zA-Z0-9-' '_' <<< "${name%.*}" | sed -e 's/_$//g'
+   r_fast_basename "${name}"
+   tr -c 'a-zA-Z0-9-' '_' <<< "${RVAL%.*}" | sed -e 's/_$//g'
 }
 
 
@@ -244,10 +245,7 @@ r_effective_project_builddir()
    #
    local builddir
 
-   r_filepath_concat "${BUILD_DIR}" "${buildparentdir}"
-   builddir="${RVAL}"
-
-   r_filepath_concat "${builddir}" "${directory}"
+   r_filepath_concat "${buildparentdir}" "${directory}"
    builddir="${RVAL}"
 
    r_absolutepath "${builddir}"
@@ -288,7 +286,7 @@ r_effective_project_builddir()
    redirect_exekutor "${builddir}/.project" echo "${project}" || \
       fail "Could not write into ${builddir}"
 
-   log_verbose "Build directory is \"${builddir}\""
+   log_fluff "Build directory is \"${builddir}\""
 
    RVAL="${builddir}"
    return 0
@@ -334,11 +332,7 @@ build_project()
       ;;
    esac
 
-   local logdir
    local craftinfodir
-
-   r_filepath_concat "${builddir}" ".log"
-   logdir="${RVAL}"
 
    r_determine_craftinfo_dir "${name}" \
                              "${project}" \
@@ -355,6 +349,14 @@ build_project()
       ;;
    esac
    craftinfodir="${RVAL}"
+
+   # remove old logs
+   local logdir
+
+   r_filepath_concat "${builddir}" ".log"
+   logdir="${RVAL}"
+
+   rmdir_safer "${logdir}"
 
    # subdir for configuration / sdk
 
@@ -393,8 +395,27 @@ build_project()
          r_concat "${args}" "-DSTANDALONE=ON"
          args="${RVAL}"
       ;;
-   esac
 
+      *',no-static-link,'*)
+         r_concat "${args}" "-DBUILD_SHARED_LIBS=ON"
+         args="${RVAL}"
+         case "*,${marks},*" in
+            *',no-all-load,'*)
+            ;;
+
+            *)
+               log_verbose "Project \"${project}\" is marked as \"no-static-link\" \
+and \"all-load\".
+This can lead to problems on darwin, but may solve problems on linux..."
+            ;;
+         esac
+      ;;
+
+      *',no-dynamic-link,'*)
+         r_concat "${args}" "-DBUILD_STATIC_LIBS=ON"
+         args="${RVAL}"
+      ;;
+   esac
 
    if [ ! -z "${name}" ]
    then
@@ -588,6 +609,7 @@ build_dependency_with_dispense()
    local tmpdependencydir
 
    r_filepath_concat "${builddir}" ".dependency"
+   r_absolutepath "${RVAL}"
    tmpdependencydir="${RVAL}"
 
    mkdir_if_missing "${tmpdependencydir}"
@@ -733,17 +755,22 @@ ${C_ERROR} was made for a different platform. Time to clean. "
 }
 
 
-handle_build()
+#
+# uses passed in values to evaluate final ones
+#
+# local _builddir
+# local _configuration
+# local _evaledproject
+# local _name
+#
+_evaluate_craft_variables()
 {
-   log_entry "handle_build" "$@"
+   log_entry "_evaluate_craft_variables" "$@"
 
-   local cmd="$1"; shift
-
-   local project="$1"; shift
-   local marks="$1"; shift
-   local configuration="$1"; shift
-   local sdk="$1"; shift
-   local builddir="$1"; shift
+   local project="$1"
+   local configuration="$2"
+   local sdk="$3"
+   local builddir="$4"
 
    local evaledproject
    local name
@@ -752,17 +779,11 @@ handle_build()
    # getting the project name nice is fairly crucial to figure out when
    # things go wrong
    #
-   evaledproject="`eval echo "${project}"`"
-   name="${project#\$\{MULLE_SOURCETREE_STASH_DIR\}/}"
-   if [ "${name}" = "${project}" ]
+   _evaledproject="`eval echo "${project}"`"
+   _name="${project#\$\{MULLE_SOURCETREE_STASH_DIR\}/}"
+   if [ "${_name}" = "${project}" ]
    then
-      name="${evaledproject#\$\{MULLE_VIRTUAL_ROOT\}/}"
-   fi
-
-   if [ "${OPTION_LIST_REMAINING}" = 'YES' ]
-   then
-      echo "${name}" # ;${marks};${mapped_configuration}"
-      return 0
+      _name="${_evaledproject#\$\{MULLE_VIRTUAL_ROOT\}/}"
    fi
 
    if [ -z "${MULLE_CASE_SH}" ]
@@ -772,26 +793,28 @@ handle_build()
 
    local base_identifier
 
-   r_tweaked_de_camel_case "${name}"
+   r_tweaked_de_camel_case "${_name}"
    base_identifier="`tr 'a-z-' 'A-Z_' <<< "${RVAL}" | tr -d -c 'A-Z0-9_' `"
 
    #
    # Map some configurations (e.g. Debug -> Release for mulle-objc-runtime)
    # You can also map to empty, to skip a configuration
    #
-   local identifier
    local value
+   local identifier
 
    identifier="MULLE_CRAFT_${base_identifier}_MAP_CONFIGURATIONS"
    value="`eval echo \\\$${identifier}`"
+
+   _configuration="${configuration}"
+
+   local mapped
+   local escaped
 
    if [ ! -z "${value}" ]
    then
       case ",${value}," in
          *",${configuration}->"*","*)
-            local mapped
-            local escaped
-
             r_escaped_sed_pattern "${configuration}"
             escaped="${RVAL}"
 
@@ -805,41 +828,63 @@ to \"${identifier}\""
 
             log_verbose "Configuration \"${configuration}\" mapped to \
 \"${mapped}\" due to environment variable \"${identifier}\""
-            configuration="${mapped}"
+            _configuration="${mapped}"
          ;;
       esac
    fi
 
+   r_determine_build_style_subdir "${configuration}" "${sdk}"
+   r_filepath_concat "${builddir}" "${RVAL}"
+   r_effective_project_builddir "${_name}" "${RVAL}"
+   _builddir="${RVAL}"
+
    if [ "${MULLE_FLAG_LOG_SETTINGS}" = 'YES' ]
    then
-      log_trace2 "name          : \"${name}\""
-      log_trace2 "project       : \"${project}\""
-      log_trace2 "evaledproject : \"${evaledproject}\""
-      log_trace2 "sdk           : \"${sdk}\""
-      log_trace2 "${identifier} : \"${value}\""
-      log_trace2 "configuration : \"${configuration}\""
+      log_trace2 "${identifier}  : \"${value}\""
+      log_trace2 "builddir       : \"${_builddir}\""
+      log_trace2 "configuration  : \"${_configuration}\""
+      log_trace2 "evaledproject  : \"${_evaledproject}\""
+      log_trace2 "name           : \"${_name}\""
+      log_trace2 "project        : \"${project}\""
+      log_trace2 "sdk            : \"${sdk}\""
+      log_trace2 "stylesubdir    : \"${stylesubdir}\""
    fi
+}
 
-   local subdir
 
-   r_determine_build_subdir "${configuration}" "${sdk}"
-   subdir="${RVAL}"
+handle_build()
+{
+   log_entry "handle_build" "$@"
 
-   r_filepath_concat "${builddir}" "${subdir}"
-   mapped="${RVAL}"
+   local cmd="$1"; shift
 
-   r_effective_project_builddir "${name}" "${configuration}"
-   builddir="${RVAL}"
+   local project="$1"; shift
+   local marks="$1"; shift
+   local configuration="$1"; shift
+   local sdk="$1"; shift
+   local builddir="$1"; shift
 
+   local _name
+   local _evaledproject
+   local _builddir
+   local _configuration
+
+   _evaluate_craft_variables "${project}" "${configuration}" "${sdk}" "${builddir}"
+
+   if [ "${OPTION_LIST_REMAINING}" = 'YES' ]
+   then
+      echo "${_name}" # ;${marks};${mapped_configuration}"
+      return 0
+   fi
 
    local rval
 
    build_buildorder_node "${cmd}" \
-                         "${evaledproject}" \
-                         "${name}" \
+                         "${_evaledproject}" \
+                         "${_name}" \
                          "${marks}" \
-                         "${builddir}" \
-                         "${configuration}" \
+                         "${_builddir}" \
+                         "${_configuration}" \
                          "${sdk}" \
                          "$@"
    rval=$?
@@ -1241,7 +1286,9 @@ _do_build_buildorder()
          internal_fail "empty project fail"
       fi
 
-      if [ "${OPTION_LIST_REMAINING}" = 'NO' -a -z "${OPTION_SINGLE_DEPENDENCY}" ]
+      if [ "${OPTION_PARALLEL}" = 'YES' -a  \
+           "${OPTION_LIST_REMAINING}" = 'NO' -a \
+           -z "${OPTION_SINGLE_DEPENDENCY}" ]
       then
          case ",${marks}," in
             *,no-singlephase,*)
@@ -1337,7 +1384,7 @@ do_build_buildorder()
 
    if [ -z "${buildorder}" ]
    then
-      dependency_end_update || exit 1
+      dependency_end_update 'complete' || exit 1
       log_verbose "The buildorder file is empty, nothing to build \
 (${buildorderfile#${MULLE_USER_PWD}/})"
       return
@@ -1377,6 +1424,8 @@ do_build_buildorder()
       done
    done
    set +f ; IFS="${DEFAULT_IFS}"
+
+   dependency_end_update 'complete' || exit 1
 }
 
 
@@ -1416,7 +1465,7 @@ do_build_mainproject()
 
    local stylesubdir
 
-   r_determine_build_subdir "${CONFIGURATIONS}" "${SDKS}"
+   r_determine_build_style_subdir "${CONFIGURATIONS}" "${SDKS}"
    stylesubdir="${RVAL}"
 
    #
@@ -1431,6 +1480,9 @@ do_build_mainproject()
    builddir="${RVAL}"
    r_filepath_concat "${builddir}" ".log"
    logdir="${RVAL}"
+
+   # remove old logs
+   rmdir_safer "${logdir}"
 
    [ $? -eq 1 ] && exit 1
 
@@ -1524,6 +1576,7 @@ craft_build_common()
    local OPTION_CLEAN_TMP='YES'
    local OPTION_PARALLEL_LINK='YES'
    local OPTION_PHASES="Headers Compile Link"
+   local OPTION_PARALLEL='YES'
 
    while [ $# -ne 0 ]
    do
@@ -1580,11 +1633,19 @@ craft_build_common()
             OPTION_BUILD_DEPENDENCY='NO'
          ;;
 
+         --parallel)
+            OPTION_PARALLEL='YES'
+         ;;
+
+         --no-parallel|--serial)
+            OPTION_PARALLEL='NO'
+         ;;
+
          --parallel-link)
             OPTION_PARALLEL_LINK='YES'
          ;;
 
-         --no-parallel-link)
+         --no-parallel-link|--serial-link)
             OPTION_PARALLEL_LINK='NO'
          ;;
 
@@ -1594,21 +1655,6 @@ craft_build_common()
 
          --no-protect)
             OPTION_PROTECT_DEPENDENCY='NO'
-         ;;
-
-         --configuration)
-            [ $# -eq 1 ] && build_execute_usage "Missing argument to \"$1\""
-            shift
-
-            CONFIGURATIONS="$1"
-         ;;
-
-         --debug)
-            CONFIGURATIONS="Debug"
-         ;;
-
-         --release)
-            CONFIGURATIONS="Release"
          ;;
 
          --no-platform|--no-platform-craftinfo)
@@ -1629,6 +1675,24 @@ craft_build_common()
 
 				OPTION_SINGLE_DEPENDENCY="$1"
 			;;
+
+         #
+         # config / sdk
+         #
+         --configuration)
+            [ $# -eq 1 ] && build_execute_usage "Missing argument to \"$1\""
+            shift
+
+            CONFIGURATIONS="$1"
+         ;;
+
+         --debug)
+            CONFIGURATIONS="Debug"
+         ;;
+
+         --release)
+            CONFIGURATIONS="Release"
+         ;;
 
          --sdk)
             [ $# -eq 1 ] && build_execute_usage "Missing argument to \"$1\""
