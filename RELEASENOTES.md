@@ -1,3 +1,7 @@
+### 0.15.3
+
+* no-dispense mark is now inverted as inplace and therefore now the new default
+
 ### 0.15.2
 
 * add --parallel/--serial option to execute

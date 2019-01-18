@@ -742,16 +742,14 @@ ${C_ERROR} was made for a different platform. Time to clean. "
    log_verbose "Build ${C_MAGENTA}${C_BOLD}${name}${C_VERBOSE}"
 
    case ",${marks}," in
-      *',no-dispense,'*)
-         build_dependency_directly "${cmd}" "$@"
-         return $?
-      ;;
-
-      *)
+      *',no-inplace,'*)
          build_dependency_with_dispense "${cmd}" "$@"
          return $?
       ;;
    esac
+
+   build_dependency_directly "${cmd}" "$@"
+   return $?
 }
 
 
