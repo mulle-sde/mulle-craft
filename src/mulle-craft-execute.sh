@@ -563,7 +563,10 @@ build_dependency_directly()
    local configuration="$5"
    local sdk="$6"
 
-   dependency_begin_update || return 1
+   if [ -z "${PARALLEL}" ]
+   then
+      dependency_begin_update || return 1
+   fi
 
    local rval
    build_project "${cmd}" "${DEPENDENCY_DIR}" "$@"
@@ -579,9 +582,13 @@ build_dependency_directly()
       rval=1
    fi
 
-   if [ $rval -ne 1 ]
+
+   if [ -z "${PARALLEL}" ]
    then
-      dependency_end_update || return 1
+      if [ $rval != 1 ]
+      then
+         dependency_end_update || return 1
+      fi
    fi
 
    # signal failures downward, even if lenient
@@ -660,7 +667,6 @@ might cause trouble"
          options="${RVAL}"
       ;;
    esac
-
 
    exekutor "${MULLE_DISPENSE:-mulle-dispense}" \
                   ${MULLE_TECHNICAL_FLAGS} \
