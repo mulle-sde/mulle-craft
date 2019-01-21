@@ -1755,7 +1755,7 @@ craft_build_common()
    fi
 
    filenameenv="${BUILD_DIR}/.mulle-craft"
-   currentenv="${MULLE_UNAME};${MULLE_HOSTNAME};${LOGNAME:-`id -u`}"
+   currentenv="${MULLE_UNAME};${MULLE_HOSTNAME};${LOGNAME:-`id -u 2>/dev/null`}"
 
    lastenv="`egrep -s -v '^#' "${filenameenv}"`"
    if [ "${lastenv}" != "${currentenv}" ]

@@ -1,3 +1,7 @@
+### 0.15.5
+
+* fix frivolous use of id :)
+
 ### 0.15.4
 
 * fix no-inplace parallel build
