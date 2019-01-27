@@ -1,0 +1,5 @@
+--build-dir ${MULLE_TMP_DIR}/build/Debug
+--configuration Debug
+--definition-dir NONE
+--log-dir ${MULLE_TMP_DIR}/build/Debug/.log
+--sdk Default

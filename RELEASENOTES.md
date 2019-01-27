@@ -1,3 +1,8 @@
+### 0.15.6
+
+* change log directory naming again for simplicity
+* output log command on compile error
+
 ### 0.15.5
 
 * fix frivolous use of id :)

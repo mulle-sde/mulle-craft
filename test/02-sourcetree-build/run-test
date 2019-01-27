@@ -3,6 +3,7 @@
 [ "${TRACE}" = 'YES' ] && set -x && : "$0" "$@"
 
 
+# the tests here are wrong, mulle-craft shouldn't b
 run_mulle_craft()
 {
    log_fluff "####################################"
@@ -88,16 +89,14 @@ EOF
 run_test()
 {
    local directory="$1" ; shift
-   local cmake_expect="$1"; shift
-   local make_expect="$1"; shift
+   local expect="$1"; shift
+
+   MULLE_MAKE_REDIRECT_FILE="${directory}/mulle-make-args.txt" 
+   export MULLE_MAKE_REDIRECT_FILE
 
    MULLE_TMP_DIR="${directory}" \
    MULLE_TEST_DIR="${PWD}" \
-   MULLE_SOURCETREE_FLAGS="${MULLE_SOURCETREE_FLAGS}" \
-   CMAKE_REDIRECT_FILE="${directory}/cmake-args.txt" \
-   MAKE_REDIRECT_FILE="${directory}/make-args.txt" \
-   CMAKE="${PWD}/../mock-cmake" \
-   MAKE="${PWD}/../mock-make" \
+   MULLE_MAKE="${PWD}/../mock-mulle-make" \
    BUILD_DIR="${directory}/build" \
       run_mulle_craft "$@"
 
@@ -106,11 +105,8 @@ run_test()
       exit 1
    fi
 
-   expect_content "${directory}/cmake-args.txt" "${cmake_expect}"
-   expect_content "${directory}/make-args.txt" "${make_expect}"
-
-   remove_file_if_present "${directory}/cmake-args.txt"
-   remove_file_if_present "${directory}/make-args.txt"
+   expect_content "${MULLE_MAKE_REDIRECT_FILE}" "${expect}"
+   remove_file_if_present "${MULLE_MAKE_REDIRECT_FILE}"
    rmdir_safer "${directory}/build"
 }
 
@@ -129,10 +125,10 @@ main()
    #
    # Check that some simple pass through stuff works
    #
-   run_test "${directory}" "cmake.txt" "make.txt" project --debug
+   run_test "${directory}" "mulle-make.txt" project --debug
    log_verbose "----- #1 PASSED -----"
 
-   run_test "${directory}" "cmake2.txt" "make.txt" --buildorder-file "${PWD}/buildorder" buildorder --debug
+   run_test "${directory}" "mulle-make2.txt" --buildorder-file "${PWD}/buildorder" buildorder --sdk foo --release
    log_verbose "----- #2 PASSED -----"
 
    log_info "----- ALL PASSED -----"

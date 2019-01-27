@@ -385,9 +385,34 @@ quickstatus_main()
 {
    local  state
 
+   local OPTION_PRINT='NO'
+
+   while :
+   do
+      case "$1" in
+         -h*|--help|help)
+            build_log_usage
+         ;;
+
+         -p|--print)
+            OPTION_PRINT='YES'
+         ;;
+
+         *)
+            break
+         ;;
+      esac
+
+      shift
+   done
+
    state="`dependency_get_state`"
 
-   log_info "Folder ${C_RESET_BOLD}${DEPENDENCY_DIR#${MULLE_USER_PWD}/}${C_INFO} is ${C_MAGENTA}${C_BOLD}${state}"
+   log_info "${C_MAGENTA}${C_BOLD}${state}"
+   if [ "${OPTION_PRINT}" = 'YES' ]
+   then
+      echo "${state}"
+   fi
 
    if [ "${state}" = 'complete' ]
    then

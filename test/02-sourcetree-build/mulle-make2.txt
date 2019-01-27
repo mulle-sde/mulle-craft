@@ -1,0 +1,5 @@
+--build-dir ${MULLE_TMP_DIR}/build/.buildorder/Release-foo/src
+--configuration Release
+--definition-dir NONE
+--log-dir ${MULLE_TMP_DIR}/build/.buildorder/Release-foo/src/.log
+--sdk foo

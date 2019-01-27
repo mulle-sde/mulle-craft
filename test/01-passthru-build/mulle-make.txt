@@ -1,0 +1,6 @@
+--build-dir ${MULLE_TMP_DIR}/build/Debug
+--configuration Debug
+--definition-dir ${MULLE_TEST_DIR}/definition
+--log-dir ${MULLE_TMP_DIR}/build/Debug/.log
+--sdk Default
+USER_VARIABLE=VfL Bochum 1848

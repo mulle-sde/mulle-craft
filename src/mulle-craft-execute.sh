@@ -234,6 +234,7 @@ r_effective_project_builddir()
 
    local name="$1"
    local buildparentdir="$2"
+   local verify="${3:-YES}"
 
    local directory
 
@@ -255,7 +256,7 @@ r_effective_project_builddir()
    # allow name dupes, but try to avoid proliferation of
    # builddirs
    #
-   if [ -d "${builddir}" ]
+   if [ "${verify}" = 'YES' ] && [ -d "${builddir}" ]
    then
       local oldproject
 
@@ -279,12 +280,6 @@ r_effective_project_builddir()
          builddir="${RVAL}"
       done
    fi
-
-   mkdir_if_missing "${builddir}" || fail "Could not create build directory"
-
-   # memo project to avoid clobbering builddirs
-   redirect_exekutor "${builddir}/.project" echo "${project}" || \
-      fail "Could not write into ${builddir}"
 
    log_fluff "Build directory is \"${builddir}\""
 
@@ -759,6 +754,37 @@ ${C_ERROR} was made for a different platform. Time to clean. "
 }
 
 
+r_name_from_evaledproject()
+{
+   local evaledproject="$1"
+
+   [ -z "${evaledproject}" ] && internal_fail "evaledproject is empty"
+
+   local name
+#   log_trace2 "MULLE_VIRTUAL_ROOT=${MULLE_VIRTUAL_ROOT}"
+#   log_trace2 "MULLE_SOURCETREE_STASH_DIR=${MULLE_SOURCETREE_STASH_DIR}"
+
+   name="${evaledproject#${MULLE_VIRTUAL_ROOT:-${PWD}}/}"
+   name="${name#${MULLE_SOURCETREE_STASH_DIR:-stash}/}"
+
+   # replace everything thats not an identifier or . _ - + with -
+   name="`tr -c 'A-Za-z0-9_.+-' '-' <<< "${name}" `"
+   name="${name#-}"
+   name="${name%-}"
+
+   [ -z "${name}" ] && internal_fail "Name is empty from \"${project}\""
+   RVAL="${name}"
+}
+
+
+r_name_from_project()
+{
+   local  project="$1"
+
+   r_name_from_evaledproject "`eval echo "${project}"`"
+}
+
+
 #
 # uses passed in values to evaluate final ones
 #
@@ -775,29 +801,24 @@ _evaluate_craft_variables()
    local configuration="$2"
    local sdk="$3"
    local builddir="$4"
-
-   local evaledproject
-   local name
+   local verify="$5"   # can be left empty
 
    #
    # getting the project name nice is fairly crucial to figure out when
    # things go wrong
    #
    _evaledproject="`eval echo "${project}"`"
-   _name="${project#\$\{MULLE_SOURCETREE_STASH_DIR\}/}"
-   if [ "${_name}" = "${project}" ]
-   then
-      _name="${_evaledproject#\$\{MULLE_VIRTUAL_ROOT\}/}"
-   fi
+   r_name_from_evaledproject "${_evaledproject}"
+   _name="${RVAL}"
+
+   local base_identifier
 
    if [ -z "${MULLE_CASE_SH}" ]
    then
       . "${MULLE_BASHFUNCTIONS_LIBEXEC_DIR}/mulle-case.sh" || exit 1
    fi
 
-   local base_identifier
-
-   r_tweaked_de_camel_case "${_name}"
+   r_tweaked_de_camel_case "${name}"
    base_identifier="`tr 'a-z-' 'A-Z_' <<< "${RVAL}" | tr -d -c 'A-Z0-9_' `"
 
    #
@@ -839,7 +860,7 @@ to \"${identifier}\""
 
    r_determine_build_style_subdir "${configuration}" "${sdk}"
    r_filepath_concat "${builddir}" "${RVAL}"
-   r_effective_project_builddir "${_name}" "${RVAL}"
+   r_effective_project_builddir "${_name}" "${RVAL}" "${verify}"
    _builddir="${RVAL}"
 
    if [ "${MULLE_FLAG_LOG_SETTINGS}" = 'YES' ]
@@ -880,6 +901,12 @@ handle_build()
       echo "${_name}" # ;${marks};${mapped_configuration}"
       return 0
    fi
+
+   mkdir_if_missing "${builddir}" || fail "Could not create build directory"
+
+   # memo project to avoid clobbering builddirs
+   redirect_exekutor "${builddir}/.project" echo "${project}" || \
+      fail "Could not write into ${builddir}"
 
    local rval
 
@@ -1334,9 +1361,11 @@ _do_build_buildorder()
                              "${marks}" \
                              "${donefile}" \
                              "${line}" \
-                             "${evaledproject}"
+                             "${project}"
       then
-         log_error "Serial ${configuration} craft of ${project} failed"
+         r_name_from_project "${project}"
+         log_info "View logs with
+${C_RESET_BOLD}   ${MULLE_USAGE_NAME} log $RVAL"
          return 1
       fi
 

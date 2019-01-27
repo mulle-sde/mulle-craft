@@ -98,7 +98,8 @@ project_log_dirs()
       local sed_escaped_value
          r_escaped_sed_pattern "${BUILDORDER_BUILD_DIR}"
       sed_escaped_value="${RVAL}"
-      rexekutor find -H "${BUILD_DIR}" -type d -name .log | rexekutor egrep -v "^${sed_escaped_value}"
+      rexekutor find -H "${BUILD_DIR}" -type d -name .log | \
+         rexekutor egrep -v "^${sed_escaped_value}"
    else
       rexekutor find -H "${BUILD_DIR}" -type d -name .log
    fi
@@ -130,6 +131,7 @@ list_tool_logs()
    local i
    local s
    local cmdline
+
    cmdline="${MULLE_USAGE_NAME} log cat"
 
    if [ ! -z "${project}" ]
@@ -299,9 +301,12 @@ build_log_command()
          local _evaledproject
          local _name
 
-         _evaluate_craft_variables "${name}" "${OPTION_CONFIGURATION}" \
-                                             "${OPTION_SDK:-Default}" \
-                                             "${BUILDORDER_BUILD_DIR#${PWD}/}"
+         _evaluate_craft_variables "${name}" \
+                                   "${OPTION_CONFIGURATION}" \
+                                   "${OPTION_SDK:-Default}" \
+                                   "${BUILDORDER_BUILD_DIR#${PWD}/}" \
+                                   "NO"
+
          directory="${_builddir}"
 
          log_debug "directory: ${directory}"
@@ -428,10 +433,6 @@ build_log_main()
       list)
          shift
          build_log_list "$@"
-      ;;
-
-      "")
-         build_log_usage
       ;;
 
       *)
