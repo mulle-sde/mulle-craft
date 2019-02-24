@@ -166,6 +166,13 @@ main()
             BUILDORDER_BUILD_DIR="$1"
          ;;
 
+         --dependency-dir)
+            [ $# -eq 1 ] && fail "Missing argument to \"$1\""
+            shift
+
+            DEPENDENCY_DIR="$1"
+         ;;
+
          --motd)
             MULLE_FLAG_MOTD='YES'
          ;;
@@ -244,7 +251,7 @@ main()
          build_clean_main "$@"
       ;;
 
-      libexec-dir|library-path)
+      libexec-dir)
          echo "${MULLE_CRAFT_LIBEXEC_DIR}"
       ;;
 
@@ -274,11 +281,19 @@ main()
          build_project_main "$@"
       ;;
 
+      # rename to find ? again ??
       search)
          # shellcheck source=src/mulle-craft-search.sh
          . "${MULLE_CRAFT_LIBEXEC_DIR}/mulle-craft-search.sh"
 
          build_search_main "$@"
+      ;;
+
+      searchpath)
+         # shellcheck source=src/mulle-craft-searchpath.sh
+         . "${MULLE_CRAFT_LIBEXEC_DIR}/mulle-craft-searchpath.sh"
+
+         build_searchpath_main "$@"
       ;;
 
       quickstatus)

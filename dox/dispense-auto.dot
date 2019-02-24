@@ -1,0 +1,54 @@
+digraph G {
+    graph [rankdir = TD];
+
+    edge[  arrowhead="none", color="black"];
+
+    node[ shape=folder, color="#7b3524", fontcolor="#7b3524"];
+
+    { rank="same" ; "iphoneos12.1" }
+
+    node[ shape=folder, color="#3b5574", fontcolor="#3b5574"];
+
+    { rank="same" ;  "Debug2", "Debug3" }
+
+    Debug2   [ label="Debug"]
+    Debug3   [ label="Debug"]
+
+    node[ shape=folder, color="black", fontcolor="black"];
+
+
+    dependency -> "iphoneos12.1"
+    dependency -> Debug2
+                  "iphoneos12.1"  -> Debug3
+
+    node[ shape=folder, color="gray", fontcolor="gray"];
+
+    dependency -> lib
+    dependency -> include
+    dependency -> Frameworks
+
+    "iphoneos12.1" -> lib1
+    "iphoneos12.1" -> include1
+    "iphoneos12.1" -> Frameworks1
+
+    Debug2 -> lib2
+    Debug2 -> include2
+    Debug2 -> Frameworks2
+
+    Debug3 -> lib3
+    Debug3 -> include3
+    Debug3 -> Frameworks3
+
+
+    lib1 [ label="lib"]
+    lib2 [ label="lib"]
+    lib3 [ label="lib"]
+
+    include1 [ label="include"]
+    include2 [ label="include"]
+    include3 [ label="include"]
+
+    Frameworks1 [ label="Frameworks"]
+    Frameworks2 [ label="Frameworks"]
+    Frameworks3 [ label="Frameworks"]
+}

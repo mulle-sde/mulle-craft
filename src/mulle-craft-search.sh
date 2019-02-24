@@ -62,14 +62,36 @@ r_determine_craftinfo_dir()
    # upper case for the sake of sameness for ppl setting CRAFTINFO_PATH
    # in the environment ?=??
    #
+   [ $# -eq 9 ] || internal_fail "api error"
+
    local name="$1"
    local projectdir="$2"
    local projecttype="$3"
    local allowplatform="$4"
    local allowlocal="$5"
-   local configuration="$6"
+   local sdk="$6"
+   local platform="$7"
+   local configuration="$8"
+   local style="$9"
 
    [ -z "${name}" ] && internal_fail "name must not be null"
+
+   if [ -z "${MULLE_CRAFT_SEARCHPATH_SH}" ]
+   then
+      . "${MULLE_CRAFT_LIBEXEC_DIR}/mulle-craft-searchpath.sh" || exit 1
+   fi
+
+   local extension
+
+   r_get_sdk_platform_configuration_style_string "${sdk}" "${platform}" "${configuration}" "${style}"
+   subdir="${RVAL}"
+
+   if [ "${platform}" != "Default" ]
+   then
+      extension="${platform}"
+   else
+      extension="${MULLE_UNAME}"
+   fi
 
    # replace slashes with underscores
    r_fast_basename "${name}"
@@ -97,18 +119,18 @@ r_determine_craftinfo_dir()
                   if [ "${allowplatform}" = 'YES' ]
                   then
                      r_colon_concat "${searchpath}" \
-"${DEPENDENCY_DIR}/${configuration}/share/mulle-craft/${name}/definition.${MULLE_UNAME}"
+"${DEPENDENCY_DIR}/${subdir}/share/mulle-craft/${name}/definition.${extension}"
                      searchpath="${RVAL}"
                   fi
                   r_colon_concat "${searchpath}" \
-"${DEPENDENCY_DIR}/${configuration}/share/mulle-craft/${name}/definition"
+"${DEPENDENCY_DIR}/${subdir}/share/mulle-craft/${name}/definition"
                   searchpath="${RVAL}"
                fi
 
                if [ "${allowplatform}" = 'YES' ]
                then
                   r_colon_concat "${searchpath}" \
-"${DEPENDENCY_DIR}/share/mulle-craft/${name}/definition.${MULLE_UNAME}"
+"${DEPENDENCY_DIR}/share/mulle-craft/${name}/definition.${extension}"
                   searchpath="${RVAL}"
                fi
                r_colon_concat "${searchpath}" \
@@ -133,7 +155,7 @@ r_determine_craftinfo_dir()
             if [ "${allowplatform}" = 'YES' ]
             then
                r_colon_concat "${searchpath}" \
-                              "${projectdir}/.mulle/etc/craft/definition.${MULLE_UNAME}"
+                              "${projectdir}/.mulle/etc/craft/definition.${extension}"
                searchpath="${RVAL}"
             fi
             r_colon_concat "${searchpath}" "${projectdir}/.mulle/etc/craft/definition"
@@ -220,7 +242,12 @@ build_search_main()
 	   r_determine_craftinfo_dir "${name}" \
                                 "${OPTION_PROJECT_DIR:-${PWD}}" \
                                 "mainproject" \
-                                "${OPTION_GLOBAL}"
+                                "${OPTION_GLOBAL}" \
+                                "${sdk:-Default}" \
+                                "${platform:-Default}" \
+                                "${configuration:-Release}" \
+                                "${style:-auto}"
+
 	else
 		if [ -z "${OPTION_PROJECT_DIR}" ]
 		then
@@ -231,7 +258,11 @@ build_search_main()
                               "${OPTION_PROJECT_DIR}" \
                               "dependency" \
                               "${OPTION_PLATFORM}" \
-                              "${OPTION_LOCAL}"
+                              "${OPTION_LOCAL}" \
+                              "${sdk:-Default}" \
+                              "${platform:-Default}" \
+                              "${configuration:-Release}" \
+                              "${style:-auto}"
 	fi
 
    [ ! -z "${RVAL}" ] && echo "${RVAL}"

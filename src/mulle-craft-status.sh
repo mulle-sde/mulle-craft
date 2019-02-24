@@ -58,13 +58,12 @@ r_get_names_from_file()
 
    local lines
 
-   lines="`sort "${donefile}"`"
+   lines="`rexekutor sort "${donefile}"`"
 
    local line
    local names
 
-   set -f ; IFS="
-"
+   set -f ; IFS=$'\n'
    for line in ${lines}
    do
       set +f ; IFS="${DEFAULT_IFS}"
@@ -92,6 +91,7 @@ r_get_names_from_file()
    RVAL="${names}"
 }
 
+
 output_names_with_status()
 {
    log_entry "output_names_with_status" "$@"
@@ -118,8 +118,7 @@ output_names_with_status()
       fail_suffix=": build"
    fi
 
-   set -f ; IFS="
-"
+   set -f ; IFS=$'\n'
    for name in ${all_names}
    do
       if find_line "${built_names}" "${name}"
@@ -167,7 +166,7 @@ status_main()
       shift
    done
 
-   local all_names
+   [ -z "${BUILDORDER_BUILD_DIR}" ] && internal_fail "BUILDORDER_BUILD_DIR is empty"
 
    if [ -z "${BUILDORDER_FILE}" ]
    then
@@ -179,29 +178,55 @@ status_main()
       fail "Missing buildorder file \"${BUILDORDER_FILE}\""
    fi
 
+   local all_names
+
    r_get_names_from_file "${BUILDORDER_FILE}"
    all_names="${RVAL}"
 
    local configuration
+   local sdk
+   local platform
    local donefile
+   local name
 
-   for configuration in `find -H "${BUILDORDER_BUILD_DIR}" -mindepth 1 -maxdepth 1 -type d -print`
+   for donefile in `rexekutor find -H "${BUILDORDER_BUILD_DIR}" -name ".*.built" -type f -print`
    do
-      donefile="${configuration}/.mulle-craft-built"
-      if [ ! -f "${donefile}" ]
-      then
-         continue
-      fi
+      # strip off */.<name>.built
+      r_extensionless_basename "${donefile}"
+      name="${RVAL#.}"
+
+      # format sdk-platform-configuration
+
+      sdk="${name%%--*}"
+      configuration="${name##*--}"
+      platform="${name#${sdk}--}"
+      platform="${platform%--${configuration}}"
 
       if [ "${MULLE_FLAG_LOG_SETTINGS}" = 'YES' ]
       then
-         log_trace2 "donefile: ${donefile}"
+         log_trace2 "donefile:      ${donefile}"
+         log_trace2 "sdk:           ${sdk}"
+         log_trace2 "platform:      ${platform}"
+         log_trace2 "configuration: ${configuration}"
       fi
 
-      r_fast_basename "${configuration}"
-      configuration="${RVAL}"
+      local  info
 
-      log_info "${configuration}"
+      if [ "${sdk}" != 'Default' ]
+      then
+         info="${sdk}"
+      fi
+
+      if [ "${platform}" != 'Default' ]
+      then
+         r_concat "${info}" "${platform}"
+         info="${RVAL}"
+      fi
+
+      r_concat "${info}" "${configuration}"
+      info="${RVAL}"
+
+      log_info "${info}"
 
       r_get_names_from_file "${donefile}"
 

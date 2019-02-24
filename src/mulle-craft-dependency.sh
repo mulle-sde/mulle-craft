@@ -34,7 +34,7 @@ MULLE_CRAFT_DEPENDENCY_SH="included"
 
 #
 # The ./dependency folder is somewhat like a /usr folder, a root for
-# bin share lib  folders and so on. The dependencies folder is
+# bin share lib  folders and so on. The dependency folder is
 # write protected by default.
 #
 # You add stuff to ./dependency by callin `dependency_begin_update`
@@ -45,18 +45,16 @@ MULLE_CRAFT_DEPENDENCY_SH="included"
 # contents, if the environment variable DEPENDENCY_TARBALL_PATH is set
 # (it contains a : separated list of tarball paths)
 #
+#
 _dependency_install_tarballs()
 {
    log_entry "_dependency_install_tarballs" "$@"
 
+   local style="$1"
+
    local tarballs
    local tarball
    local tarflags
-
-   if [ "${MULLE_FLAG_LOG_VERBOSE}" ]
-   then
-      tarflags="-v"
-   fi
 
    set -f ; IFS=":"
    for tarball in ${DEPENDENCY_TARBALL_PATH}
@@ -73,26 +71,59 @@ _dependency_install_tarballs()
          fail "Preload \"$tarball\" not found"
       fi
 
-      if [ -f "${tarball}" ]
-      then
-         log_info "Installing tarball \"${tarball}\""
-         exekutor "${TAR:-tar}" -xz ${TARFLAGS} \
-                                -C "${DEPENDENCY_DIR}" \
-                                -f "${tarball}" || fail "failed to extract ${tar}"
-      else
-         log_info "Copying directory \"${tarball}\""
-         (
-            cd "${tarball}" &&
-            exekutor "${TAR:-tar}" -cf ${TARFLAGS} .
-         ) |
-         (
-            cd "${DEPENDENCY_DIR}" &&
-            exekutor "${TAR:-tar}" -xf -
-         ) || fail "failed to copy ${tarball}"
-      fi
-
+      r_absolutepath "${tarball}"
+      r_colon_concat "${tarballs}" "${RVAL}"
+      tarballs="${RVAL}"
    done
-   set +f; IFS="${DEFAULT_IFS}"
+   set +f ; IFS="${DEFAULT_IFS}"
+
+   [ -z "${tarballs}" ] && return 0
+
+   if [ "${MULLE_FLAG_LOG_VERBOSE}" ]
+   then
+      tarflags="-v"
+   fi
+
+   if [ -z "${MULLE_CRAFT_SEARCHPATH_SH}" ]
+   then
+      . "${MULLE_CRAFT_LIBEXEC_DIR}/mulle-craft-searchpath.sh" || exit 1
+   fi
+
+   (
+      local directory
+
+      r_get_sdk_platform_configuration_style_string "Default" \
+                                              "Default" \
+                                              "Release" \
+                                              "${style}"
+      r_filepath_concat "${DEPENDENCY_DIR}" "${RVAL}"
+      directory="${RVAL}"
+      mkdir_if_missing "${directory}"
+
+      set -f ; IFS=":"
+      for tarball in ${tarballs}
+      do
+         set +f; IFS="${DEFAULT_IFS}"
+
+         if [ -f "${tarball}" ]
+         then
+            log_info "Installing tarball \"${tarball#${MULLE_USER_PWD}/}\" in \"${directory#${MULLE_USER_PWD}/}\""
+            exekutor "${TAR:-tar}" -xz ${TARFLAGS} \
+                                   -C "${directory}" \
+                                   -f "${tarball}" || fail "failed to extract ${tar}"
+         else
+            log_info "Copying directory \"${tarball}\" to \"${directory#${MULLE_USER_PWD}/}\""
+            (
+               cd "${tarball}" &&
+               exekutor "${TAR:-tar}" -cf ${TARFLAGS} .
+            ) |
+            (
+               cd "${directory}" &&
+               exekutor "${TAR:-tar}" -xf -
+            ) || fail "failed to copy ${tarball}"
+         fi
+      done
+   ) || exit 1
 }
 
 
@@ -100,8 +131,9 @@ dependency_init()
 {
    log_entry "dependency_init" "$@"
 
-   local project="$1"
+   local style="$1"
 
+   [ -z "${style}" ] && internal_fail "style not set"
    [ -z "${DEPENDENCY_DIR}" ] && internal_fail "DEPENDENCY_DIR not set"
 
    mkdir_if_missing "${DEPENDENCY_DIR}"
@@ -109,7 +141,7 @@ dependency_init()
    redirect_exekutor "${DEPENDENCY_DIR}/.state" \
       echo "initing"
 
-   _dependency_install_tarballs
+   _dependency_install_tarballs "${style}"
 
    redirect_exekutor "${DEPENDENCY_DIR}/.state" \
       echo "inited"
@@ -197,7 +229,8 @@ dependency_begin_update()
 {
    log_entry "dependency_begin_update" "$@"
 
-   local warnonrentry="${1:-nowarn}"
+   local style="$1"
+   local warnonrentry="${2:-nowarn}"
 
    [ -z "${DEPENDENCY_DIR}" ] && internal_fail "DEPENDENCY_DIR not set"
 
@@ -206,12 +239,12 @@ dependency_begin_update()
    state="`dependency_get_state`"
    case "${state}" in
       clean)
-         dependency_init
+         dependency_init "${style}"
       ;;
 
       initing|initting) # previous misspell
          fail "A previous craft got stuck. Suggested remedy:
-   ${C_RESET_BOLD}${MULLE_USAGE_NAME% *} clean dependency"
+   ${C_RESET_BOLD}${MULLE_USAGE_NAME% *} clean all"
       ;;
 
       inited|ready|complete)
@@ -287,8 +320,7 @@ r_dependency_existing_dirs_path()
    local subdir
 
    RVAL=""
-   set -f ; IFS="
-"
+   set -f ; IFS=$'\n'
    for subdir in ${subdirectories}
    do
       set +f ; IFS="${DEFAULT_IFS}"
@@ -307,29 +339,34 @@ r_dependency_dir_locations()
 {
    log_entry "r_dependency_dir_locations" "$@"
 
-   local name="$1"
-   local configuration="$2"
-   local sdk="$3"
+   local name="$1"; shift
+   local sdk="$1"
+   local platform="$2"
+   local configuration="$3"
+   local style="$4"
 
    [ -z "${DEPENDENCY_DIR}" ] && internal_fail "DEPENDENCY_DIR not set"
 
-   RVAL=""
-   if [ ! -z "${configuration}" ]
+   if [ -z "${MULLE_CRAFT_SEARCHPATH_SH}" ]
    then
-      if [ ! -z "${sdk}" ]
-      then
-         r_add_line "${RVAL}" "${configuration}-${sdk}/${name}"
-      fi
-      r_add_line "${RVAL}" "${configuration}/${name}"
+      . "${MULLE_CRAFT_LIBEXEC_DIR}/mulle-craft-searchpath.sh" || exit 1
    fi
-   r_add_line "${RVAL}" "${name}"
 
-   case "${name}" in
-      lib|include)
-         r_add_line "${RVAL}" "usr/${name}"
-         r_add_line "${RVAL}" "usr/local/${name}"
-      ;;
-   esac
+   local subdir
+
+   r_get_sdk_platform_configuration_style_string "$@"
+   subdir="${RVAL}"
+
+   r_filepath_concat "${RVAL}" "${name}"
+
+   # kinda dodgy, why is this here ?
+   #
+#   case "${name}" in
+#      lib|include)
+#         r_add_line "${RVAL}" "usr/${name}"
+#         r_add_line "${RVAL}" "usr/local/${name}"
+#      ;;
+#   esac
 }
 
 
@@ -337,10 +374,11 @@ r_dependency_include_path()
 {
    log_entry "r_dependency_include_path" "$@"
 
-   local configuration="$1"
-   local sdk="$2"
+#   local sdk="$1"
+#   local platform="$2"
+#   local configuration="$3"
 
-   r_dependency_dir_locations "include" "${configuration}" "${sdk}"
+   r_dependency_dir_locations "include" "$@"
    r_dependency_existing_dirs_path "${RVAL}"
 }
 
@@ -349,22 +387,24 @@ r_dependency_lib_path()
 {
    log_entry "r_dependency_lib_path" "$@"
 
-   local configuration="$1"
-   local sdk="$2"
+#   local sdk="$1"
+#   local platform="$2"
+#   local configuration="$3"
 
-   r_dependency_dir_locations "lib" "${configuration}" "${sdk}"
+   r_dependency_dir_locations "lib" "$@"
    r_dependency_existing_dirs_path "${RVAL}"
 }
 
 
 r_dependency_frameworks_path()
 {
-   log_entry "dependency_frameworks_path" "$@"
+   log_entry "r_dependency_frameworks_path" "$@"
 
-   local configuration="$1"
-   local sdk="$2"
+#   local sdk="$1"
+#   local platform="$2"
+#   local configuration="$3"
 
-   r_dependency_dir_locations "Frameworks" "${configuration}" "${sdk}"
+   r_dependency_dir_locations "Frameworks" "$@"
    r_dependency_existing_dirs_path "${RVAL}"
 }
 
@@ -373,10 +413,11 @@ r_dependency_share_path()
 {
    log_entry "dependency_share_path" "$@"
 
-   local configuration="$1"
-   local sdk="$2"
+#   local sdk="$1"
+#   local platform="$2"
+#   local configuration="$3"
 
-   r_dependency_dir_locations "share" "${configuration}" "${sdk}"
+   r_dependency_dir_locations "share" "$@"
    r_dependency_existing_dirs_path "${RVAL}"
 }
 

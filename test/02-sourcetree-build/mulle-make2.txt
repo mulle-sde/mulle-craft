@@ -1,5 +1,6 @@
---build-dir ${MULLE_TMP_DIR}/build/.buildorder/Release-foo/src
+--build-dir ${MULLE_TMP_DIR}/build/.buildorder/foo/Release/src
 --configuration Release
 --definition-dir NONE
---log-dir ${MULLE_TMP_DIR}/build/.buildorder/Release-foo/src/.log
+--log-dir ${MULLE_TMP_DIR}/build/.buildorder/foo/Release/src/.log
 --sdk foo
+MULLE_SDK_PATH=${MULLE_TEST_DIR}/dependency/foo:${MULLE_TEST_DIR}/addiction/foo

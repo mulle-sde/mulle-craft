@@ -43,126 +43,49 @@ Usage:
    ${USAGE_INFO}
 
 Options:
-   --all         : rebuild everything (doesn't clean)
-   --debug       : compile for debug only
-   --lenient     : do not stop on errors
-   --no-protect  : do not make dependency read-only
-   --release     : compile for release only
-   --sdk <sdk>   : specify sdk to build against
-   --            : pass remaining options to mulle-make
+   --all          : rebuild everything (doesn't clean)
+   --debug        : compile for debug only
+   --lenient      : do not stop on errors
+   --no-protect   : do not make dependency read-only
+   --release      : compile for release only
+   --sdk <sdk>    : specify sdk to build against (Default)
+   --platform <p> : specify platform to build for (Default)
+   --style <s>    : dependency style ("auto", "none", "relax", strict")
+   --             : pass remaining options to mulle-make
 
 Environment:
    ADDICTION_DIR           : place to get addictions from (optional)
    BUILD_DIR               : place for build products (required)
+   CONFIGURATIONS          : configurations to build, ':' separated
    CRAFTINFO_PATH          : places to find craftinfos
+   DISPENSE_STYLE          : how to place build products into dependency (none)
    DEPENDENCY_DIR          : place to put dependencies into
    DEPENDENCY_TARBALL_PATH : tarballs to preinstall into dependency
-   MULLE_SDE_MAKE_FLAGS    : additional flags passed to mulle-make
-   MULLE_SDE_USE_SCRIPT    : enables building with scripts
+   MULLE_CRAFT_MAKE_FLAGS  : additional flags passed to mulle-make
+   MULLE_CRAFT_USE_SCRIPT  : enables building with scripts
+   PLATFORMS               : platforms to build, ':' separated
+   SDKS                    : sdks to build, ':' separated
+
+Styles:
+   none    : use root only. Only useful for a single configuration/sdk/platform
+   auto    : fold SDK/PLATFORM Default and CONFIGURATION Release to root
+   relax   : fold SDK/PLATFORM Default but not CONFIGURATION
+   strict  : differentiate according to SDK/PLATFORM/CONFIGURATION Release
+
 EOF
   exit 1
 }
 
-#
-# if only one configuration is chosen, make it the default
-# if there are multiple configurations, make Release the default
-# if Release is not in multiple configurations, then there is no default
-#
-r_determine_build_style_subdir()
+
+
+assert_sane_name()
 {
-   log_entry "r_determine_build_style_subdir" "$@"
+   local name="$1"; shift
 
-   local configuration="$1"
-   local sdk="$2"
-
-   [ -z "$configuration" ] && internal_fail "configuration must not be empty"
-   [ -z "$sdk" ]           && internal_fail "sdk must not be empty"
-
-   sdk="`LC_ALL=C "${SED:-sed}" 's/^\([a-zA-Z]*\).*$/\1/g' <<< "${sdk}" `"
-
-   #
-   # for build we do not create "top level" Release files, because it is
-   # easier to clean this way
-   #
-   if [ "${sdk}" = "Default" ]
+   if [ "`tr -d -c 'a-zA-Z0-9_.-' <<< "${name}" `" != "${name}" ]
    then
-      RVAL="/${configuration}"
-   else
-      RVAL="/${configuration}-${sdk}"
+      fail "\"${name}\" contains invalid characters$*"
    fi
-}
-
-
-r_determine_dependency_subdir()
-{
-   log_entry "r_determine_dependency_subdir" "$@"
-
-   local configuration="$1"
-   local sdk="$2"
-   local style="$3"
-
-   [ -z "${configuration}" ] && internal_fail "configuration must not be empty"
-   [ -z "${sdk}" ]           && internal_fail "sdk must not be empty"
-   [ -z "${SDKS}" ]          && internal_fail "SDKS must not be empty"
-
-   sdk="`LC_ALL=C "${SED:-sed}" 's/^\([a-zA-Z]*\).*$/\1/g' <<< "${sdk}" `"
-
-   #
-   # default style is none, as it its the easiest and least error
-   # prone. Renamed from MULLE_DISPENSE_STYLE.
-   #
-   if [ -z "${style}" ]
-   then
-      style="${MULLE_CRAFT_DISPENSE_STYLE:-none}"
-   fi
-
-   if [ "${style}" = "auto" ]
-   then
-      style="configuration"
-
-      n_sdks="`echo "${SDKS}" | wc -l | awk '{ print $1 }'`"
-      if [ $n_sdks -gt 1 ]
-      then
-         style="configuration-sdk"
-      fi
-   fi
-
-   RVAL=""
-   case "${style}" in
-      "none")
-      ;;
-
-      "configuration-strict")
-         RVAL="/${configuration}"
-      ;;
-
-      "configuration-sdk-strict")
-         RVAL="/${configuration}-${sdk}"
-      ;;
-
-      "configuration-sdk")
-         if [ "${sdk}" = "Default" ]
-         then
-            if [ "${configuration}" != "Release" ]
-            then
-               RVAL="/${configuration}"
-            fi
-         else
-            RVAL="/${configuration}-${sdk}"
-         fi
-      ;;
-
-      "configuration")
-         if [ "${configuration}" != "Release" ]
-         then
-            RVAL="/${configuration}"
-         fi
-      ;;
-
-      *)
-         fail "unknown value \"${style}\" for dispense style"
-      ;;
-   esac
 }
 
 
@@ -188,13 +111,47 @@ build_directory_name()
 #
 __set_various_paths()
 {
-   local configuration="$1"
-   local sdk="$2"
+   local sdk="$1"
+   local platform="$2"
+   local configuration="$3"
+   local style="$4"
 
    _binpath="${PATH}"
 
+   local sdk_platform
+
+   r_get_sdk_platform_style_string "${sdk}" "${platform}" "${style}"
+   sdk_platform="${RVAL}"
+
    if [ ! -z "${ADDICTION_DIR}" ]
    then
+      if [ ! -z "${sdk_platform}" ]
+      then
+         if [ -d "${ADDICTION_DIR}/${sdk_platform}/include" ]
+         then
+            r_colon_concat "${_includepath}" "${ADDICTION_DIR}/${sdk_platform}/include"
+            _includepath="${RVAL}"
+         fi
+
+         if [ -d "${ADDICTION_DIR}/${sdk_platform}/Frameworks" ]
+         then
+            r_colon_concat "${_frameworkspath}" "${ADDICTION_DIR}/${sdk_platform}/Frameworks"
+            _frameworkspath="${RVAL}"
+         fi
+
+         if [ -d "${ADDICTION_DIR}/${sdk_platform}/lib" ]
+         then
+            r_colon_concat "${_libpath}" "${ADDICTION_DIR}/${sdk_platform}/lib"
+            _libpath="${RVAL}"
+         fi
+
+         if [ -d "${ADDICTION_DIR}/${sdk_platform}/bin" ]
+         then
+            r_colon_concat "${ADDICTION_DIR}/${sdk_platform}/bin" "${_binpath}"
+            _binpath="${RVAL}"
+         fi
+      fi
+
       if [ -d "${ADDICTION_DIR}/include" ]
       then
          r_colon_concat "${_includepath}" "${ADDICTION_DIR}/include"
@@ -205,6 +162,12 @@ __set_various_paths()
       then
          r_colon_concat "${_libpath}" "${ADDICTION_DIR}/lib"
          _libpath="${RVAL}"
+      fi
+
+      if [ -d "${ADDICTION_DIR}/Frameworks" ]
+      then
+         r_colon_concat "${_frameworkspath}" "${ADDICTION_DIR}/Frameworks"
+         _frameworkspath="${RVAL}"
       fi
 
       if [ -d "${ADDICTION_DIR}/bin" ]
@@ -224,6 +187,21 @@ __set_various_paths()
    then
       r_colon_concat "${DEPENDENCY_DIR}/${configuration}/bin" "${_binpath}"
       _binpath="${RVAL}"
+   fi
+
+   if [ ! -z "${sdk_platform}" ]
+   then
+      if [ -d "${DEPENDENCY_DIR}/${sdk_platform}/bin" ]
+      then
+         r_colon_concat "${DEPENDENCY_DIR}/${sdk_platform}/bin" "${_binpath}"
+         _binpath="${RVAL}"
+      fi
+
+      if [ -d "${DEPENDENCY_DIR}/${sdk_platform}/${configuration}/bin" ]
+      then
+         r_colon_concat "${DEPENDENCY_DIR}/${sdk_platform}/${configuration}/bin" "${_binpath}"
+         _binpath="${RVAL}"
+      fi
    fi
 }
 
@@ -288,6 +266,34 @@ r_effective_project_builddir()
 }
 
 
+r_get_mulle_sdk_path()
+{
+   log_entry "r_get_mulle_sdk_path" "$@"
+
+   local sdk="$1"
+   local platform="$2"
+   local style="$3"
+
+   local sdk_platform
+
+   r_get_sdk_platform_style_string "${sdk}" "${platform}" "${style}"
+   sdk_platform="${RVAL}"
+
+   local addiction_dir
+   local dependency_dir
+
+   r_filepath_concat "${ADDICTION_DIR}" "${sdk_platform}"
+   addiction_dir="${RVAL}"
+   r_filepath_concat "${DEPENDENCY_DIR}" "${sdk_platform}"
+   dependency_dir="${RVAL}"
+
+   r_colon_concat "${dependency_dir}" "${addiction_dir}"
+   r_colon_concat "${RVAL}" "${MULLE_SDK_PATH}"
+
+   log_debug "sdk_path: ${RVAL}"
+}
+
+
 build_project()
 {
    log_entry "build_project" "$@"
@@ -301,10 +307,12 @@ build_project()
    local name="$2"
    local marks="$3"
    local builddir="$4"
-   local configuration="$5"
-   local sdk="$6"
+   local sdk="$5"
+   local platform="$6"
+   local configuration="$7"
+   local style="$8"
 
-   shift 6
+   shift 8
 
    [ -z "${cmd}" ]         && internal_fail "cmd is empty"
    [ -z "${destination}" ] && internal_fail "destination is empty"
@@ -334,7 +342,10 @@ build_project()
                              "dependency" \
                              "${OPTION_PLATFORM}" \
                              "${OPTION_LOCAL}" \
-                             "${configuration}"
+                             "${sdk}" \
+                             "${platform}" \
+                             "${configuration}" \
+                             "${style}"
    case $? in
       0|2)
       ;;
@@ -362,21 +373,21 @@ build_project()
 
    if [ ! -z "${DEPENDENCY_DIR}" ]
    then
-      r_dependency_include_path "${configuration}" "${sdk}"
+      r_dependency_include_path  "${sdk}" "${platform}" "${configuration}" "${style}"
       _includepath="${RVAL}"
 
-      r_dependency_lib_path "${configuration}" "${sdk}"
+      r_dependency_lib_path "${sdk}" "${platform}" "${configuration}" "${style}"
       _libpath="${RVAL}"
 
       case "${MULLE_UNAME}" in
          darwin)
-            r_dependency_frameworks_path "${configuration}" "${sdk}"
+            r_dependency_frameworks_path "${sdk}" "${platform}" "${configuration}" "${style}"
             _frameworkspath="${RVAL}"
          ;;
       esac
    fi
 
-   __set_various_paths "${configuration}" "${sdk}"
+   __set_various_paths "${sdk}" "${platform}" "${configuration}" "${style}"
 
    #
    # call mulle-make with all we've got now
@@ -440,6 +451,11 @@ This can lead to problems on darwin, but may solve problems on linux..."
       r_concat "${args}" "--configuration '${configuration}'"
       args="${RVAL}"
    fi
+   if [ ! -z "${platform}" ]
+   then
+      r_concat "${args}" "--platform '${platform}'"
+      args="${RVAL}"
+   fi
    if [ ! -z "${sdk}" ]
    then
       r_concat "${args}" "--sdk '${sdk}'"
@@ -474,6 +490,17 @@ This can lead to problems on darwin, but may solve problems on linux..."
    if [ "${OPTION_ALLOW_SCRIPT}" = 'YES' ]
    then
       r_concat "${args}" "--allow-script"
+      args="${RVAL}"
+   fi
+
+   local sdk_path
+
+   r_get_mulle_sdk_path "${sdk}" "${platform}" "auto"
+   sdk_path="${RVAL}"
+
+   if [ ! -z "${sdk_path}" ]
+   then
+      r_concat "${args}" "-DMULLE_SDK_PATH='${sdk_path}'"
       args="${RVAL}"
    fi
 
@@ -514,6 +541,7 @@ set to ${C_RESET_BOLD}${mulle_flags_env_value}${C_VERBOSE}"
       auxargs="${RVAL}"
    done
 
+
    if [ "${MULLE_FLAG_LOG_SETTINGS}" = 'YES' ]
    then
       log_trace2 "flags:                 ${flags}"
@@ -525,7 +553,9 @@ set to ${C_RESET_BOLD}${mulle_flags_env_value}${C_VERBOSE}"
       log_trace2 "mulle_flags_env_value: ${mulle_flags_env_value}"
    fi
 
-   eval_exekutor "'${MULLE_MAKE}'" \
+
+   eval_exekutor "${environment}" \
+                     '${MULLE_MAKE}' \
                         "${flags}" \
                         "${MULLE_TECHNICAL_FLAGS}" \
                         "${MULLE_MAKE_FLAGS}" \
@@ -550,21 +580,25 @@ build_dependency_directly()
    log_entry "build_dependency_directly" "$@"
 
    local cmd="$1"; shift
+   local dependency_dir="$1"; shift
 
-   local project="$1"
-   local name="$2"
-   local marks="$3"
-   local builddir="$4"
-   local configuration="$5"
-   local sdk="$6"
+#   local project="$1"
+#   local name="$2"
+#   local marks="$3"
+#   local builddir="$4"
+#   local sdk="$5"
+#   local platform="$6"
+#   local configuration="$7"
+   local style="$8"
 
    if [ -z "${PARALLEL}" ]
    then
-      dependency_begin_update || return 1
+      dependency_begin_update "${style}" || return 1
    fi
 
    local rval
-   build_project "${cmd}" "${DEPENDENCY_DIR}" "$@"
+
+   build_project "${cmd}" "${dependency_dir}" "$@"
    rval=$?
 
 
@@ -596,13 +630,16 @@ build_dependency_with_dispense()
    log_entry "build_dependency_with_dispense" "$@"
 
    local cmd="$1"; shift
+   local dependency_dir="$1"; shift
 
    local project="$1"
    local name="$2"
    local marks="$3"
    local builddir="$4"
-   local configuration="$5"
-   local sdk="$6"
+   local sdk="$5"
+   local platform="$6"
+   local configuration="$7"
+   local style="$8"
 
    local rval
 
@@ -625,7 +662,6 @@ build_dependency_with_dispense()
       return $rval
    fi
 
-   local stylesubdir
    local options
 
    # ugliness for zlib
@@ -635,21 +671,9 @@ build_dependency_with_dispense()
       ;;
    esac
 
-   r_determine_dependency_subdir "${configuration}" "${sdk}"
-   stylesubdir="${RVAL}"
-
-   #
-   # changed styles, it could lead to problems
-   #
-   if [ -z "${RVAL}" -a -d "${DEPENDENCY_DIR}/Debug" ]
-   then
-      log_warning "There is still an old Debug folder in dependency, which \
-might cause trouble"
-   fi
-
    case "${PARALLEL}" in
       "")
-         dependency_begin_update || return 1
+         dependency_begin_update "${style}" || return 1
       ;;
 
       Headers)
@@ -669,7 +693,7 @@ might cause trouble"
                dispense \
                   ${options} \
                   "${tmpdependencydir}" \
-                  "${DEPENDENCY_DIR}${stylesubdir}"
+                  "${dependency_dir}"
    rval=$?
 
    rmdir_safer "${tmpdependencydir}"
@@ -700,8 +724,10 @@ build_buildorder_node()
    local name="$2"
    local marks="$3"
 #   local builddir="$4"
-#   local configuration="$5"
-#   local sdk="$6"
+   local sdk="$5"
+   local platform="$6"
+   local configuration="$7"
+   local style="$8"
 
    case ",${marks}," in
       *',no-require,'*) # |*",no-require-${MULLE_UNAME},"*)
@@ -740,16 +766,31 @@ ${C_ERROR} was made for a different platform. Time to clean. "
       ;;
    esac
 
+   #
+   # Figure out where to dispense into
+   #
+   local dependency_dir
+
+   r_get_sdk_platform_configuration_style_string "${sdk}" \
+                                           "${platform}" \
+                                           "${configuration}"  \
+                                           "${style}"
+   r_filepath_concat "${DEPENDENCY_DIR}" "${RVAL}"
+   dependency_dir="${RVAL}"
+
+   #
+   # Depending on marks, either install and dispense or just install
+   #
    log_verbose "Build ${C_MAGENTA}${C_BOLD}${name}${C_VERBOSE}"
 
    case ",${marks}," in
       *',no-inplace,'*)
-         build_dependency_with_dispense "${cmd}" "$@"
+         build_dependency_with_dispense "${cmd}" "${dependency_dir}" "$@"
          return $?
       ;;
    esac
 
-   build_dependency_directly "${cmd}" "$@"
+   build_dependency_directly "${cmd}" "${dependency_dir}" "$@"
    return $?
 }
 
@@ -786,7 +827,10 @@ r_name_from_project()
 
 
 #
-# uses passed in values to evaluate final ones
+# uses passed in values to evaluate final ones. This code may change the
+# configuration (f.e. a nice feature, if a project doesn't support it)
+# and will finalize the name of the build directory and the name to be shown
+# as what gets compiled.
 #
 # local _builddir
 # local _configuration
@@ -798,81 +842,97 @@ _evaluate_craft_variables()
    log_entry "_evaluate_craft_variables" "$@"
 
    local project="$1"
-   local configuration="$2"
-   local sdk="$3"
-   local builddir="$4"
-   local verify="$5"   # can be left empty
+   local sdk="$2"
+   local platform="$3"
+   local configuration="$4"
+   local style="$5"
+   local builddir="$6"
+   local verify="$7"   # can be left empty
 
    #
    # getting the project name nice is fairly crucial to figure out when
    # things go wrong
    #
-   _evaledproject="`eval echo "${project}"`"
-   r_name_from_evaledproject "${_evaledproject}"
-   _name="${RVAL}"
-
-   local base_identifier
-
-   if [ -z "${MULLE_CASE_SH}" ]
+   if [ "${project}" = '*' ]
    then
-      . "${MULLE_BASHFUNCTIONS_LIBEXEC_DIR}/mulle-case.sh" || exit 1
-   fi
+      _name="${project}"
+      _evaledproject=""
+      log_fluff "Configuration mapping will not be found by logs"
+   else
+      _evaledproject="`eval echo "${project}"`"
+      r_name_from_evaledproject "${_evaledproject}"
+      _name="${RVAL}"
 
-   r_tweaked_de_camel_case "${name}"
-   base_identifier="`tr 'a-z-' 'A-Z_' <<< "${RVAL}" | tr -d -c 'A-Z0-9_' `"
+      local base_identifier
 
-   #
-   # Map some configurations (e.g. Debug -> Release for mulle-objc-runtime)
-   # You can also map to empty, to skip a configuration
-   #
-   local value
-   local identifier
+      if [ -z "${MULLE_CASE_SH}" ]
+      then
+        . "${MULLE_BASHFUNCTIONS_LIBEXEC_DIR}/mulle-case.sh" || exit 1
+      fi
 
-   identifier="MULLE_CRAFT_${base_identifier}_MAP_CONFIGURATIONS"
-   value="`eval echo \\\$${identifier}`"
+      r_tweaked_de_camel_case "${name}"
+      base_identifier="`tr 'a-z-' 'A-Z_' <<< "${RVAL}" | tr -d -c 'A-Z0-9_' `"
 
-   _configuration="${configuration}"
+      #
+      # Map some configurations (e.g. Debug -> Release for mulle-objc-runtime)
+      # You can also map to empty, to skip a configuration
+      #
+      local value
+      local identifier
 
-   local mapped
-   local escaped
+      identifier="MULLE_CRAFT_${base_identifier}_MAP_CONFIGURATIONS"
+      value="`eval echo \\\$${identifier}`"
 
-   if [ ! -z "${value}" ]
-   then
-      case ",${value}," in
-         *",${configuration}->"*","*)
-            r_escaped_sed_pattern "${configuration}"
-            escaped="${RVAL}"
+      _configuration="${configuration}"
 
-            mapped="`LC_ALL=C sed -n -e "s/.*,${escaped}->\([^,]*\),.*/\\1/p" <<< ",${value},"`"
-            if [ -z "${mapped}" ]
-            then
+      local mapped
+      local escaped
+
+      if [ ! -z "${value}" ]
+      then
+         case ",${value}," in
+            *",${configuration}->"*","*)
+               r_escaped_sed_pattern "${configuration}"
+               escaped="${RVAL}"
+
+               mapped="`LC_ALL=C sed -n -e "s/.*,${escaped}->\([^,]*\),.*/\\1/p" <<< ",${value},"`"
+               if [ -z "${mapped}" ]
+               then
                log_verbose "Configuration \"${configuration}\" skipped due \
 to \"${identifier}\""
-               return 0
-            fi
+                  return 0
+               fi
 
-            log_verbose "Configuration \"${configuration}\" mapped to \
+               log_verbose "Configuration \"${configuration}\" mapped to \
 \"${mapped}\" due to environment variable \"${identifier}\""
-            _configuration="${mapped}"
-         ;;
-      esac
+               _configuration="${mapped}"
+            ;;
+         esac
+      fi
    fi
 
-   r_determine_build_style_subdir "${configuration}" "${sdk}"
+   #
+   # this is the build style which is always "relax"
+   #
+   if [ -z "${MULLE_CRAFT_SEARCHPATH_SH}" ]
+   then
+      . "${MULLE_CRAFT_LIBEXEC_DIR}/mulle-craft-searchpath.sh" || exit 1
+   fi
+
+   r_get_sdk_platform_configuration_style_string "${sdk}" \
+                                                 "${platform}" \
+                                                 "${configuration}" \
+                                                 "relax"
    r_filepath_concat "${builddir}" "${RVAL}"
    r_effective_project_builddir "${_name}" "${RVAL}" "${verify}"
    _builddir="${RVAL}"
 
    if [ "${MULLE_FLAG_LOG_SETTINGS}" = 'YES' ]
    then
-      log_trace2 "${identifier}  : \"${value}\""
       log_trace2 "builddir       : \"${_builddir}\""
       log_trace2 "configuration  : \"${_configuration}\""
       log_trace2 "evaledproject  : \"${_evaledproject}\""
       log_trace2 "name           : \"${_name}\""
-      log_trace2 "project        : \"${project}\""
-      log_trace2 "sdk            : \"${sdk}\""
-      log_trace2 "stylesubdir    : \"${stylesubdir}\""
    fi
 }
 
@@ -885,8 +945,10 @@ handle_build()
 
    local project="$1"; shift
    local marks="$1"; shift
-   local configuration="$1"; shift
    local sdk="$1"; shift
+   local platform="$1"; shift
+   local configuration="$1"; shift
+   local style="$1"; shift
    local builddir="$1"; shift
 
    local _name
@@ -894,7 +956,16 @@ handle_build()
    local _builddir
    local _configuration
 
-   _evaluate_craft_variables "${project}" "${configuration}" "${sdk}" "${builddir}"
+   #
+   # get remapped _configuration
+   # get actual _builddir
+   #
+   _evaluate_craft_variables "${project}" \
+                             "${sdk}" \
+                             "${platform}" \
+                             "${configuration}" \
+                             "${style}" \
+                             "${builddir}"
 
    if [ "${OPTION_LIST_REMAINING}" = 'YES' ]
    then
@@ -902,11 +973,11 @@ handle_build()
       return 0
    fi
 
-   mkdir_if_missing "${builddir}" || fail "Could not create build directory"
+   mkdir_if_missing "${_builddir}" || fail "Could not create build directory"
 
    # memo project to avoid clobbering builddirs
-   redirect_exekutor "${builddir}/.project" echo "${project}" || \
-      fail "Could not write into ${builddir}"
+   redirect_exekutor "${_builddir}/.project" echo "${project}" || \
+      fail "Could not write into ${_builddir}"
 
    local rval
 
@@ -915,8 +986,10 @@ handle_build()
                          "${_name}" \
                          "${marks}" \
                          "${_builddir}" \
-                         "${_configuration}" \
                          "${sdk}" \
+                         "${platform}" \
+                         "${_configuration}" \
+                         "${style}" \
                          "$@"
    rval=$?
 
@@ -991,8 +1064,10 @@ handle_build_step()
    local cmd="$1"; shift
    local project="$1"; shift
    local marks="$1"; shift
-   local configuration="$1"; shift
    local sdk="$1"; shift
+   local platform="$1"; shift
+   local configuration="$1"; shift
+   local style="$1"; shift
    local builddir="$1"; shift
    local phase="$1"; shift
    local statusfile="$1"; shift
@@ -1004,8 +1079,10 @@ handle_build_step()
    handle_build "${cmd}" \
                 "${project}" \
                 "${marks}" \
-                "${configuration}" \
                 "${sdk}" \
+                "${platform}" \
+                "${configuration}" \
+                "${style}" \
                 "${builddir}" \
                 "--phase" "${phase}" \
                 "$@"
@@ -1039,14 +1116,18 @@ handle_parallel_builds()
    local parallel="$1"; shift
    local donefile="$1"; shift
 
-   local configuration="$1"; shift
    local sdk="$1"; shift
+   local platform="$1"; shift
+   local configuration="$1"; shift
+   local style="$1"; shift
    local builddir="$1"; shift
 
    [ -z "${parallel}" ]      && internal_fail "v is empty"
    [ -z "${donefile}" ]      && internal_fail "donefile is empty"
    [ -z "${configuration}" ] && internal_fail "configuration is empty"
+   [ -z "${platform}" ]      && internal_fail "platform is empty"
    [ -z "${sdk}" ]           && internal_fail "sdk is empty"
+   [ -z "${style}" ]         && internal_fail "style is empty"
    [ -z "${builddir}" ]      && internal_fail "builddir is empty"
 
    local line
@@ -1097,7 +1178,7 @@ handle_parallel_builds()
 
       case "${phase}" in
          Headers)
-            dependency_begin_update || return 1
+            dependency_begin_update "${style}" || return 1
             cmd='install'
          ;;
 
@@ -1113,8 +1194,7 @@ handle_parallel_builds()
       local project
       local marks
 
-      set -f ; IFS="
-"
+      set -f ; IFS=$'\n'
       for line in ${parallel}
       do
          set +f ; IFS="${DEFAULT_IFS}"
@@ -1130,8 +1210,10 @@ handle_parallel_builds()
                handle_build_step "${cmd}" \
                                  "${project}" \
                                  "${marks}" \
-                                 "${configuration}" \
                                  "${sdk}" \
+                                 "${platform}" \
+                                 "${configuration}" \
+                                 "${style}" \
                                  "${builddir}" \
                                  "${phase}" \
                                  "${statusfile}" \
@@ -1143,8 +1225,10 @@ handle_parallel_builds()
             handle_build_step "${cmd}" \
                               "${project}" \
                               "${marks}" \
-                              "${configuration}" \
                               "${sdk}" \
+                              "${platform}" \
+                              "${configuration}" \
+                              "${style}" \
                               "${builddir}" \
                               "${phase}" \
                               "${statusfile}" \
@@ -1178,8 +1262,7 @@ handle_parallel_builds()
 
          local line
 
-         set -f; IFS="
-"
+         set -f; IFS=$'\n'
          for line in ${failures}
          do
             project="${line%;*}"      # project;phase (remove ;rval)
@@ -1260,8 +1343,10 @@ _do_build_buildorder()
 
    local buildorder="$1"; shift
    local builddir="$1"; shift
-   local configuration="$1"; shift
    local sdk="$1"; shift
+   local platform="$1"; shift
+   local configuration="$1"; shift
+   local style="$1"; shift
 
    local remaining
    local donefile
@@ -1271,7 +1356,12 @@ _do_build_buildorder()
       log_trace2 "buildorder: ${buildorder}"
    fi
 
-   donefile="${builddir}/${configuration}/.mulle-craft-built"
+   #
+   # the donefile is stored in a different place then the
+   # actual buildir because that's to be determined later
+   # at least for now
+   #
+   donefile="${builddir}/.${sdk}--${platform}--${configuration}.built"
    if [ -f "${donefile}" ]
    then
       log_fluff "Donefile \"${donefile}\" is present"
@@ -1289,20 +1379,24 @@ _do_build_buildorder()
       log_fluff "Donefile \"${donefile}\" is not present, build everything"
       remaining="${buildorder}"
 
-      mkdir_if_missing "${builddir}/${configuration}"
+      mkdir_if_missing "${builddir}"
    fi
+
+   #
+   # remember what we built last so mulle-craft log can make a good guess
+   # what the user wants to see
+   #
+   redirect_exekutor "${builddir}/.mulle-craft-last" echo "${sdk};${platform};${configuration}"
 
    if [ "${MULLE_FLAG_LOG_SETTINGS}" = 'YES' ]
    then
       log_trace2 "remaining :  ${remaining}"
    fi
 
-
    local line
    local parallel
 
-   set -f ; IFS="
-"
+   set -f ; IFS=$'\n'
    for line in ${remaining}
    do
       set +f ; IFS="${DEFAULT_IFS}"
@@ -1335,8 +1429,10 @@ _do_build_buildorder()
       then
          if ! handle_parallel_builds "${parallel}" \
                                      "${donefile}" \
-                                     "${configuration}" \
                                      "${sdk}" \
+                                     "${platform}" \
+                                     "${configuration}" \
+                                     "${style}" \
                                      "${builddir}" \
                                      "$@"
          then
@@ -1351,8 +1447,10 @@ _do_build_buildorder()
       handle_build "install" \
                    "${project}" \
                    "${marks}" \
-                   "${configuration}" \
                    "${sdk}" \
+                   "${platform}" \
+                   "${configuration}" \
+                   "${style}" \
                    "${builddir}" \
                    "$@"
       rval=$?
@@ -1381,8 +1479,10 @@ ${C_RESET_BOLD}   ${MULLE_USAGE_NAME} log $RVAL"
    then
       if ! handle_parallel_builds "${parallel}" \
                                   "${donefile}" \
-                                  "${configuration}" \
                                   "${sdk}" \
+                                  "${platform}" \
+                                  "${configuration}" \
+                                  "${style}" \
                                   "${builddir}" \
                                   "$@"
       then
@@ -1401,7 +1501,23 @@ do_build_buildorder()
    local builddir="$1"; shift
 
    [ -z "${buildorderfile}" ] && internal_fail "buildorderfile is missing"
-   [ -z "${builddir}" ] && internal_fail "builddir is missing"
+   [ -z "${builddir}" ]       && internal_fail "builddir is missing"
+
+   [ -z "${DEPENDENCY_DIR}" ]  && fail "DEPENDENCY_DIR is undefined"
+   [ -z "${CONFIGURATIONS}" ]  && internal_fail "CONFIGURATIONS is empty"
+   [ -z "${SDKS}" ]            && internal_fail "SDKS is empty"
+   [ -z "${PLATFORMS}" ]       && internal_fail "PLATFORMS is empty"
+   [ -z "${DISPENSE_STYLE}" ]  && internal_fail "DISPENSE_STYLE is empty"
+
+   local configurations
+   local platforms
+   local sdks
+   local style
+
+   configurations="${CONFIGURATIONS}"
+   sdks="${SDKS}"
+   platforms="${PLATFORMS}"
+   style="${DISPENSE_STYLE}"
 
    local buildorder
 
@@ -1413,7 +1529,7 @@ do_build_buildorder()
    # That allows tarballs to be installed. Also now the existance of the
    # dependency folders, means something
    #
-   dependency_begin_update 'warn' || exit 1
+   dependency_begin_update  "${style}"  || exit 1
 
    if [ -z "${buildorder}" ]
    then
@@ -1423,37 +1539,35 @@ do_build_buildorder()
       return
    fi
 
-   [ -z "${DEPENDENCY_DIR}" ] && fail "DEPENDENCY_DIR is undefined"
-   [ -z "${CONFIGURATIONS}" ] && internal_fail "CONFIGURATIONS is empty"
-   [ -z "${SDKS}" ]           && internal_fail "SDKS is empty"
-
-   local configurations
-   local sdks
-
-   configurations="${CONFIGURATIONS}"
-   sdks="${SDKS}"
-
    # patch this with environment variables ?
 
    local configuration
    local sdk
 
-   set -f; IFS=","
+   set -f; IFS=":"
    for configuration in ${configurations}
    do
-      for sdk in ${sdks}
+      assert_sane_name "${configuration}" " as configuration name"
+      for platform in ${platforms}
       do
-         set +f; IFS="${DEFAULT_IFS}"
+         assert_sane_name "${platform}" " as platform name"
+         for sdk in ${sdks}
+         do
+            set +f; IFS="${DEFAULT_IFS}"
 
-         if ! _do_build_buildorder "${buildorder}" \
-                                   "${builddir}"\
-                                   "${configuration}" \
-                                   "${sdk}" \
-                                   "$@"
-         then
-            return 1
-         fi
-         set -f; IFS=","
+            assert_sane_name "${sdk}" " as sdk name"
+            if ! _do_build_buildorder "${buildorder}" \
+                                      "${builddir}"\
+                                      "${sdk}" \
+                                      "${platform}" \
+                                      "${configuration}" \
+                                      "${style}" \
+                                      "$@"
+            then
+               return 1
+            fi
+            set -f; IFS=":"
+         done
       done
    done
    set +f ; IFS="${DEFAULT_IFS}"
@@ -1469,6 +1583,7 @@ do_build_mainproject()
 
    local craftinfodir
    local name
+
    name="${PROJECT_NAME}"
    if [ -z "${PROJECT_NAME}" ]
    then
@@ -1478,12 +1593,25 @@ do_build_mainproject()
 
    log_verbose "Craft main project ${C_MAGENTA}${C_BOLD}${name}${C_VERBOSE}"
 
+   local sdk="${SDKS%%,*}"
+   local platform="${PLATFORMS%%,*}"
+   local configuration="${CONFIGURATIONS%%,*}"
+   local style="${DISPENSE_STYLE:-none}"
+
+   sdk="${sdk:-Default}"
+   platform="${platform:-Default}"
+   configuration="${configuration:-Debug}"
+
    r_determine_craftinfo_dir "${name}" \
                              "${PWD}" \
                              "mainproject" \
                              "${OPTION_PLATFORM}" \
                              "${OPTION_LOCAL}" \
-                             "${CONFIGURATIONS%%,*}"
+                             "${sdk}" \
+                             "${platform}" \
+                             "${configuration}" \
+                             "auto"
+
    craftinfodir="${RVAL}"
 
    # always set --info-dir
@@ -1496,28 +1624,39 @@ do_build_mainproject()
       OPTIONS_MULLE_MAKE_PROJECT="${RVAL}"
    fi
 
-   local stylesubdir
-
-   r_determine_build_style_subdir "${CONFIGURATIONS}" "${SDKS}"
-   stylesubdir="${RVAL}"
-
    #
-   # find proper build directory
-   # find proper log directory
+   # find proper build and log directory (always relax)
    #
    local builddir
-   local logdir
+   local stylesubdir
 
    builddir="${BUILD_DIR}"
+
+   r_get_sdk_platform_configuration_style_string "${sdk}" \
+                                                 "${platform}" \
+                                                 "${configuration}" \
+                                                 "relax"
+   stylesubdir="${RVAL}"
+
    r_filepath_concat "${builddir}" "${stylesubdir}"
    builddir="${RVAL}"
+
+   local logdir
+
    r_filepath_concat "${builddir}" ".log"
    logdir="${RVAL}"
 
    # remove old logs
    rmdir_safer "${logdir}"
 
-   [ $? -eq 1 ] && exit 1
+   #
+   # remember what we built last so mulle-craft log can make a good guess
+   # what the user wants to see
+   #
+   mkdir_if_missing "${builddir}"
+
+   # use BUILD_DIR not builddir
+   redirect_exekutor "${BUILD_DIR}/.mulle-craft-last" echo "${sdk};${platform};${configuration}"
 
    if [ ! -z "${PROJECT_LANGUAGE}" ]
    then
@@ -1531,19 +1670,34 @@ do_build_mainproject()
    OPTIONS_MULLE_MAKE_PROJECT="${RVAL}"
 
    # ugly hackage
-   if [ ! -z "${CONFIGURATIONS}" ]
+   if [ ! -z "${configuration}" ]
    then
-      r_concat "${OPTIONS_MULLE_MAKE_PROJECT}" "--configuration '${CONFIGURATIONS%%,*}'"
+      r_concat "${OPTIONS_MULLE_MAKE_PROJECT}" "--configuration '${configuration}'"
       OPTIONS_MULLE_MAKE_PROJECT="${RVAL}"
    fi
-   if [ ! -z "${SDKS}" ]
+   if [ "${PLATFORMS}" != 'Default' ]
    then
-      r_concat "${OPTIONS_MULLE_MAKE_PROJECT}" "--sdk '${SDKS%%,*}'"
+      r_concat "${OPTIONS_MULLE_MAKE_PROJECT}" "--platform '${platform}'"
+      OPTIONS_MULLE_MAKE_PROJECT="${RVAL}"
+   fi
+   if [ "${sdk}" != 'Default' ]
+   then
+      r_concat "${OPTIONS_MULLE_MAKE_PROJECT}" "--sdk '${sdk}'"
       OPTIONS_MULLE_MAKE_PROJECT="${RVAL}"
    fi
    if [ "${OPTION_ALLOW_SCRIPT}" = 'YES' ]
    then
       r_concat "${OPTIONS_MULLE_MAKE_PROJECT}" "--allow-script"
+      OPTIONS_MULLE_MAKE_PROJECT="${RVAL}"
+   fi
+
+   local sdk_path
+
+   r_get_mulle_sdk_path "${sdk}" "${platform}" "${style}"
+   sdk_path="${RVAL}"
+   if [ ! -z "${sdk_path}" ]
+   then
+      r_concat "${OPTIONS_MULLE_MAKE_PROJECT}" "-DMULLE_SDK_PATH='${sdk_path}'"
       OPTIONS_MULLE_MAKE_PROJECT="${RVAL}"
    fi
 
@@ -1560,6 +1714,7 @@ do_build_mainproject()
       fi
    done
 
+
    # never install the project, use mulle-make for that
    if ! eval_exekutor "'${MULLE_MAKE}'" \
                            "${MULLE_TECHNICAL_FLAGS}" \
@@ -1574,7 +1729,7 @@ do_build_mainproject()
 
    if [ "${MULLE_FLAG_MOTD}" = 'NO' ]
    then
-      log_fluff "Not showing motd on request"
+      log_fluff "Not showing motd onrequest"
    else
       if [ -f "${builddir}/.motd" ]
       then
@@ -1603,7 +1758,7 @@ craft_build_common()
    local OPTION_LOCAL='YES'
    local OPTION_REBUILD_BUILDORDER='NO'
    local OPTION_PROTECT_DEPENDENCY='YES'
-   local OPTION_ALLOW_SCRIPT="${MULLE_SDE_USE_SCRIPT:-DEFAULT}"
+   local OPTION_ALLOW_SCRIPT="${MULLE_CRAFT_USE_SCRIPT:-DEFAULT}"
    local OPTION_SINGLE_DEPENDENCY
    local OPTION_LIST_REMAINING='NO'
    local OPTION_CLEAN_TMP='YES'
@@ -1712,7 +1867,7 @@ craft_build_common()
          #
          # config / sdk
          #
-         --configuration)
+         --configuration|--configurations)
             [ $# -eq 1 ] && build_execute_usage "Missing argument to \"$1\""
             shift
 
@@ -1727,11 +1882,25 @@ craft_build_common()
             CONFIGURATIONS="Release"
          ;;
 
-         --sdk)
+         --sdk|--sdks)
             [ $# -eq 1 ] && build_execute_usage "Missing argument to \"$1\""
             shift
 
             SDKS="$1"
+         ;;
+
+         --platform|--platforms)
+            [ $# -eq 1 ] && build_execute_usage "Missing argument to \"$1\""
+            shift
+
+            PLATFORMS="$1"
+         ;;
+
+         --style|--dispense-style|--dependency-style)
+            [ $# -eq 1 ] && build_execute_usage "Missing argument to \"$1\""
+            shift
+
+            DISPENSE_STYLE="$1"
          ;;
 
          # pass remaining stuff to mulle-make
@@ -1748,15 +1917,10 @@ craft_build_common()
       shift
    done
 
-   if [ -z "${CONFIGURATIONS}" ]
-   then
-      CONFIGURATIONS="Debug"
-   fi
-
-   if [ -z "${SDKS}" ]
-   then
-      SDKS="Default"
-   fi
+   DISPENSE_STYLE="${DISPENSE_STYLE:-none}"
+   CONFIGURATIONS="${CONFIGURATIONS:-Debug}"
+   SDKS="${SDKS:-Default}"
+   PLATFORMS="${PLATFORMS:-Default}"
 
    local lastenv
    local currentenv
@@ -1798,6 +1962,10 @@ ${currentenv}"
    if [ -z "${MULLE_CRAFT_SEARCH_SH}" ]
    then
       . "${MULLE_CRAFT_LIBEXEC_DIR}/mulle-craft-search.sh" || exit 1
+   fi
+   if [ -z "${MULLE_CRAFT_SEARCHPATH_SH}" ]
+   then
+      . "${MULLE_CRAFT_LIBEXEC_DIR}/mulle-craft-searchpath.sh" || exit 1
    fi
 
    if [ "${OPTION_USE_BUILDORDER}" = 'YES' ]

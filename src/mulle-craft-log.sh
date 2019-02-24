@@ -38,7 +38,7 @@ build_log_usage()
 
     cat <<EOF >&2
 Usage:
-   ${MULLE_USAGE_NAME} log [options] [command]
+   ${MULLE_USAGE_NAME} log [options] [project] [command]
 
    List available build logs and run arbitrary commands on them like
    'cat' or 'grep', where 'cat' is the default.
@@ -49,12 +49,16 @@ Usage:
 
    Grep for 'error:' through all project logs with:
 
-      ${MULLE_USAGE_NAME} log -p '*' grep 'error:'
+      ${MULLE_USAGE_NAME} log '*' grep 'error:'
 
 Options:
    -c <configuration>  : restrict to configuration
-   -p <project>        : project, leave out for main project
    -t <tool>           : restrict to tool
+
+Project:
+   *                   : all projects
+   ""                  : main project
+   <name>              : name of project
 
 Commands:
    list                : list available build logs
@@ -96,10 +100,11 @@ project_log_dirs()
    if [ ! -z "${BUILDORDER_BUILD_DIR}" ]
    then
       local sed_escaped_value
-         r_escaped_sed_pattern "${BUILDORDER_BUILD_DIR}"
+
+      r_escaped_sed_pattern "${BUILDORDER_BUILD_DIR}"
       sed_escaped_value="${RVAL}"
       rexekutor find -H "${BUILD_DIR}" -type d -name .log | \
-         rexekutor egrep -v "^${sed_escaped_value}"
+      rexekutor egrep -v "^${sed_escaped_value}"
    else
       rexekutor find -H "${BUILD_DIR}" -type d -name .log
    fi
@@ -213,12 +218,13 @@ build_log_list()
    done
 
    directories="`project_log_dirs`"
+   log_debug "Project log-directories: ${directories}"
+
    if [ ! -z "${directories}" ]
    then
       log_info "Project logs"
 
-      set -o noglob; IFS="
-"
+      set -o noglob; IFS=$'\n'
       for directory in ${directories}
       do
          IFS="${DEFAULT_IFS}" ; set +o noglob
@@ -232,25 +238,26 @@ build_log_list()
    fi
 
    directories="`buildorder_log_dirs`"
+   log_debug "Buildorder log-directories: ${directories}"
+
    if [ ! -z "${directories}" ]
    then
 
       log_info "Buildorder logs"
 
-      local name_configuration
+      local configuration_name
       local name
 
 
-      set -o noglob; IFS="
-"
+      set -o noglob; IFS=$'\n'
       for directory in ${directories}
       do
          IFS="${DEFAULT_IFS}" ; set +o noglob
 
          r_fast_dirname "${directory#${BUILDORDER_BUILD_DIR}/}"
-         name_configuration="${RVAL}"
-         name="${name_configuration%%/*}"
-         configuration="${name_configuration#*/}"
+         configuration_name="${RVAL}"
+         configuration="${configuration_name%%/*}"
+         name="${configuration_name#*/}"
          list_tool_logs "${OPTION_OUTPUT}" "${directory}" "${name}" "${configuration}"
       done
       IFS="${DEFAULT_IFS}" ; set +o noglob
@@ -262,7 +269,6 @@ build_log_command()
 {
    log_entry "build_log_command" "$@"
 
-   local cmd="$1"; shift
    local name="$1"; shift
 
    while :
@@ -284,72 +290,109 @@ build_log_command()
       shift
    done
 
+   local cmd="${1:-cat}"
+   [ $# -ne 0 ] && shift
+
    local directory
    local logfiles
    local logfile
 
-   case "${name}" in
-      '')
-      ;;
+   local sdk="${OPTION_SDK}"
+   local platform="${OPTION_PLATFORM}"
+   local configuration="${OPTION_CONFIGURATION}"
+   local style="${DISPENSE_STYLE}"
 
-      *)
-         [ -z "${MULLE_CRAFT_EXECUTE_SH}" ] && \
-               . "${MULLE_CRAFT_LIBEXEC_DIR}/mulle-craft-execute.sh"
+   local lastsdk
+   local lastplatform
+   local lastconfiguration
 
-         local _builddir
-         local _configuration
-         local _evaledproject
-         local _name
+   if [ ! -z "${name}" ]
+   then
+      #
+      # try to figure out what the last run used for sdk/platform/config
+      # use these values as default, if none are specified
+      #
+      local lastvalues
 
-         _evaluate_craft_variables "${name}" \
-                                   "${OPTION_CONFIGURATION}" \
-                                   "${OPTION_SDK:-Default}" \
-                                   "${BUILDORDER_BUILD_DIR#${PWD}/}" \
-                                   "NO"
+      lastvalues="`rexekutor egrep -s -v '^#' "${BUILDORDER_BUILD_DIR}/.mulle-craft-last"`"
 
-         directory="${_builddir}"
+      lastsdk="${lastvalues%%;*}"
+      lastplatform="${lastvalues%;*}"
+      lastplatform="${lastplatform#*;}"
+      lastconfiguration="${lastvalues##*;}"
 
-         log_debug "directory: ${directory}"
+      log_debug "lastvalues: ${lastsdk};${lastplatform};${lastconfiguration}"
+   fi
 
-         logfiles=
-         if rexekutor compgen -G "${directory}" > /dev/null 2>&1
-         then
-            log_info "${name}"
-            logfiles="${directory}/.log/${OPTION_TOOL}.log"
-         fi
+   sdk="${sdk:-${lastsdk}}"
+   platform="${platform:-${lastplatform}}"
+   configuration="${configuration:-${lastconfiguration}}"
 
-         if [ ! -z "${logfiles}" ]
-         then
-            shopt -s nullglob
-            for i in ${logfiles}
-            do
-               shopt -u nullglob
-               log_info "${C_RESET_BOLD}${i}:"
-               exekutor "${cmd}" "$@" "${i}"
-            done
-            shopt -u nullglob
-         else
-            log_verbose "No buildorder logs match for \"${name}\""
-         fi
-      ;;
-   esac
+   sdk="${sdk:-Default}"
+   platform="${platform:-Default}"
+   configuration="${configuration:-Release}"
+
+   if [ ! -z "${name}" ]
+   then
+      [ -z "${MULLE_CRAFT_EXECUTE_SH}" ] && \
+            . "${MULLE_CRAFT_LIBEXEC_DIR}/mulle-craft-execute.sh"
+
+
+      local _builddir
+      local _configuration
+      local _evaledproject
+      local _name
+
+      _evaluate_craft_variables "${name}" \
+                                "${sdk}" \
+                                "${platform}" \
+                                "${configuration}" \
+                                "${style}" \
+                                "${BUILDORDER_BUILD_DIR#${PWD}/}" \
+                                "NO"
+
+      directory="${_builddir}"
+
+      log_debug "Build directory: ${directory}"
+
+      # build/.buildorder/Debug/mulle-c11/.log/
+      local prefix
+      local found
+
+      prefix="${directory%/*}"
+
+      shopt -s nullglob
+      for i in ${directory}/${configuration}/.log/${OPTION_TOOL}.log
+      do
+         shopt -u nullglob
+
+         log_info "${C_RESET_BOLD}${i}:"
+         exekutor "${cmd}" "$@" "${i}"
+         found="YES"
+      done
+      shopt -u nullglob
+
+      if [ -z "${found}" ]
+      then
+         log_verbose "No buildorder logs match for \"${name}\""
+      fi
+   fi
 
    #
-   # TODO: should put a number prefix on logfiles so that it's known that
-   #       cmake is emitted before make
+   # Show logs of main if only main or all are selected
    #
    case "${name}" in
       ''|'*')
          log_info "${PROJECT_NAME}"
 
          directory="${BUILD_DIR#${PWD}/}"
-         log_debug "directory: ${directory}"
+         log_debug "Project build directory: ${directory}"
 
          # https://stackoverflow.com/questions/2937407/test-whether-a-glob-matches-any-files#
          logfiles=
          if rexekutor compgen -G "${directory}" > /dev/null 2>&1
          then
-            logfiles="${directory}/${OPTION_CONFIGURATION}/.log/${OPTION_TOOL}.log"
+            logfiles="${directory}/${configuration}/.log/${OPTION_TOOL}.log"
          fi
 
          if [ ! -z "${logfiles}" ]
@@ -436,7 +479,7 @@ build_log_main()
       ;;
 
       *)
-         build_log_command "${OPTION_EXECUTABLE:-cat}" "$@"
+         build_log_command "$@"
       ;;
    esac
 }

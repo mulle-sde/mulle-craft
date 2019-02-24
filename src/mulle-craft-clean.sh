@@ -162,7 +162,7 @@ build_clean_main()
          ;;
 
          "buildorder")
-            log_verbose "Cleaning \"${DEPENDENCY_DIR}\" directory"
+            log_verbose "Cleaning \"${BUILDORDER_BUILD_DIR}\" directory"
 
             remove_directory "${BUILDORDER_BUILD_DIR}"
          ;;
@@ -171,7 +171,6 @@ build_clean_main()
             log_verbose "Cleaning \"${DEPENDENCY_DIR}\" directory"
 
             remove_directory "${DEPENDENCY_DIR}"
-            remove_directory "${BUILDORDER_BUILD_DIR}"
          ;;
 
          "project")
@@ -235,7 +234,7 @@ build_clean_main()
             r_escaped_sed_pattern "${cleantarget}"
             escaped="${RVAL}"
 
-            for donefile in "${BUILDORDER_BUILD_DIR}"/*/.mulle-craft-built
+            for donefile in "${BUILDORDER_BUILD_DIR}"/.*.built
             do
                if [ -f "${donefile}" ]
                then

@@ -4,37 +4,30 @@ digraph G {
     { rank="same" ; "mulle-craft" }
 
     "mulle-craft"   [ shape="none", fontcolor="blue" ]
-    "mulle-make"   [ shape="none", fontcolor="#778ca3" ]
+
+    edge[  arrowhead="none", color="black"];
 
     node[ shape=folder, color="#0fb9b1", fontcolor="#0fb9b1"];
 
-    ".mulle-make.darwin"   [ label=".mulle-make.darwin"]
-    "foo2.linux"           [ label="foo.linux"]
-    "foo2"                  [ label="foo", fontcolor="#3867d6", color="#3867d6" ]
+    "foo"           [ label="foo", fontcolor="#5867d6", color="#5867d6" ]
 
-    node[ shape=folder, color="#7f8c8d", fontcolor="#7f8c8d"];
-    edge[ arrowhead="none", color="#7f8c8d"];
-
-
-    edge[  arrowhead="none", color="black"];
-    node[ shape=folder, color="black", fontcolor="black"];
-
-    "foo"          -> ".mulle-make.darwin"
+    "foo" -> ".mulle"  -> "etc"  -> "craft"  -> "mulle-make.darwin"
 
     node[ shape=folder, color="#4b6584", fontcolor="#4b6584"];
 
-    "foo"          -> "dependency"
-    "dependency"   -> "share"
-    "share"        -> "mulle-craft1"
-    "mulle-craft1" -> "foo2.linux"
-    "mulle-craft1" -> "foo2"
+    "foo" -> "dependency"  -> "share"  -> "mulle-craft1" -> "foo2"
+
+    "foo2"          [ label="foo" ]
+
+    "foo2"         -> "mulle-make.linux"
+    "foo2"         -> "mulle-make"
+
     "mulle-craft1"  [ label="mulle-craft"]
 
     edge[ style="dotted", arrowhead=""]
 
     "mulle-craft" -> "foo"   [ style="invis" ]
-    "mulle-make"  -> "foo"   [ style="invis" ]
 
     "mulle-craft" -> "mulle-craft1"        [ label="search (1)" ]
-    "mulle-make"  -> ".mulle-make.darwin"  [ label="default (2)", color="#778ca3", fontcolor="#778ca3"  ]
+    "mulle-craft" -> "craft"               [ label="search (2)" ]
 }

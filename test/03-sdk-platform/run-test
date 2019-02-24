@@ -1,0 +1,97 @@
+#! /usr/bin/env bash
+
+[ "${TRACE}" = 'YES' ] && set -x && : "$0" "$@"
+
+
+# the tests here are wrong, mulle-craft shouldn't b
+run_mulle_craft()
+{
+   log_fluff "####################################"
+   log_fluff ${MULLE_CRAFT} ${MULLE_CRAFT_FLAGS} "$@"
+   log_fluff "####################################"
+
+   exekutor "${MULLE_CRAFT}" ${MULLE_CRAFT_FLAGS} "$@"
+}
+
+run_test()
+{
+   local directory="$1" ; shift
+   local expect="$1"; shift
+
+   MULLE_TMP_DIR="${directory}" \
+   MULLE_TEST_DIR="${PWD}" \
+   BUILD_DIR="${directory}/build" \
+      run_mulle_craft "$@"
+
+   if [ $? -ne 0 ]
+   then
+      exit 1
+   fi
+}
+
+
+main()
+{
+   MULLE_CRAFT_FLAGS="$@"
+
+   _options_mini_main "$@"
+
+   local directory
+
+   directory="`make_tmp_directory`"
+   directory="${directory:-/tmp/build}"
+
+   #
+   # Check that looping over sdks/platforms/configurations work
+   # and that proper dependency files are created
+   #
+   run_test "${directory}" "mulle-make.txt" \
+                                 --build-dir "${directory}/build" \
+                                 --buildorder-file "${PWD}/buildorder" \
+                                 --dependency-dir "${directory}/dependency" \
+                              buildorder \
+                                 --configurations Debug:Release \
+                                 --sdks SDK_A:SDK_B \
+                                 --platforms PLATFORM_1:PLATFORM_2 \
+                                 --style strict \
+                                 --no-determine-sdk
+
+   local filename
+
+   filename="${directory}/build/.buildorder/SDK_A-PLATFORM_1/Release/foreign-project/CMakeCache.txt"
+   [ -f "${filename}" ] || internal_fail "expected file \"${filename}\" missing"
+
+   filename="${directory}/build/.buildorder/SDK_B-PLATFORM_2/Debug/foreign-project/CMakeCache.txt"
+   [ -f "${filename}" ] || internal_fail "expected file \"${filename}\" missing"
+
+   log_verbose "----- #1 PASSED -----"
+
+   filename="${directory}/dependency/SDK_A-PLATFORM_2/Release/share/foo.txt"
+   [ -f  "${filename}" ] || internal_fail "expected file \"${filename}\" missing"
+
+   filename="${directory}/dependency/SDK_B-PLATFORM_1/Debug/share/foo.txt"
+   [ -f "${filename}" ] || internal_fail "expected file \"${filename}\" missing"
+
+   log_verbose "----- #2 PASSED -----"
+
+   log_info "----- ALL PASSED -----"
+
+   rmdir_safer "${directory}"
+}
+
+
+
+init()
+{
+   MULLE_BASHFUNCTIONS_LIBEXEC_DIR="`mulle-bashfunctions-env libexec-dir`" || exit 1
+
+   . "${MULLE_BASHFUNCTIONS_LIBEXEC_DIR}/mulle-bashfunctions.sh" || exit 1
+
+   MULLE_CRAFT="${MULLE_CRAFT:-${PWD}/../../mulle-craft}"
+}
+
+
+
+init "$@"
+main "$@"
+
