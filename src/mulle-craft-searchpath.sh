@@ -51,8 +51,9 @@ Usage:
 Options:
    --if-exists       : only add to searchpath if directory exists
    --style <style>   : adjust output to match style
-   --release         : adjust output to match configuration Release
-   --debug           : adjust output to match configuration Debug
+   --release         : adjust output to match configuration "Release"
+   --debug           : adjust output to match configuration "Debug"
+   --test            : adjust output to match configuration "Test"
 
 Environment:
    ADDICTION_DIR     : place to put addictions into
@@ -90,7 +91,11 @@ r_get_sdk_platform_style_string()
          RVAL="${sdk}-${platform}"
       ;;
 
-      auto|relax)
+      i-strict)
+         RVAL="${platform}-${sdk}"
+      ;;
+
+      auto|relax|tight)
          if [ "${sdk}" = "Default" ]
          then
             if [ "${platform}" = "Default" ]
@@ -109,6 +114,26 @@ r_get_sdk_platform_style_string()
          fi
       ;;
 
+      i-auto|i-relax|i-tight)
+         if [ "${sdk}" = "Default" ]
+         then
+            if [ "${platform}" = "Default" ]
+            then
+               RVAL=""
+            else
+               RVAL="${platform}"
+            fi
+         else
+            if [ "${platform}" = "Default" ]
+            then
+               RVAL="${sdk}"
+            else
+               RVAL="${platform}-${sdk}"
+            fi
+         fi
+      ;;
+
+
       *)
          fail "Unknown dispense style \"${style}\""
       ;;
@@ -119,6 +144,8 @@ r_get_sdk_platform_style_string()
 #
 # Note:  build directories are always like relax dispense-style
 #        this is relevant for dispensing
+#
+# TODO: make style a formatter, so ppl can chose arbitrarily
 #
 r_get_sdk_platform_configuration_style_string()
 {
@@ -131,6 +158,25 @@ r_get_sdk_platform_configuration_style_string()
 
    r_get_sdk_platform_style_string "${sdk}" "${platform}" "${style}"
    case "${style}" in
+      i-tight)
+         r_filepath_concat "${configuration}-${RVAL}"
+      ;;
+
+      i-strict|i-relax)
+         r_filepath_concat "${configuration}" "${RVAL}"
+      ;;
+
+      i-auto)
+         if [ "${configuration}" != "Release" ]
+         then
+            r_filepath_concat "${configuration}" "${RVAL}"
+         fi
+      ;;
+
+      tight)
+         r_filepath_concat "${RVAL}-${configuration}"
+      ;;
+
       strict|relax)
          r_filepath_concat "${RVAL}" "${configuration}"
       ;;
@@ -184,6 +230,11 @@ build_searchpath_main()
          --debug)
             # Release is fallback for Debug
             configurations="Debug"
+         ;;
+
+         --test)
+            # Release is fallback for Debug
+            configurations="Test"
          ;;
 
          --configurations|--configuration)
@@ -276,9 +327,9 @@ build_searchpath_main()
             set +f; IFS="${DEFAULT_IFS}"
 
             r_get_sdk_platform_configuration_style_string "${sdk}" \
-                                                    "${platform}" \
-                                                    "${configuration}" \
-                                                    "${style}"
+                                                          "${platform}" \
+                                                          "${configuration}" \
+                                                          "${style}"
             directory="${RVAL}"
 
             r_filepath_concat "${DEPENDENCY_DIR}" "${directory}"

@@ -1,3 +1,13 @@
+## 0.16.0
+
+* changed buildorder to craftorder for orthogonality
+* changed `BUILD_DIR` to `KITCHEN_DIR` mainly for fun
+* added --test / Test as a recognized configuration
+* added dispensestyle relax and inverse styles prefixed with i-. This will become a formatter in the future (e.g. %sdk-%configuration/%platform)
+* mulle-craft can now build for multiple platforms
+* added a searchpath command
+
+
 ### 0.15.6
 
 * change log directory naming again for simplicity
@@ -51,7 +61,7 @@
 
 ### 0.14.7
 
-* fix some usage calls, --buildorder-file is moved to flags for convenience
+* fix some usage calls, --craftorder-file is moved to flags for convenience
 
 ### 0.14.6
 
@@ -71,7 +81,7 @@
 
 ### 0.14.2
 
-* be more verbose on errors, allow `BUILD_DIR` and `BUILDORDER_BUILD_DIR` to be a symlink
+* be more verbose on errors, allow `BUILD_DIR` and `CRAFTORDER_KITCHEN_DIR` to be a symlink
 
 ### 0.14.1
 
@@ -112,7 +122,7 @@
 
 ### 0.9.1
 
-* buildorder no-require flag is recognized
+* craftorder no-require flag is recognized
 
 ## 0.9.0
 
@@ -167,7 +177,7 @@
 
 ### 0.6.19
 
-* deal with no-os and only-os marks properly for buildorder
+* deal with no-os and only-os marks properly for craftorder
 
 ### 0.6.18
 
@@ -243,7 +253,7 @@
 
 ## 0.6.0
 
-* remove command 'all' ; buildorder now requires a filename
+* remove command 'all' ; craftorder now requires a filename
 
 
 ### 0.5.6
@@ -282,7 +292,7 @@
 
 ## 0.4.0
 
-* cut the dependency to mulle-sourcetree. mulle-craft now gets a buildorder file and builds that
+* cut the dependency to mulle-sourcetree. mulle-craft now gets a craftorder file and builds that
 
 
 ### 0.3.13
@@ -299,7 +309,7 @@
 
 ### 0.3.10
 
-* need to preserve buildorder strictly, fixed that
+* need to preserve craftorder strictly, fixed that
 
 ### 0.3.9
 

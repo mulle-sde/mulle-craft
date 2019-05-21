@@ -2,6 +2,8 @@
 ._.DS_Store
 
 build/
+dependency/
+kitchen/
 *.old
 *.bak
 tmp.*
@@ -10,7 +12,6 @@ tmp.*
 package/
 mulle-project/publisher-info.sh
 NARRATIVE.md
-test/*build/
 tests/01-passthru-build/infodir.mulle-build/
 tests/02-sourcetree-build/.mulle-sourcetree/db/
 tests/02-sourcetree-build/.mulle/var/sourcetree/

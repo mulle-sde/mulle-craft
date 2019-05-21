@@ -259,7 +259,7 @@ dependency_begin_update()
       ;;
 
       incomplete)
-         log_warning "dependencies: more projects need to be built successfully"
+         log_warning "dependencies: more projects need to be crafted successfully"
       ;;
 
       *)

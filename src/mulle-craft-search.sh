@@ -102,6 +102,7 @@ r_determine_craftinfo_dir()
 
    if [ ! -z "${INFO_DIR}" ]
    then
+      log_fluff "Using definition defined by commandline (or environment INFO_DIR)"
       RVAL="${INFO_DIR}"
       return
    fi

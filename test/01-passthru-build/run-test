@@ -95,7 +95,7 @@ run_test()
    MULLE_MAKE_REDIRECT_FILE="${directory}/mulle-make-args.txt" \
    MULLE_MAKE="${PWD}/../mock-mulle-make" \
    BUILD_DIR="${directory}/build" \
-      run_mulle_craft --definition-dir "${PWD}/definition" project --debug "$@"
+      run_mulle_craft "$@"
 
    if [ "$?" -ne 0 ]
    then
@@ -123,8 +123,11 @@ main()
    #
    # Check that some simple pass through stuff works
    #
-   run_test "${directory}" "mulle-make.txt" --debug -DUSER_VARIABLE="VfL Bochum 1848"
+   run_test "${directory}" "mulle-make.txt" project --debug -DUSER_VARIABLE="VfL Bochum"
    log_verbose "----- #1 PASSED -----"
+
+   run_test "${directory}" "mulle-make2.txt" --definition-dir "${PWD}/definition" project --debug 
+   log_verbose "----- #2 PASSED -----"
 
    log_info "----- ALL PASSED -----"
 

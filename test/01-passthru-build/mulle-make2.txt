@@ -1,6 +1,5 @@
 --build-dir ${MULLE_TMP_DIR}/build/Debug
 --configuration Debug
---definition-dir NONE
+--definition-dir ${MULLE_TEST_DIR}/definition
 --log-dir ${MULLE_TMP_DIR}/build/Debug/.log
 MULLE_SDK_PATH=${MULLE_TEST_DIR}/dependency:${MULLE_TEST_DIR}/addiction
-USER_VARIABLE=VfL Bochum

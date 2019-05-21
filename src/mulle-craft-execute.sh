@@ -48,14 +48,15 @@ Options:
    --lenient      : do not stop on errors
    --no-protect   : do not make dependency read-only
    --release      : compile for release only
+   --test         : compile for test only
    --sdk <sdk>    : specify sdk to build against (Default)
    --platform <p> : specify platform to build for (Default)
-   --style <s>    : dependency style ("auto", "none", "relax", strict")
+   --style <s>    : dependency style: auto, none, relax, strict, tight
    --             : pass remaining options to mulle-make
 
 Environment:
    ADDICTION_DIR           : place to get addictions from (optional)
-   BUILD_DIR               : place for build products (required)
+   KITCHEN_DIR             : place for intermediate craft products (required)
    CONFIGURATIONS          : configurations to build, ':' separated
    CRAFTINFO_PATH          : places to find craftinfos
    DISPENSE_STYLE          : how to place build products into dependency (none)
@@ -69,8 +70,9 @@ Environment:
 Styles:
    none    : use root only. Only useful for a single configuration/sdk/platform
    auto    : fold SDK/PLATFORM Default and CONFIGURATION Release to root
-   relax   : fold SDK/PLATFORM Default but not CONFIGURATION
-   strict  : differentiate according to SDK/PLATFORM/CONFIGURATION Release
+   relax   : fold SDK/PLATFORM Default but not CONFIGURATION Release
+   strict  : differentiate according to SDK/PLATFORM/CONFIGURATION
+   tight   : differentiate according to SDK/PLATFORM/CONFIGURATION flat
 
 EOF
   exit 1
@@ -206,42 +208,51 @@ __set_various_paths()
 }
 
 
-r_effective_project_builddir()
+r_effective_project_kitchendir()
 {
-   log_entry "r_effective_project_builddir" "$@"
+   log_entry "r_effective_project_kitchendir" "$@"
 
    local name="$1"
-   local buildparentdir="$2"
+   local parentkitchendir="$2"
    local verify="${3:-YES}"
 
    local directory
 
-   directory="`build_directory_name "${name}" `"
+   # allow '*' for log, possibly foo* too
+   case "${name}" in
+      *'*')
+         directory="${name}"
+      ;;
+
+      *)
+         directory="`build_directory_name "${name}" `"
+      ;;
+   esac
 
    #
    # find proper build directory
    # find proper log directory
    #
-   local builddir
+   local kitchendir
 
-   r_filepath_concat "${buildparentdir}" "${directory}"
-   builddir="${RVAL}"
+   r_filepath_concat "${parentkitchendir}" "${directory}"
+   kitchendir="${RVAL}"
 
-   r_absolutepath "${builddir}"
-   builddir="${RVAL}"
+   r_absolutepath "${kitchendir}"
+   kitchendir="${RVAL}"
 
    #
    # allow name dupes, but try to avoid proliferation of
    # builddirs
    #
-   if [ "${verify}" = 'YES' ] && [ -d "${builddir}" ]
+   if [ "${verify}" = 'YES' ] && [ -d "${kitchendir}" ]
    then
       local oldproject
 
-      oldproject="`cat "${builddir}/.project" 2> /dev/null`"
+      oldproject="`cat "${kitchendir}/.project" 2> /dev/null`"
       if [ ! -z "${oldproject}" -a "${oldproject}" = "${project}" ]
       then
-         RVAL="${builddir}"
+         RVAL="${kitchendir}"
          return 0
       fi
 
@@ -251,17 +262,17 @@ r_effective_project_builddir()
       #
       local randomstring
 
-      while [ -d "${builddir}" ]
+      while [ -d "${kitchendir}" ]
       do
          randomstring="`uuidgen | cut -c'1-6'`"
-         r_filepath_concat "${buildparentdir}" "${directory}-${randomstring}"
-         builddir="${RVAL}"
+         r_filepath_concat "${parentkitchendir}" "${directory}-${randomstring}"
+         kitchendir="${RVAL}"
       done
    fi
 
-   log_fluff "Build directory is \"${builddir}\""
+   log_fluff "Kitchen directory is \"${kitchendir}\""
 
-   RVAL="${builddir}"
+   RVAL="${kitchendir}"
    return 0
 }
 
@@ -306,7 +317,7 @@ build_project()
    local project="$1";
    local name="$2"
    local marks="$3"
-   local builddir="$4"
+   local kitchendir="$4"
    local sdk="$5"
    local platform="$6"
    local configuration="$7"
@@ -319,7 +330,7 @@ build_project()
 
    [ -z "${project}" ]     && internal_fail "project is empty"
    [ -z "${name}" ]        && internal_fail "name is empty"
-   [ -z "${builddir}" ]    && internal_fail "builddir is empty"
+   [ -z "${kitchendir}" ]  && internal_fail "kitchendir is empty"
 
    #
    # if projects exist with duplicate names, add a random number at end
@@ -359,7 +370,7 @@ build_project()
    # remove old logs
    local logdir
 
-   r_filepath_concat "${builddir}" ".log"
+   r_filepath_concat "${kitchendir}" ".log"
    logdir="${RVAL}"
 
    rmdir_safer "${logdir}"
@@ -394,48 +405,78 @@ build_project()
    #
    local args
 
-   args="${OPTIONS_MULLE_MAKE}"
-
-   case ",${marks}," in
-      *',only-standalone,'*)
-         r_concat "${args}" "-DSTANDALONE=ON"
-         args="${RVAL}"
-      ;;
-
-      *',no-static-link,'*)
-         r_concat "${args}" "-DBUILD_SHARED_LIBS=ON"
-         args="${RVAL}"
-         case "*,${marks},*" in
-            *',no-all-load,'*)
-            ;;
-
-            *)
-               log_verbose "Project \"${project}\" is marked as \"no-static-link\" \
-and \"all-load\".
-This can lead to problems on darwin, but may solve problems on linux..."
-            ;;
-         esac
-      ;;
-
-      *',no-dynamic-link,'*)
-         r_concat "${args}" "-DBUILD_STATIC_LIBS=ON"
-         args="${RVAL}"
-      ;;
-   esac
+   args="${MULLE_CRAFT_MAKE_OPTIONS}"
 
    if [ ! -z "${name}" ]
    then
       r_concat "${args}" "--name '${name}'"
       args="${RVAL}"
    fi
+
+   #
+   # this is supposed to be a global override
+   # it's probably superflous. You can tune options on a per-project
+   # basis with marks and environment variables
+   #
+   if [ ! -z "${MULLE_CRAFT_LIBRARY_STYLE}" ]
+   then
+      case "${MULLE_CRAFT_LIBRARY_STYLE}" in
+         standalone)
+            r_concat "${args}" "--library-style standalone"
+            args="${RVAL}"
+         ;;
+
+         dynamic|shared)
+            r_concat "${args}" "--library-style shared"
+            args="${RVAL}"
+         ;;
+
+         static)
+            r_concat "${args}" "--library-style static"
+            args="${RVAL}"
+         ;;
+
+         *)
+            fail "Unknown library style \"${MULLE_CRAFT_LIBRARY_STYLE}\" (use dynamic/static/standalone)"
+         ;;
+      esac
+   else
+      case ",${marks}," in
+         *',only-standalone,'*)
+            r_concat "${args}" "--library-style standalone"
+            args="${RVAL}"
+         ;;
+
+         *',no-static-link,'*)
+            r_concat "${args}" "--library-style dynamic"
+            args="${RVAL}"
+            case "*,${marks},*" in
+               *',no-all-load,'*)
+               ;;
+
+               *)
+                  log_verbose "Project \"${project}\" is marked as \"no-static-link\" \
+and \"all-load\".
+This can lead to problems on darwin, but may solve problems on linux..."
+               ;;
+            esac
+         ;;
+
+         *',no-dynamic-link,'*)
+            r_concat "${args}" "--library-style static"
+            args="${RVAL}"
+         ;;
+      esac
+   fi
+
    if [ ! -z "${logdir}" ]
    then
       r_concat "${args}" "--log-dir '${logdir}'"
       args="${RVAL}"
    fi
-   if [ ! -z "${builddir}" ]
+   if [ ! -z "${kitchendir}" ]
    then
-      r_concat "${args}" "--build-dir '${builddir}'"
+      r_concat "${args}" "--build-dir '${kitchendir}'"
       args="${RVAL}"
    fi
    if [ ! -z "${craftinfodir}" ]
@@ -509,30 +550,30 @@ This can lead to problems on darwin, but may solve problems on linux..."
       destination=""
    fi
 
-   local mulle_flags_env_key
-   local mulle_flags_env_value
+   local mulle_options_env_key
+   local mulle_options_env_value
 
    r_tweaked_de_camel_case "${name}"
-   mulle_flags_env_key="MULLE_CRAFT_${RVAL}_MAKE_FLAGS"
-   mulle_flags_env_key="`printf "%s" "${mulle_flags_env_key}" | tr -c 'a-zA-Z0-9' '_'`"
-   mulle_flags_env_key="`tr 'a-z' 'A-Z' <<< "${mulle_flags_env_key}"`"
-   mulle_flags_env_value="`eval echo "\\\$$mulle_flags_env_key"`"
+   mulle_options_env_key="MULLE_CRAFT_${RVAL}_MAKE_OPTIONS"
+   mulle_options_env_key="`printf "%s" "${mulle_options_env_key}" | tr -c 'a-zA-Z0-9' '_'`"
+   mulle_options_env_key="`tr 'a-z' 'A-Z' <<< "${mulle_options_env_key}"`"
+   mulle_options_env_value="`eval echo "\\\$$mulle_options_env_key"`"
 
    local auxargs
    local i
 
-   if [ ! -z "${mulle_flags_env_value}" ]
+   if [ ! -z "${mulle_options_env_value}" ]
    then
-      log_verbose "Found ${C_RESET_BOLD}${mulle_flags_env_key}${C_VERBOSE} \
-set to ${C_RESET_BOLD}${mulle_flags_env_value}${C_VERBOSE}"
+      log_verbose "Found ${C_RESET_BOLD}${mulle_options_env_key}${C_VERBOSE} \
+set to ${C_RESET_BOLD}${mulle_options_env_value}${C_VERBOSE}"
 
-      for i in ${mulle_flags_env_value}
+      for i in ${mulle_options_env_value}
       do
          r_concat "${auxargs}" "'${i}'"
          auxargs="${RVAL}"
       done
    else
-      log_fluff "Environment variable ${mulle_flags_env_key} is not set."
+      log_fluff "Environment variable ${mulle_options_env_key} is not set."
    fi
 
    for i in "$@"
@@ -585,7 +626,7 @@ build_dependency_directly()
 #   local project="$1"
 #   local name="$2"
 #   local marks="$3"
-#   local builddir="$4"
+#   local kitchendir="$4"
 #   local sdk="$5"
 #   local platform="$6"
 #   local configuration="$7"
@@ -635,19 +676,16 @@ build_dependency_with_dispense()
    local project="$1"
    local name="$2"
    local marks="$3"
-   local builddir="$4"
+   local kitchendir="$4"
    local sdk="$5"
    local platform="$6"
    local configuration="$7"
    local style="$8"
 
    local rval
-
-   rval=0
-
    local tmpdependencydir
 
-   r_filepath_concat "${builddir}" ".dependency"
+   r_filepath_concat "${kitchendir}" ".dependency"
    r_absolutepath "${RVAL}"
    tmpdependencydir="${RVAL}"
 
@@ -658,6 +696,12 @@ build_dependency_with_dispense()
 
    if [ "${cmd}" != 'install' -o $rval -ne 0 ]
    then
+      if [ $rval -ne 0 ]
+      then
+         log_verbose "Not dispensing because of non-zero exit"
+      else
+         log_verbose "Not dispensing because not installing"
+      fi
       rmdir_safer "${tmpdependencydir}"
       return $rval
    fi
@@ -687,6 +731,8 @@ build_dependency_with_dispense()
       ;;
    esac
 
+   log_verbose "Dispensing product"
+
    exekutor "${MULLE_DISPENSE:-mulle-dispense}" \
                   ${MULLE_TECHNICAL_FLAGS} \
                   ${MULLE_DISPENSE_FLAGS} \
@@ -711,19 +757,19 @@ build_dependency_with_dispense()
 
 
 #
-# non-dependencies are build with their own BUILD_DIR
+# non-dependencies are build with their own KITCHEN_DIR
 # not in the shared one.
 #
-build_buildorder_node()
+build_craftorder_node()
 {
-   log_entry "build_buildorder_node" "$@"
+   log_entry "build_craftorder_node" "$@"
 
    local cmd="$1"; shift
 
    local project="$1"
    local name="$2"
    local marks="$3"
-#   local builddir="$4"
+#   local kitchendir="$4"
    local sdk="$5"
    local platform="$6"
    local configuration="$7"
@@ -754,15 +800,40 @@ user wish)"
       ;;
    esac
 
-   # the buildorder should have filtered these out already
+   # the craftorder should have filtered these out already
    case ",${marks}," in
       *",only-os-${MULLE_UNAME}",*)
          # nice
       ;;
 
       *',only-os-'*','*|*",no-os-${MULLE_UNAME},"*)
-         fail "The buildorder ${C_RESET_BOLD}${BUILDORDER_FILE#${MULLE_USER_PWD}/}\
+         fail "The craftorder ${C_RESET_BOLD}${CRAFTORDER_FILE#${MULLE_USER_PWD}/}\
 ${C_ERROR} was made for a different platform. Time to clean. "
+      ;;
+   esac
+
+   # the craftorder should have filtered these out already
+   case ",${marks}," in
+      *",only-build-sdk-"*)
+         case ",${marks}," in
+            *",only-build-sdk-${sdk},"*)
+               # pass
+            ;;
+
+            *)
+               log_fluff "Not building \"${project}\" due to \"only-build-sdk-${sdk}\" mark"
+               return 2         # nice
+            ;;
+         esac
+      ;;
+
+      *",no-build-sdk-"*)
+         case ",${marks}," in
+            *",no-build-sdk-${sdk},"*)
+               log_fluff "Not building \"${project}\" due to \"no-build-sdk-${sdk}\" mark"
+               return 2         # nice
+            ;;
+         esac
       ;;
    esac
 
@@ -772,24 +843,24 @@ ${C_ERROR} was made for a different platform. Time to clean. "
    local dependency_dir
 
    r_get_sdk_platform_configuration_style_string "${sdk}" \
-                                           "${platform}" \
-                                           "${configuration}"  \
-                                           "${style}"
+                                                 "${platform}" \
+                                                 "${configuration}"  \
+                                                 "${style}"
    r_filepath_concat "${DEPENDENCY_DIR}" "${RVAL}"
    dependency_dir="${RVAL}"
 
    #
    # Depending on marks, either install and dispense or just install
    #
-   log_verbose "Build ${C_MAGENTA}${C_BOLD}${name}${C_VERBOSE}"
-
    case ",${marks}," in
       *',no-inplace,'*)
+         log_verbose "Build ${C_MAGENTA}${C_BOLD}${name}${C_VERBOSE} with dispense"
          build_dependency_with_dispense "${cmd}" "${dependency_dir}" "$@"
          return $?
       ;;
    esac
 
+   log_verbose "Build ${C_MAGENTA}${C_BOLD}${name}${C_VERBOSE}"
    build_dependency_directly "${cmd}" "${dependency_dir}" "$@"
    return $?
 }
@@ -822,7 +893,7 @@ r_name_from_project()
 {
    local  project="$1"
 
-   r_name_from_evaledproject "`eval echo "${project}"`"
+   r_name_from_evaledproject "`eval "echo \"${project}\""`"
 }
 
 
@@ -832,7 +903,7 @@ r_name_from_project()
 # and will finalize the name of the build directory and the name to be shown
 # as what gets compiled.
 #
-# local _builddir
+# local _kitchendir
 # local _configuration
 # local _evaledproject
 # local _name
@@ -846,7 +917,7 @@ _evaluate_craft_variables()
    local platform="$3"
    local configuration="$4"
    local style="$5"
-   local builddir="$6"
+   local kitchendir="$6"
    local verify="$7"   # can be left empty
 
    #
@@ -859,7 +930,7 @@ _evaluate_craft_variables()
       _evaledproject=""
       log_fluff "Configuration mapping will not be found by logs"
    else
-      _evaledproject="`eval echo "${project}"`"
+      _evaledproject="`eval "echo \"${project}\"" `"
       r_name_from_evaledproject "${_evaledproject}"
       _name="${RVAL}"
 
@@ -923,13 +994,13 @@ to \"${identifier}\""
                                                  "${platform}" \
                                                  "${configuration}" \
                                                  "relax"
-   r_filepath_concat "${builddir}" "${RVAL}"
-   r_effective_project_builddir "${_name}" "${RVAL}" "${verify}"
-   _builddir="${RVAL}"
+   r_filepath_concat "${kitchendir}" "${RVAL}"
+   r_effective_project_kitchendir "${_name}" "${RVAL}" "${verify}"
+   _kitchendir="${RVAL}"
 
    if [ "${MULLE_FLAG_LOG_SETTINGS}" = 'YES' ]
    then
-      log_trace2 "builddir       : \"${_builddir}\""
+      log_trace2 "kitchendir       : \"${_kitchendir}\""
       log_trace2 "configuration  : \"${_configuration}\""
       log_trace2 "evaledproject  : \"${_evaledproject}\""
       log_trace2 "name           : \"${_name}\""
@@ -949,23 +1020,23 @@ handle_build()
    local platform="$1"; shift
    local configuration="$1"; shift
    local style="$1"; shift
-   local builddir="$1"; shift
+   local kitchendir="$1"; shift
 
    local _name
    local _evaledproject
-   local _builddir
+   local _kitchendir
    local _configuration
 
    #
    # get remapped _configuration
-   # get actual _builddir
+   # get actual _kitchendir
    #
    _evaluate_craft_variables "${project}" \
                              "${sdk}" \
                              "${platform}" \
                              "${configuration}" \
                              "${style}" \
-                             "${builddir}"
+                             "${kitchendir}"
 
    if [ "${OPTION_LIST_REMAINING}" = 'YES' ]
    then
@@ -973,19 +1044,19 @@ handle_build()
       return 0
    fi
 
-   mkdir_if_missing "${_builddir}" || fail "Could not create build directory"
+   mkdir_if_missing "${_kitchendir}" || fail "Could not create build directory"
 
    # memo project to avoid clobbering builddirs
-   redirect_exekutor "${_builddir}/.project" echo "${project}" || \
-      fail "Could not write into ${_builddir}"
+   redirect_exekutor "${_kitchendir}/.project" echo "${project}" || \
+      fail "Could not write into ${_kitchendir}"
 
    local rval
 
-   build_buildorder_node "${cmd}" \
+   build_craftorder_node "${cmd}" \
                          "${_evaledproject}" \
                          "${_name}" \
                          "${marks}" \
-                         "${_builddir}" \
+                         "${_kitchendir}" \
                          "${sdk}" \
                          "${platform}" \
                          "${_configuration}" \
@@ -1037,7 +1108,7 @@ handle_build_rval()
 
    local evaledproject
 
-   evaledproject="`eval echo "${project}"`"
+   evaledproject="`eval "echo \"${project}\""`"
 
    if [ ${rval} -eq 1 ]
    then
@@ -1051,8 +1122,15 @@ the enabled leniency option"
       return 0
    fi
 
+   # 2 is OK and we warned before
+   if [ ${rval} -eq 2 ]
+   then
+      log_debug "Ignoring harmless failure"
+      return 0
+   fi
+
    log_debug "Build of \"${evaledproject}\" returned ${rval}"
-   return $rval
+   return 1
 }
 
 
@@ -1068,7 +1146,7 @@ handle_build_step()
    local platform="$1"; shift
    local configuration="$1"; shift
    local style="$1"; shift
-   local builddir="$1"; shift
+   local kitchendir="$1"; shift
    local phase="$1"; shift
    local statusfile="$1"; shift
    local line="$1"; shift
@@ -1083,7 +1161,7 @@ handle_build_step()
                 "${platform}" \
                 "${configuration}" \
                 "${style}" \
-                "${builddir}" \
+                "${kitchendir}" \
                 "--phase" "${phase}" \
                 "$@"
    rval=$?
@@ -1101,10 +1179,7 @@ handle_build_step()
                           "${line}" \
                           "${project}"
    then
-      if [ $rval -ne 0 -a $rval -ne 2 ]
-      then
-         redirect_append_exekutor "${statusfile}" echo "${project};${phase};${rval}"
-      fi
+      redirect_append_exekutor "${statusfile}" echo "${project};${phase};${rval}"
    fi
 }
 
@@ -1120,7 +1195,7 @@ handle_parallel_builds()
    local platform="$1"; shift
    local configuration="$1"; shift
    local style="$1"; shift
-   local builddir="$1"; shift
+   local kitchendir="$1"; shift
 
    [ -z "${parallel}" ]      && internal_fail "v is empty"
    [ -z "${donefile}" ]      && internal_fail "donefile is empty"
@@ -1128,7 +1203,7 @@ handle_parallel_builds()
    [ -z "${platform}" ]      && internal_fail "platform is empty"
    [ -z "${sdk}" ]           && internal_fail "sdk is empty"
    [ -z "${style}" ]         && internal_fail "style is empty"
-   [ -z "${builddir}" ]      && internal_fail "builddir is empty"
+   [ -z "${kitchendir}" ]      && internal_fail "kitchendir is empty"
 
    local line
    local parallel
@@ -1138,7 +1213,7 @@ handle_parallel_builds()
    local PARALLEL
    local cmd
 
-   _r_make_tmp_in_dir "${BUILD_DIR}" ".build-status" "f"
+   _r_make_tmp_in_dir "${KITCHEN_DIR}" ".build-status" "f"
    statusfile="${RVAL}"
 
    local parallel_link="NO"
@@ -1204,6 +1279,11 @@ handle_parallel_builds()
 
          IFS=";" read project marks <<< "${line}"
 
+         #
+         # TODO: we are somewhat overoptimistic, that we don't build
+         #       1000 projects in parallel here and run into system
+         #       limitations...
+         #
          if [ "${phase}" != 'Link' -o "${parallel_link}" = 'YES'  ]
          then
             (
@@ -1214,7 +1294,7 @@ handle_parallel_builds()
                                  "${platform}" \
                                  "${configuration}" \
                                  "${style}" \
-                                 "${builddir}" \
+                                 "${kitchendir}" \
                                  "${phase}" \
                                  "${statusfile}" \
                                  "${line}" \
@@ -1229,7 +1309,7 @@ handle_parallel_builds()
                               "${platform}" \
                               "${configuration}" \
                               "${style}" \
-                              "${builddir}" \
+                              "${kitchendir}" \
                               "${phase}" \
                               "${statusfile}" \
                               "${line}" \
@@ -1291,16 +1371,16 @@ handle_parallel_builds()
 }
 
 
-r_remaining_buildorder_lines()
+r_remaining_craftorder_lines()
 {
-   log_entry "r_remaining_buildorder_lines" "$@"
+   log_entry "r_remaining_craftorder_lines" "$@"
 
-   local buildorder="$1"
+   local craftorder="$1"
    local donefile="$2"
 
    local remaining
 
-   remaining="${buildorder}"
+   remaining="${craftorder}"
    if [ ! -z "${OPTION_SINGLE_DEPENDENCY}" ]
    then
       local escaped
@@ -1310,7 +1390,7 @@ r_remaining_buildorder_lines()
       log_debug "Filtered by name: ${remaining}"
       if [ -z "${remaining}" ]
       then
-         fail "\"${OPTION_SINGLE_DEPENDENCY}\" is unknown in the buildorder"
+         fail "\"${OPTION_SINGLE_DEPENDENCY}\" is unknown in the craftorder"
       fi
    else
       if [ ! -z "${donefile}" ]
@@ -1337,12 +1417,12 @@ r_remaining_buildorder_lines()
 }
 
 
-_do_build_buildorder()
+_do_build_craftorder()
 {
-   log_entry "_do_build_buildorder" "$@"
+   log_entry "_do_build_craftorder" "$@"
 
-   local buildorder="$1"; shift
-   local builddir="$1"; shift
+   local craftorder="$1"; shift
+   local kitchendir="$1"; shift
    local sdk="$1"; shift
    local platform="$1"; shift
    local configuration="$1"; shift
@@ -1353,7 +1433,7 @@ _do_build_buildorder()
 
    if [ "${MULLE_FLAG_LOG_SETTINGS}" = 'YES' ]
    then
-      log_trace2 "buildorder: ${buildorder}"
+      log_trace2 "craftorder: ${craftorder}"
    fi
 
    #
@@ -1361,7 +1441,7 @@ _do_build_buildorder()
    # actual buildir because that's to be determined later
    # at least for now
    #
-   donefile="${builddir}/.${sdk}--${platform}--${configuration}.built"
+   donefile="${kitchendir}/.${sdk}--${platform}--${configuration}.crafted"
    if [ -f "${donefile}" ]
    then
       log_fluff "Donefile \"${donefile}\" is present"
@@ -1369,24 +1449,24 @@ _do_build_buildorder()
       then
          log_trace2 "donefile: `cat "${donefile}"`"
       fi
-      if ! r_remaining_buildorder_lines "${buildorder}" "${donefile}"
+      if ! r_remaining_craftorder_lines "${craftorder}" "${donefile}"
       then
-         log_fluff "Everything in the buildorder has been built already"
+         log_fluff "Everything in the craftorder has been crafted already"
          return
       fi
       remaining="${RVAL}"
    else
       log_fluff "Donefile \"${donefile}\" is not present, build everything"
-      remaining="${buildorder}"
+      remaining="${craftorder}"
 
-      mkdir_if_missing "${builddir}"
+      mkdir_if_missing "${kitchendir}"
    fi
 
    #
    # remember what we built last so mulle-craft log can make a good guess
    # what the user wants to see
    #
-   redirect_exekutor "${builddir}/.mulle-craft-last" echo "${sdk};${platform};${configuration}"
+   redirect_exekutor "${kitchendir}/.mulle-craft-last" echo "${sdk};${platform};${configuration}"
 
    if [ "${MULLE_FLAG_LOG_SETTINGS}" = 'YES' ]
    then
@@ -1433,7 +1513,7 @@ _do_build_buildorder()
                                      "${platform}" \
                                      "${configuration}" \
                                      "${style}" \
-                                     "${builddir}" \
+                                     "${kitchendir}" \
                                      "$@"
          then
             return 1
@@ -1451,7 +1531,7 @@ _do_build_buildorder()
                    "${platform}" \
                    "${configuration}" \
                    "${style}" \
-                   "${builddir}" \
+                   "${kitchendir}" \
                    "$@"
       rval=$?
 
@@ -1463,7 +1543,7 @@ _do_build_buildorder()
       then
          r_name_from_project "${project}"
          log_info "View logs with
-${C_RESET_BOLD}   ${MULLE_USAGE_NAME} log $RVAL"
+${C_RESET_BOLD}   mulle-sde log $RVAL"
          return 1
       fi
 
@@ -1483,7 +1563,7 @@ ${C_RESET_BOLD}   ${MULLE_USAGE_NAME} log $RVAL"
                                   "${platform}" \
                                   "${configuration}" \
                                   "${style}" \
-                                  "${builddir}" \
+                                  "${kitchendir}" \
                                   "$@"
       then
          return 1
@@ -1493,15 +1573,15 @@ ${C_RESET_BOLD}   ${MULLE_USAGE_NAME} log $RVAL"
 }
 
 
-do_build_buildorder()
+do_build_craftorder()
 {
-   log_entry "do_build_buildorder" "$@"
+   log_entry "do_build_craftorder" "$@"
 
-   local buildorderfile="$1"; shift
-   local builddir="$1"; shift
+   local craftorderfile="$1"; shift
+   local kitchendir="$1"; shift
 
-   [ -z "${buildorderfile}" ] && internal_fail "buildorderfile is missing"
-   [ -z "${builddir}" ]       && internal_fail "builddir is missing"
+   [ -z "${craftorderfile}" ] && internal_fail "craftorderfile is missing"
+   [ -z "${kitchendir}" ]       && internal_fail "kitchendir is missing"
 
    [ -z "${DEPENDENCY_DIR}" ]  && fail "DEPENDENCY_DIR is undefined"
    [ -z "${CONFIGURATIONS}" ]  && internal_fail "CONFIGURATIONS is empty"
@@ -1519,10 +1599,10 @@ do_build_buildorder()
    platforms="${PLATFORMS}"
    style="${DISPENSE_STYLE}"
 
-   local buildorder
+   local craftorder
 
-   buildorder="`egrep -v '^#' "${buildorderfile}" 2> /dev/null`"
-   [ $? -eq 2 ] && fail "Buildorder file \"${buildorderfile}\" is missing"
+   craftorder="`egrep -v '^#' "${craftorderfile}" 2> /dev/null`"
+   [ $? -eq 2 ] && fail "Craftorder file \"${craftorderfile}\" is missing"
 
    #
    # Do this once initially, even if there are no dependencies
@@ -1531,11 +1611,11 @@ do_build_buildorder()
    #
    dependency_begin_update  "${style}"  || exit 1
 
-   if [ -z "${buildorder}" ]
+   if [ -z "${craftorder}" ]
    then
       dependency_end_update 'complete' || exit 1
-      log_verbose "The buildorder file is empty, nothing to build \
-(${buildorderfile#${MULLE_USER_PWD}/})"
+      log_verbose "The craftorder file is empty, nothing to build \
+(${craftorderfile#${MULLE_USER_PWD}/})"
       return
    fi
 
@@ -1556,8 +1636,8 @@ do_build_buildorder()
             set +f; IFS="${DEFAULT_IFS}"
 
             assert_sane_name "${sdk}" " as sdk name"
-            if ! _do_build_buildorder "${buildorder}" \
-                                      "${builddir}"\
+            if ! _do_build_craftorder "${craftorder}" \
+                                      "${kitchendir}"\
                                       "${sdk}" \
                                       "${platform}" \
                                       "${configuration}" \
@@ -1627,10 +1707,10 @@ do_build_mainproject()
    #
    # find proper build and log directory (always relax)
    #
-   local builddir
+   local kitchendir
    local stylesubdir
 
-   builddir="${BUILD_DIR}"
+   kitchendir="${KITCHEN_DIR}"
 
    r_get_sdk_platform_configuration_style_string "${sdk}" \
                                                  "${platform}" \
@@ -1638,12 +1718,12 @@ do_build_mainproject()
                                                  "relax"
    stylesubdir="${RVAL}"
 
-   r_filepath_concat "${builddir}" "${stylesubdir}"
-   builddir="${RVAL}"
+   r_filepath_concat "${kitchendir}" "${stylesubdir}"
+   kitchendir="${RVAL}"
 
    local logdir
 
-   r_filepath_concat "${builddir}" ".log"
+   r_filepath_concat "${kitchendir}" ".log"
    logdir="${RVAL}"
 
    # remove old logs
@@ -1653,10 +1733,10 @@ do_build_mainproject()
    # remember what we built last so mulle-craft log can make a good guess
    # what the user wants to see
    #
-   mkdir_if_missing "${builddir}"
+   mkdir_if_missing "${kitchendir}"
 
-   # use BUILD_DIR not builddir
-   redirect_exekutor "${BUILD_DIR}/.mulle-craft-last" echo "${sdk};${platform};${configuration}"
+   # use KITCHEN_DIR not kitchendir
+   redirect_exekutor "${KITCHEN_DIR}/.mulle-craft-last" echo "${sdk};${platform};${configuration}"
 
    if [ ! -z "${PROJECT_LANGUAGE}" ]
    then
@@ -1664,7 +1744,7 @@ do_build_mainproject()
       OPTIONS_MULLE_MAKE_PROJECT="${RVAL}"
    fi
 
-   r_concat "${OPTIONS_MULLE_MAKE_PROJECT}" "--build-dir '${builddir}'"
+   r_concat "${OPTIONS_MULLE_MAKE_PROJECT}" "--build-dir '${kitchendir}'"
    OPTIONS_MULLE_MAKE_PROJECT="${RVAL}"
    r_concat "${OPTIONS_MULLE_MAKE_PROJECT}" "--log-dir '${logdir}'"
    OPTIONS_MULLE_MAKE_PROJECT="${RVAL}"
@@ -1731,12 +1811,12 @@ do_build_mainproject()
    then
       log_fluff "Not showing motd onrequest"
    else
-      if [ -f "${builddir}/.motd" ]
+      if [ -f "${kitchendir}/.motd" ]
       then
-         log_fluff "Showing \"${builddir}/.motd\""
-         exekutor cat "${builddir}/.motd"
+         log_fluff "Showing \"${kitchendir}/.motd\""
+         exekutor cat "${kitchendir}/.motd"
       else
-         log_fluff "No \"${builddir}/.motd\" was produced"
+         log_fluff "No \"${kitchendir}/.motd\" was produced"
       fi
    fi
 }
@@ -1800,7 +1880,7 @@ craft_build_common()
             OPTION_NO_MEMO_MAKEFLAGS="$1"  # could be global env
          ;;
 
-         # these are dependency within buildorder, buildorder has also subproj
+         # these are dependency within craftorder, craftorder has also subproj
          --allow-script)
             OPTION_ALLOW_SCRIPT='YES'
          ;;
@@ -1882,6 +1962,10 @@ craft_build_common()
             CONFIGURATIONS="Release"
          ;;
 
+         --test)
+            CONFIGURATIONS="Test"
+         ;;
+
          --sdk|--sdks)
             [ $# -eq 1 ] && build_execute_usage "Missing argument to \"$1\""
             shift
@@ -1926,11 +2010,11 @@ craft_build_common()
    local currentenv
    local filenameenv
 
-   [ -z "${BUILD_DIR}" ] && internal_fail "BUILD_DIR not set"
+   [ -z "${KITCHEN_DIR}" ] && internal_fail "KITCHEN_DIR not set"
    [ -z "${MULLE_UNAME}" ] && internal_fail "MULLE_UNAME not set"
 
-   r_absolutepath "${BUILD_DIR}"
-   BUILD_DIR="${RVAL}"
+   r_absolutepath "${KITCHEN_DIR}"
+   KITCHEN_DIR="${RVAL}"
    if [ ! -z "${ADDICTION_DIR}" ]
    then
       r_absolutepath "${ADDICTION_DIR}"
@@ -1947,14 +2031,14 @@ craft_build_common()
       CRAFTINFO_PATH="${RVAL}"
    fi
 
-   filenameenv="${BUILD_DIR}/.mulle-craft"
+   filenameenv="${KITCHEN_DIR}/.mulle-craft"
    currentenv="${MULLE_UNAME};${MULLE_HOSTNAME};${LOGNAME:-`id -u 2>/dev/null`}"
 
    lastenv="`egrep -s -v '^#' "${filenameenv}"`"
    if [ "${lastenv}" != "${currentenv}" ]
    then
-      rmdir_safer "${BUILD_DIR}"
-      mkdir_if_missing "${BUILD_DIR}"
+      rmdir_safer "${KITCHEN_DIR}"
+      mkdir_if_missing "${KITCHEN_DIR}"
       redirect_exekutor "${filenameenv}" echo "# mulle-craft environment info
 ${currentenv}"
    fi
@@ -1971,23 +2055,23 @@ ${currentenv}"
    if [ "${OPTION_USE_BUILDORDER}" = 'YES' ]
    then
       #
-      # the buildorderfile is created by mulle-sde
+      # the craftorderfile is created by mulle-sde
       # mulle-craft searches no default path
       #
-      if [ -z "${BUILDORDER_FILE}" ]
+      if [ -z "${CRAFTORDER_FILE}" ]
       then
-         fail "Failed to specify buildorder with --buildorder-file <file>"
+         fail "Failed to specify craftorder with --craftorder-file <file>"
       fi
 
-      if [ ! -f "${BUILDORDER_FILE}" ]
+      if [ ! -f "${CRAFTORDER_FILE}" ]
       then
-         fail "Missing buildorder file \"${BUILDORDER_FILE}\""
+         fail "Missing craftorder file \"${CRAFTORDER_FILE}\""
       fi
 
       [ -z "${MULLE_CRAFT_DEPENDENCY_SH}" ] && \
          . "${MULLE_CRAFT_LIBEXEC_DIR}/mulle-craft-dependency.sh"
 
-      do_build_buildorder "${BUILDORDER_FILE}" "${BUILDORDER_BUILD_DIR}" "$@"
+      do_build_craftorder "${CRAFTORDER_FILE}" "${CRAFTORDER_KITCHEN_DIR}" "$@"
       return $?
    fi
 
@@ -2019,12 +2103,12 @@ build_project_main()
 }
 
 
-build_buildorder_main()
+build_craftorder_main()
 {
-   log_entry "build_buildorder_main" "$@"
+   log_entry "build_craftorder_main" "$@"
 
-   USAGE_BUILD_STYLE="buildorder"
-   USAGE_INFO="Build the buildorder only.
+   USAGE_BUILD_STYLE="craftorder"
+   USAGE_INFO="Build the craftorder only.
 "
    local OPTION_USE_PROJECT
    local OPTION_USE_BUILDORDER
@@ -2038,12 +2122,12 @@ build_buildorder_main()
 }
 
 
-list_buildorder_main()
+list_craftorder_main()
 {
-   log_entry "list_buildorder_main" "$@"
+   log_entry "list_craftorder_main" "$@"
 
    USAGE_BUILD_STYLE="list"
-   USAGE_INFO="List remaining items in buildorder to be built.
+   USAGE_INFO="List remaining items in craftorder to be crafted.
 "
    local OPTION_USE_PROJECT
    local OPTION_USE_BUILDORDER
@@ -2063,8 +2147,8 @@ build_single_dependency_main()
 
    local name="$1"; shift
 
-   USAGE_BUILD_STYLE="buildorder --single-dependency '${name}'"
-   USAGE_INFO="Build a single dependency of the buildorder only.
+   USAGE_BUILD_STYLE="craftorder --single-dependency '${name}'"
+   USAGE_INFO="Build a single dependency of the craftorder only.
 "
    local OPTION_USE_PROJECT
    local OPTION_USE_BUILDORDER

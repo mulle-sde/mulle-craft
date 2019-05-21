@@ -91,7 +91,7 @@ run_test()
    local directory="$1" ; shift
    local expect="$1"; shift
 
-   MULLE_MAKE_REDIRECT_FILE="${directory}/mulle-make-args.txt" 
+   MULLE_MAKE_REDIRECT_FILE="${directory}/mulle-make-args.txt"
    export MULLE_MAKE_REDIRECT_FILE
 
    MULLE_TMP_DIR="${directory}" \
@@ -128,7 +128,8 @@ main()
    run_test "${directory}" "mulle-make.txt" project --debug
    log_verbose "----- #1 PASSED -----"
 
-   run_test "${directory}" "mulle-make2.txt" --buildorder-file "${PWD}/buildorder" buildorder --sdk foo --release
+   run_test "${directory}" "mulle-make2.txt" --craftorder-file "${PWD}/craftorder" \
+                                                craftorder --sdk foo --release
    log_verbose "----- #2 PASSED -----"
 
    log_info "----- ALL PASSED -----"

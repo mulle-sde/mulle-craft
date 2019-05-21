@@ -41,11 +41,11 @@ status_usage()
 Usage:
    ${MULLE_USAGE_NAME} status [options]
 
-   Show the built status of the project dependencies (without subprojects).
+   Show the craft status of the project dependencies (without subprojects).
 
 Options:
    --output-no-color  : don't output colorized status
-   -f <buildorder>    : supply buildorder file (required)
+   -f <craftorder>    : supply craftorder file (required)
 
 EOF
   exit 1
@@ -166,21 +166,21 @@ status_main()
       shift
    done
 
-   [ -z "${BUILDORDER_BUILD_DIR}" ] && internal_fail "BUILDORDER_BUILD_DIR is empty"
+   [ -z "${CRAFTORDER_KITCHEN_DIR}" ] && internal_fail "CRAFTORDER_KITCHEN_DIR is empty"
 
-   if [ -z "${BUILDORDER_FILE}" ]
+   if [ -z "${CRAFTORDER_FILE}" ]
    then
-      fail "Failed to specify buildorder with --buildorder-file <file>"
+      fail "Failed to specify craftorder with --craftorder-file <file>"
    fi
 
-   if [ ! -f "${BUILDORDER_FILE}" ]
+   if [ ! -f "${CRAFTORDER_FILE}" ]
    then
-      fail "Missing buildorder file \"${BUILDORDER_FILE}\""
+      fail "Missing craftorder file \"${CRAFTORDER_FILE}\""
    fi
 
    local all_names
 
-   r_get_names_from_file "${BUILDORDER_FILE}"
+   r_get_names_from_file "${CRAFTORDER_FILE}"
    all_names="${RVAL}"
 
    local configuration
@@ -189,9 +189,14 @@ status_main()
    local donefile
    local name
 
-   for donefile in `rexekutor find -H "${BUILDORDER_BUILD_DIR}" -name ".*.built" -type f -print`
+   if [ ! -d "${CRAFTORDER_KITCHEN_DIR}" ]
+   then
+      log_info "Nothing crafted yet"
+      return 0
+   fi
+   for donefile in `rexekutor find -H "${CRAFTORDER_KITCHEN_DIR}" -name ".*.crafted" -type f -print`
    do
-      # strip off */.<name>.built
+      # strip off */.<name>.crafted
       r_extensionless_basename "${donefile}"
       name="${RVAL#.}"
 

@@ -80,8 +80,8 @@ Usage:
    List available build logs.
 
 Options:
-   --output-cmd      : list as ${MULLE_USAGE_NAME} log commands (default)
-   --output-filename : list as files
+   --output-format cmd  : list as ${MULLE_USAGE_NAME} log commands (default)
+   --output-filename    : list as files
 
 EOF
   exit 1
@@ -92,35 +92,35 @@ project_log_dirs()
 {
    log_entry "project_log_dirs" "$@"
 
-   if [ ! -d "${BUILD_DIR}" ]
+   if [ ! -d "${KITCHEN_DIR}" ]
    then
       return 2
    fi
 
-   if [ ! -z "${BUILDORDER_BUILD_DIR}" ]
+   if [ ! -z "${CRAFTORDER_KITCHEN_DIR}" ]
    then
       local sed_escaped_value
 
-      r_escaped_sed_pattern "${BUILDORDER_BUILD_DIR}"
+      r_escaped_sed_pattern "${CRAFTORDER_KITCHEN_DIR}"
       sed_escaped_value="${RVAL}"
-      rexekutor find -H "${BUILD_DIR}" -type d -name .log | \
+      rexekutor find -H "${KITCHEN_DIR}" -type d -name .log | \
       rexekutor egrep -v "^${sed_escaped_value}"
    else
-      rexekutor find -H "${BUILD_DIR}" -type d -name .log
+      rexekutor find -H "${KITCHEN_DIR}" -type d -name .log
    fi
 }
 
 
-buildorder_log_dirs()
+craftorder_log_dirs()
 {
-   log_entry "buildorder_log_dirs" "$@"
+   log_entry "craftorder_log_dirs" "$@"
 
-   if [ ! -d "${BUILDORDER_BUILD_DIR}" ]
+   if [ ! -d "${CRAFTORDER_KITCHEN_DIR}" ]
    then
       return 2
    fi
 
-   rexekutor find -H "${BUILDORDER_BUILD_DIR}" -type d -name .log
+   rexekutor find -H "${CRAFTORDER_KITCHEN_DIR}" -type d -name .log
 }
 
 
@@ -190,7 +190,8 @@ build_log_list()
             build_log_cat_usage
          ;;
 
-         --output-cmd|--output-command)
+         --output-format)
+            shift
             OPTION_OUTPUT="CMD"
          ;;
 
@@ -229,7 +230,7 @@ build_log_list()
       do
          IFS="${DEFAULT_IFS}" ; set +o noglob
 
-         r_fast_dirname "${directory#${BUILD_DIR}/}"
+         r_fast_dirname "${directory#${KITCHEN_DIR}/}"
          configuration="${RVAL}"
 
          list_tool_logs "${OPTION_OUTPUT}" "${directory}" "" "${configuration}"
@@ -237,13 +238,13 @@ build_log_list()
       IFS="${DEFAULT_IFS}" ; set +o noglob
    fi
 
-   directories="`buildorder_log_dirs`"
-   log_debug "Buildorder log-directories: ${directories}"
+   directories="`craftorder_log_dirs`"
+   log_debug "Craftorder log-directories: ${directories}"
 
    if [ ! -z "${directories}" ]
    then
 
-      log_info "Buildorder logs"
+      log_info "Craftorder logs"
 
       local configuration_name
       local name
@@ -254,7 +255,7 @@ build_log_list()
       do
          IFS="${DEFAULT_IFS}" ; set +o noglob
 
-         r_fast_dirname "${directory#${BUILDORDER_BUILD_DIR}/}"
+         r_fast_dirname "${directory#${CRAFTORDER_KITCHEN_DIR}/}"
          configuration_name="${RVAL}"
          configuration="${configuration_name%%/*}"
          name="${configuration_name#*/}"
@@ -314,7 +315,7 @@ build_log_command()
       #
       local lastvalues
 
-      lastvalues="`rexekutor egrep -s -v '^#' "${BUILDORDER_BUILD_DIR}/.mulle-craft-last"`"
+      lastvalues="`rexekutor egrep -s -v '^#' "${CRAFTORDER_KITCHEN_DIR}/.mulle-craft-last"`"
 
       lastsdk="${lastvalues%%;*}"
       lastplatform="${lastvalues%;*}"
@@ -338,7 +339,7 @@ build_log_command()
             . "${MULLE_CRAFT_LIBEXEC_DIR}/mulle-craft-execute.sh"
 
 
-      local _builddir
+      local _kitchendir
       local _configuration
       local _evaledproject
       local _name
@@ -348,21 +349,25 @@ build_log_command()
                                 "${platform}" \
                                 "${configuration}" \
                                 "${style}" \
-                                "${BUILDORDER_BUILD_DIR#${PWD}/}" \
+                                "${CRAFTORDER_KITCHEN_DIR#${PWD}/}" \
                                 "NO"
 
-      directory="${_builddir}"
+      directory="${_kitchendir}"
 
       log_debug "Build directory: ${directory}"
 
-      # build/.buildorder/Debug/mulle-c11/.log/
+      # build/.craftorder/Debug/mulle-c11/.log/
       local prefix
       local found
+      local globpattern
 
-      prefix="${directory%/*}"
+      globpattern="${directory}/.log/${OPTION_TOOL}.log"
+      echo ${globpattern}
 
+      # just ensure globbing is ON!
       shopt -s nullglob
-      for i in ${directory}/${configuration}/.log/${OPTION_TOOL}.log
+      echo ""
+      for i in ${globpattern}
       do
          shopt -u nullglob
 
@@ -374,7 +379,7 @@ build_log_command()
 
       if [ -z "${found}" ]
       then
-         log_verbose "No buildorder logs match for \"${name}\""
+         log_verbose "No craftorder logs match for \"${name}\" (${globpattern})"
       fi
    fi
 
@@ -385,7 +390,7 @@ build_log_command()
       ''|'*')
          log_info "${PROJECT_NAME}"
 
-         directory="${BUILD_DIR#${PWD}/}"
+         directory="${KITCHEN_DIR#${PWD}/}"
          log_debug "Project build directory: ${directory}"
 
          # https://stackoverflow.com/questions/2937407/test-whether-a-glob-matches-any-files#
@@ -467,9 +472,9 @@ build_log_main()
       shift
    done
 
-   if [ -z "${BUILD_DIR}" ]
+   if [ -z "${KITCHEN_DIR}" ]
    then
-      fail "Unknown build directory, specify with -b"
+      fail "Unknown kitchen directory, specify with -k"
    fi
 
    case "$1" in

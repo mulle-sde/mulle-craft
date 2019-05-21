@@ -40,22 +40,22 @@ build_clean_usage()
 Usage:
    ${MULLE_USAGE_NAME} clean [options] [name]*
 
-   Remove build products. By default BUILD_DIR is removed, which will
+   Remove craft products. By default KITCHEN_DIR is removed, which will
    rebuild everything. You can also specify the names of the projects to clean
    and rebuild. There are four special names: "all",
-   "buildorder", dependency", "project".
+   "craftorder", dependency", "project".
 
 Options:
-   --touch          : touch instead of clean buildorder to force recompile
+   --touch          : touch instead of clean craftorder to force recompile
 
 Names:
-   all              : clean build folder
-   buildorder       : clean buildorder only
+   all              : clean kitchen folder
+   craftorder       : clean craftorder only
    dependency       : clean dependency folder
    project          : clean main project
 
 Environment:
-   BUILD_DIR        : place for build products and by-products
+   KITCHEN_DIR      : place for craft products and by-products
    DEPENDENCY_DIR   : place to put dependencies into (generally required)
 EOF
   exit 1
@@ -130,16 +130,14 @@ build_clean_main()
       shift
    done
 
-   if [ -z "${BUILD_DIR}" ]
-   then
-      fail "Unknown build directory, specify with -b"
-   fi
+   KITCHEN_DIR="${KITCHEN_DIR:-${BUILD_DIR}}"
+   KITCHEN_DIR="${KITCHEN_DIR:-kitchen}"
 
    if [ $# -eq 0 ]
    then
-      log_verbose "Cleaning \"${BUILD_DIR}\" directory"
+      log_verbose "Cleaning \"${KITCHEN_DIR}\" directory"
 
-      remove_directory "${BUILD_DIR}"
+      remove_directory "${KITCHEN_DIR}"
       return $?
    fi
 
@@ -154,17 +152,17 @@ build_clean_main()
    while :
    do
       case "$1" in
-         "build")
-            log_verbose "Cleaning \"build\""
+         "build"|"kitchen")
+            log_verbose "Cleaning \"$1\""
 
-            remove_directory "${BUILD_DIR}"
+            remove_directory "${KITCHEN_DIR}"
             return
          ;;
 
-         "buildorder")
-            log_verbose "Cleaning \"${BUILDORDER_BUILD_DIR}\" directory"
+         "craftorder")
+            log_verbose "Cleaning \"${CRAFTORDER_KITCHEN_DIR}\" directory"
 
-            remove_directory "${BUILDORDER_BUILD_DIR}"
+            remove_directory "${CRAFTORDER_KITCHEN_DIR}"
          ;;
 
          "dependency")
@@ -176,13 +174,15 @@ build_clean_main()
          "project")
             log_verbose "Cleaning project"
 
-            for i in "${BUILD_DIR}"/*
+            shopt -s nullglob
+            for i in "${KITCHEN_DIR}"/*
             do
                if [ -d "${i}" ]
                then
                   remove_directory "${i}"
                fi
             done
+            shopt -u nullglob
          ;;
 
          "")
@@ -202,7 +202,7 @@ build_clean_main()
 #            r_escaped_grep_pattern "$1"
 #            escaped="${RVAL}"
 #
-#            for donefile in "${BUILDORDER_BUILD_DIR}"/*/.mulle-craft-built
+#            for donefile in "${CRAFTORDER_KITCHEN_DIR}"/*/.mulle-craft-built
 #            do
 #               matches="`rexekutor sed -s -e 's/^\([^;]*);/\1/' -e 's/^.*\//' "${donefile}"`"
 #               r_add_line "${targets}" "${matches}"
@@ -228,18 +228,27 @@ build_clean_main()
             directory="`build_directory_name "${cleantarget}"`"
             if [ "${OPTION_TOUCH}" = 'NO' ]
             then
-               remove_directories "${BUILDORDER_BUILD_DIR}"/*/"${directory}"
+               shopt -s nullglob
+               remove_directories "${CRAFTORDER_KITCHEN_DIR}"/*/"${directory}" \
+                                  "${CRAFTORDER_KITCHEN_DIR}"/*/*/"${directory}"
+               shopt -u nullglob
             fi
 
             r_escaped_sed_pattern "${cleantarget}"
             escaped="${RVAL}"
 
-            for donefile in "${BUILDORDER_BUILD_DIR}"/.*.built
+            for donefile in "${CRAFTORDER_KITCHEN_DIR}"/.*.crafted
             do
                if [ -f "${donefile}" ]
                then
                   inplace_sed -n -e "/^${escaped};/q;p" "${donefile}"
                   inplace_sed -n -e "/^.*\/${escaped};/q;p" "${donefile}"
+
+                  # an empty donefile is bad for fgrep
+                  if [ -z "`egrep -v '^#' "${donefile}"`" ]
+                  then
+                     remove_file_if_present "${donefile}"
+                  fi
                fi
             done
 

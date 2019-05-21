@@ -32,7 +32,7 @@
 [ "${TRACE}" = 'YES' -o "${MULLE_CRAFT_TRACE}" = 'YES' ] && set -x && : "$0" "$@"
 
 
-MULLE_EXECUTABLE_VERSION=0.15.6
+MULLE_EXECUTABLE_VERSION=0.16.0
 
 
 trap_fail()
@@ -49,34 +49,34 @@ usage()
 Usage:
    ${MULLE_USAGE_NAME} [flags] [command]
 
-   Build projects given by supplied \`buildorder\`. Then build the main
+   Craft projects given by supplied \`craftorder\`. Then craft the main
    project. See the various commands for more help.
 
 Flags:
 EOF
 
    (
-      options_technical_flags_usage "              : "
+      options_technical_flags_usage "      : "
 
       cat <<EOF
-   -b <dir>           : specify build directory
-   -d <dir>           : specify definitons directory for dependencies
-   -f <file>          : specify buildorder file, mandatory for some commands
-   -e                 : use mulle-craft outside of mulle-env
-   -p <dir>           : specify project directory
+   -k <dir>   : specify kitchen directory
+   -d <dir>   : specify definitions directory for dependencies
+   -f <file>  : specify craftorder file, mandatory for some commands
+   -e         : use mulle-craft outside of mulle-env
+   -p <dir>   : specify project directory
 EOF
    ) | LC_ALL=C sort
 
    cat <<EOF
 
 Commands:
-   buildorder         : build projects using a buildorder file
-   clean              : clean output
-   list               : list remaining builds in buildorder file
-   log                : inspect build logs
-   project            : build main project without a buildorder file (default)
-   search             : search for craftinfos (dependeny) or makeinfo (project)
-   status             : returns 0 if dependency is ready
+   craftorder : craft projects using a craftorder file
+   clean      : clean output
+   list       : list remaining builds in craftorder file
+   log        : inspect kitchen logs
+   project    : craft main project without a craftorder file (default)
+   search     : search for craftinfos (dependeny) or makeinfo (project)
+   status     : returns 0 if dependency is ready
 EOF
 
    if [ "${MULLE_FLAG_LOG_VERBOSE}" = 'NO' ]
@@ -127,11 +127,11 @@ main()
             usage
          ;;
 
-         -b|--build-dir)
+         -k|--kitchen-dir|-b|--build-dir)
             [ $# -eq 1 ] && usage "Missing argument to \"$1\""
             shift
 
-            BUILD_DIR="$1"
+            KITCHEN_DIR="$1"
          ;;
 
          -d|--definition-dir)
@@ -152,18 +152,18 @@ main()
             exekutor cd "$1" || exit 1
          ;;
 
-         --buildorder-file)
+         --craftorder-file)
             [ $# -eq 1 ] && usage "Missing argument to \"$1\""
             shift
 
-            BUILDORDER_FILE="$1"
+            CRAFTORDER_FILE="$1"
          ;;
 
-         --buildorder-build-dir)
+         --craftorder-kitchen-dir|--craftorder-build-dir)
             [ $# -eq 1 ] && fail "Missing argument to \"$1\""
             shift
 
-            BUILDORDER_BUILD_DIR="$1"
+            CRAFTORDER_KITCHEN_DIR="$1"
          ;;
 
          --dependency-dir)
@@ -228,8 +228,11 @@ main()
    MULLE_DISPENSE="${MULLE_DISPENSE:-`command -v mulle-dispense`}"
    [ -z "${MULLE_DISPENSE}" ] && fail "mulle-dispense not in PATH"
 
-   BUILD_DIR="${BUILD_DIR:-build}"
-   BUILDORDER_BUILD_DIR="${BUILDORDER_BUILD_DIR:-${BUILD_DIR}/.buildorder}"
+   #prefer KITCHEN_DIR over older BUILD_DIR
+
+   KITCHEN_DIR="${KITCHEN_DIR:-${BUILD_DIR}}"
+   KITCHEN_DIR="${KITCHEN_DIR:-kitchen}"
+   CRAFTORDER_KITCHEN_DIR="${CRAFTORDER_KITCHEN_DIR:-${KITCHEN_DIR}/.craftorder}"
 
    #
    # project can give the default way to build this
@@ -237,11 +240,11 @@ main()
    cmd="${cmd:-${MULLE_CRAFT_DEFAULT_CMD}}"
 
    case "${cmd:-project}" in
-      buildorder)
+      craftorder)
          # shellcheck source=src/mulle-craft-execute.sh
          . "${MULLE_CRAFT_LIBEXEC_DIR}/mulle-craft-execute.sh"
 
-         build_buildorder_main "$@"
+         build_craftorder_main "$@"
       ;;
 
       clean)
@@ -259,7 +262,7 @@ main()
          # shellcheck source=src/mulle-craft-execute.sh
          . "${MULLE_CRAFT_LIBEXEC_DIR}/mulle-craft-execute.sh"
 
-         list_buildorder_main "$@"
+         list_craftorder_main "$@"
       ;;
 
       log)

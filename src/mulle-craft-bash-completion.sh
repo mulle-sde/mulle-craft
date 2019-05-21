@@ -43,7 +43,7 @@ _mulle_craft_complete()
    for i in "${COMP_WORDS[@]}"
    do
       case "$i" in
-         all|buildorder|clean|project)
+         all|craftorder|clean|project)
             context="$i"
          ;;
       esac
@@ -56,12 +56,12 @@ _mulle_craft_complete()
             ;;
 
             "")
-               COMPREPLY=( $( compgen -W "all buildorder project" -- $cur ) )
+               COMPREPLY=( $( compgen -W "all craftorder project" -- $cur ) )
             ;;
          esac
       ;;
 
-      all|buildorder|project)
+      all|craftorder|project)
          case "${cur}" in
             -*)
                COMPREPLY=( $( compgen -W "--debug --release --lenient" -- $cur ) )
@@ -70,7 +70,7 @@ _mulle_craft_complete()
       ;;
 
       *)
-         COMPREPLY=( $( compgen -W "all buildorder clean project" -- $cur ) )
+         COMPREPLY=( $( compgen -W "all craftorder clean project" -- $cur ) )
       ;;
    esac
 
