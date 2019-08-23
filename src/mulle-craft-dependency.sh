@@ -244,7 +244,7 @@ dependency_begin_update()
 
       initing|initting) # previous misspell
          fail "A previous craft got stuck. Suggested remedy:
-   ${C_RESET_BOLD}${MULLE_USAGE_NAME% *} clean all"
+   ${C_RESET_BOLD}mulle-sde clean all"
       ;;
 
       inited|ready|complete)
@@ -295,7 +295,7 @@ dependency_end_update()
    fi
 
    log_verbose "Dependency folder marked as ${state}"
-   redirect_exekutor "${DEPENDENCY_DIR}/.state" echo "${state}"
+   redirect_exekutor "${DEPENDENCY_DIR}/.state" printf "%s\n" "${state}"
 
    if [ "${OPTION_PROTECT_DEPENDENCY}" = 'YES' ]
    then
@@ -452,7 +452,7 @@ quickstatus_main()
    log_info "${C_MAGENTA}${C_BOLD}${state}"
    if [ "${OPTION_PRINT}" = 'YES' ]
    then
-      echo "${state}"
+      printf "%s\n" "${state}"
    fi
 
    if [ "${state}" = 'complete' ]

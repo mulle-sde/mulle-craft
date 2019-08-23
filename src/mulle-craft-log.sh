@@ -162,7 +162,7 @@ list_tool_logs()
          r_concat "${s}" "\"${i%%.log}\"" " "
          s="${RVAL}"
       else
-         echo "${i#${MULLE_USER_PWD}/}"
+         printf "%s\n" "${i#${MULLE_USER_PWD}/}"
       fi
    done
    shopt -u nullglob
@@ -170,7 +170,7 @@ list_tool_logs()
 
    if [ "${mode}" = "CMD" ]
    then
-      echo "${cmdline} ${s}"
+      printf "%s\n" "${cmdline} ${s}"
    fi
 }
 

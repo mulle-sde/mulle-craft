@@ -109,7 +109,7 @@ r_determine_craftinfo_dir()
 
    if [ ! -z "${CRAFTINFO_PATH}" ]
    then
-      searchpath="`eval echo "${CRAFTINFO_PATH}"`"
+      searchpath="`eval "printf \"%s\\\\\\\\n\" \"${CRAFTINFO_PATH}\""`"
    else
       case "${projecttype}" in
          "dependency")
@@ -189,11 +189,11 @@ r_determine_craftinfo_dir()
 
 build_search_main()
 {
-   log_entry "build_common" "$@"
+   log_entry "build_search_main" "$@"
 
    local OPTION_PROJECT_DIR
-   local OPTION_PLATFORM='YES'
-   local OPTION_LOCAL='YES'
+   local OPTION_PLATFORM_CRAFTINFO='YES'
+   local OPTION_LOCAL_CRAFTINFO='YES'
 
    while [ $# -ne 0 ]
    do
@@ -210,11 +210,11 @@ build_search_main()
          ;;
 
          --no-platform|--no-platform-craftinfo)
-            OPTION_PLATFORM='NO'
+            OPTION_PLATFORM_CRAFTINFO='NO'
          ;;
 
          --no-local|--no-local-craftinfo)
-            OPTION_LOCAL='NO'
+            OPTION_LOCAL_CRAFTINFO='NO'
          ;;
 
          -*)
@@ -243,7 +243,8 @@ build_search_main()
 	   r_determine_craftinfo_dir "${name}" \
                                 "${OPTION_PROJECT_DIR:-${PWD}}" \
                                 "mainproject" \
-                                "${OPTION_GLOBAL}" \
+                                "${OPTION_PLATFORM_CRAFTINFO}" \
+                                "${OPTION_LOCAL_CRAFTINFO}" \
                                 "${sdk:-Default}" \
                                 "${platform:-Default}" \
                                 "${configuration:-Release}" \
@@ -256,15 +257,15 @@ build_search_main()
 		fi
 
 	   r_determine_craftinfo_dir "$1" \
-                              "${OPTION_PROJECT_DIR}" \
-                              "dependency" \
-                              "${OPTION_PLATFORM}" \
-                              "${OPTION_LOCAL}" \
-                              "${sdk:-Default}" \
-                              "${platform:-Default}" \
-                              "${configuration:-Release}" \
-                              "${style:-auto}"
+                                "${OPTION_PROJECT_DIR}" \
+                                "dependency" \
+                                "${OPTION_PLATFORM_CRAFTINFO}" \
+                                "${OPTION_LOCAL_CRAFTINFO}" \
+                                "${sdk:-Default}" \
+                                "${platform:-Default}" \
+                                "${configuration:-Release}" \
+                                "${style:-auto}"
 	fi
 
-   [ ! -z "${RVAL}" ] && echo "${RVAL}"
+   [ ! -z "${RVAL}" ] && printf "%s\n" "${RVAL}"
 }

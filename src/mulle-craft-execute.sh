@@ -351,8 +351,8 @@ build_project()
    r_determine_craftinfo_dir "${name}" \
                              "${project}" \
                              "dependency" \
-                             "${OPTION_PLATFORM}" \
-                             "${OPTION_LOCAL}" \
+                             "${OPTION_PLATFORM_CRAFTINFO}" \
+                             "${OPTION_LOCAL_CRAFTINFO}" \
                              "${sdk}" \
                              "${platform}" \
                              "${configuration}" \
@@ -709,9 +709,17 @@ build_dependency_with_dispense()
    local options
 
    # ugliness for zlib
+   # not very good, because include is OS specific
+   # need to late eval this
    case ",${marks}," in
       *',no-rootheader,'*)
-         options="--header-dir include/${name}"
+         options="--header-dir 'include/${name}'"
+      ;;
+   esac
+
+   case ",${marks}," in
+      *',only-liftheaders,'*)
+         options="--lift-headers"
       ;;
    esac
 
@@ -733,11 +741,11 @@ build_dependency_with_dispense()
 
    log_verbose "Dispensing product"
 
-   exekutor "${MULLE_DISPENSE:-mulle-dispense}" \
-                  ${MULLE_TECHNICAL_FLAGS} \
-                  ${MULLE_DISPENSE_FLAGS} \
+   eval_exekutor "${MULLE_DISPENSE:-mulle-dispense}" \
+                  "${MULLE_TECHNICAL_FLAGS}" \
+                  "${MULLE_DISPENSE_FLAGS}" \
                dispense \
-                  ${options} \
+                  "${options}" \
                   "${tmpdependencydir}" \
                   "${dependency_dir}"
    rval=$?
@@ -1040,14 +1048,14 @@ handle_build()
 
    if [ "${OPTION_LIST_REMAINING}" = 'YES' ]
    then
-      echo "${_name}" # ;${marks};${mapped_configuration}"
+      printf "%s\n" "${_name}" # ;${marks};${mapped_configuration}"
       return 0
    fi
 
    mkdir_if_missing "${_kitchendir}" || fail "Could not create build directory"
 
    # memo project to avoid clobbering builddirs
-   redirect_exekutor "${_kitchendir}/.project" echo "${project}" || \
+   redirect_exekutor "${_kitchendir}/.project" printf "%s\n" "${project}" || \
       fail "Could not write into ${_kitchendir}"
 
    local rval
@@ -1097,7 +1105,7 @@ handle_build_rval()
 
             if [ ! -z "${donefile}" ]
             then
-               redirect_append_exekutor "${donefile}" echo "${line}"
+               redirect_append_exekutor "${donefile}" printf "%s\n" "${line}"
             else
                log_debug "Not remembering success as we have no donefile"
             fi
@@ -1179,7 +1187,7 @@ handle_build_step()
                           "${line}" \
                           "${project}"
    then
-      redirect_append_exekutor "${statusfile}" echo "${project};${phase};${rval}"
+      redirect_append_exekutor "${statusfile}" printf "%s\n" "${project};${phase};${rval}"
    fi
 }
 
@@ -1386,7 +1394,7 @@ r_remaining_craftorder_lines()
       local escaped
 
       r_escaped_grep_pattern "${OPTION_SINGLE_DEPENDENCY}"
-      remaining="`egrep "^${RVAL};|\}/${RVAL};" <<< "${remaining}" `"
+      remaining="`egrep "^[^;]*${RVAL};|\}/${RVAL};" <<< "${remaining}" `"
       log_debug "Filtered by name: ${remaining}"
       if [ -z "${remaining}" ]
       then
@@ -1466,7 +1474,7 @@ _do_build_craftorder()
    # remember what we built last so mulle-craft log can make a good guess
    # what the user wants to see
    #
-   redirect_exekutor "${kitchendir}/.mulle-craft-last" echo "${sdk};${platform};${configuration}"
+   redirect_exekutor "${kitchendir}/.mulle-craft-last" printf "%s\n" "${sdk};${platform};${configuration}"
 
    if [ "${MULLE_FLAG_LOG_SETTINGS}" = 'YES' ]
    then
@@ -1685,8 +1693,8 @@ do_build_mainproject()
    r_determine_craftinfo_dir "${name}" \
                              "${PWD}" \
                              "mainproject" \
-                             "${OPTION_PLATFORM}" \
-                             "${OPTION_LOCAL}" \
+                             "${OPTION_PLATFORM_CRAFTINFO}" \
+                             "${OPTION_LOCAL_CRAFTINFO}" \
                              "${sdk}" \
                              "${platform}" \
                              "${configuration}" \
@@ -1736,7 +1744,7 @@ do_build_mainproject()
    mkdir_if_missing "${kitchendir}"
 
    # use KITCHEN_DIR not kitchendir
-   redirect_exekutor "${KITCHEN_DIR}/.mulle-craft-last" echo "${sdk};${platform};${configuration}"
+   redirect_exekutor "${KITCHEN_DIR}/.mulle-craft-last" printf "%s\n" "${sdk};${platform};${configuration}"
 
    if [ ! -z "${PROJECT_LANGUAGE}" ]
    then
@@ -1834,8 +1842,8 @@ craft_build_common()
    local OPTION_LENIENT='NO'
    local OPTION_BUILD_DEPENDENCY="DEFAULT"
    local OPTIONS_MULLE_MAKE_PROJECT=
-   local OPTION_PLATFORM='YES'
-   local OPTION_LOCAL='YES'
+   local OPTION_PLATFORM_CRAFTINFO='YES'
+   local OPTION_LOCAL_CRAFTINFO='YES'
    local OPTION_REBUILD_BUILDORDER='NO'
    local OPTION_PROTECT_DEPENDENCY='YES'
    local OPTION_ALLOW_SCRIPT="${MULLE_CRAFT_USE_SCRIPT:-DEFAULT}"
@@ -1845,6 +1853,7 @@ craft_build_common()
    local OPTION_PARALLEL_LINK='YES'
    local OPTION_PHASES="Headers Compile Link"
    local OPTION_PARALLEL='YES'
+   local OPTION_LIBRARY_STYLE
 
    while [ $# -ne 0 ]
    do
@@ -1926,11 +1935,11 @@ craft_build_common()
          ;;
 
          --no-platform|--no-platform-craftinfo)
-            OPTION_PLATFORM='NO'
+            OPTION_PLATFORM_CRAFTINFO='NO'
          ;;
 
          --no-local|--no-local-craftinfo)
-            OPTION_LOCAL='NO'
+            OPTION_LOCAL_CRAFTINFO='NO'
          ;;
 
          --list-remaining)
@@ -1952,6 +1961,13 @@ craft_build_common()
             shift
 
             CONFIGURATIONS="$1"
+         ;;
+
+         --library-style)
+            [ $# -eq 1 ] && build_execute_usage "Missing argument to \"$1\""
+            shift
+
+            OPTION_LIBRARY_STYLE="$1"
          ;;
 
          --debug)

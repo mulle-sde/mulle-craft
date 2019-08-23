@@ -32,7 +32,7 @@
 [ "${TRACE}" = 'YES' -o "${MULLE_CRAFT_TRACE}" = 'YES' ] && set -x && : "$0" "$@"
 
 
-MULLE_EXECUTABLE_VERSION=0.16.0
+MULLE_EXECUTABLE_VERSION=0.16.1
 
 
 trap_fail()
@@ -56,14 +56,13 @@ Flags:
 EOF
 
    (
-      options_technical_flags_usage "      : "
+      options_technical_flags_usage "               : "
 
       cat <<EOF
-   -k <dir>   : specify kitchen directory
-   -d <dir>   : specify definitions directory for dependencies
-   -f <file>  : specify craftorder file, mandatory for some commands
-   -e         : use mulle-craft outside of mulle-env
-   -p <dir>   : specify project directory
+   --kitchen-dir <dir>      : specify kitchen directory
+   --definition-dir <dir>   : specify definitions directory for dependencies
+   --craftorder-file <file> : specify craftorder file, mandatory for some commands
+   --project-dir <dir>      : specify project directory
 EOF
    ) | LC_ALL=C sort
 
@@ -111,6 +110,8 @@ main()
 
    local MULLE_FLAG_MOTD="DEFAULT"
    local FLAG_OUTSIDE_ENV='NO'
+   local TEST_ENVIRONMENT='NO'
+
    #
    # simple option handling
    #
@@ -173,6 +174,10 @@ main()
             DEPENDENCY_DIR="$1"
          ;;
 
+         --test-environment)
+            MULLE_TEST_ENVIRONMENT='YES'
+         ;;
+
          --motd)
             MULLE_FLAG_MOTD='YES'
          ;;
@@ -182,7 +187,7 @@ main()
          ;;
 
          --version)
-            echo "${MULLE_EXECUTABLE_VERSION}"
+            printf "%s\n" "${MULLE_EXECUTABLE_VERSION}"
             exit 0
          ;;
 
@@ -234,6 +239,12 @@ main()
    KITCHEN_DIR="${KITCHEN_DIR:-kitchen}"
    CRAFTORDER_KITCHEN_DIR="${CRAFTORDER_KITCHEN_DIR:-${KITCHEN_DIR}/.craftorder}"
 
+   if [ "${MULLE_FLAG_LOG_SETTINGS}" = 'YES' ]
+   then
+      log_trace2 "KITCHEN_DIR :           ${KITCHEN_DIR}"
+      log_trace2 "CRAFTORDER_KITCHEN_DIR: ${CRAFTORDER_KITCHEN_DIR}"
+   fi
+
    #
    # project can give the default way to build this
    #
@@ -255,7 +266,7 @@ main()
       ;;
 
       libexec-dir)
-         echo "${MULLE_CRAFT_LIBEXEC_DIR}"
+         printf "%s\n" "${MULLE_CRAFT_LIBEXEC_DIR}"
       ;;
 
       list)
@@ -314,11 +325,11 @@ main()
       ;;
 
       uname)
-         exekutor echo "${MULLE_UNAME}"
+         exekutor printf "%s\n" "${MULLE_UNAME}"
       ;;
 
       version)
-         exekutor echo "${MULLE_EXECUTABLE_VERSION}"
+         exekutor printf "%s\n" "${MULLE_EXECUTABLE_VERSION}"
          return 0
       ;;
 
@@ -340,7 +351,7 @@ _init()
 {
    if [ "$1" = "version" ]
    then
-      echo "${MULLE_ENV_VERSION}"
+      printf "%s\n" "${MULLE_ENV_VERSION}"
       exit 0
    fi
 
@@ -368,7 +379,7 @@ _init()
    #
    if [ "$1" = "libexec-dir" ]
    then
-      echo "${MULLE_CRAFT_LIBEXEC_DIR}"
+      printf "%s\n" "${MULLE_CRAFT_LIBEXEC_DIR}"
       exit 0
    fi
 

@@ -367,7 +367,7 @@ build_searchpath_main()
    done
    set +f ; IFS="${DEFAULT_IFS}"
 
-   [ ! -z "${searchpath}" ] && echo "${searchpath}"
+   [ ! -z "${searchpath}" ] && printf "%s\n" "${searchpath}"
 }
 
 :

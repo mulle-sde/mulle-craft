@@ -17,7 +17,7 @@ _emit_defines()
       case "$1" in
          -D)
             shift
-            echo "$1"
+            printf "%s\n" "$1"
          ;;
 
          -D*)
@@ -28,7 +28,7 @@ _emit_defines()
          ;;
 
          --*-dir|--configuration|--sdk)
-            echo "$1" "$2"         
+            printf "%s\n" "$1" "$2"
             shift
          ;;
       esac

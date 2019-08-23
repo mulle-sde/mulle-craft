@@ -141,11 +141,11 @@ build_clean_main()
       return $?
    fi
 
-  # shellcheck source=src/mulle-craft-execute.sh
-  if [ -z "${MULLE_CRAFT_EXECUTE_SH}" ]
-  then
-     . "${MULLE_CRAFT_LIBEXEC_DIR}/mulle-craft-execute.sh"
-  fi
+   # shellcheck source=src/mulle-craft-execute.sh
+   if [ -z "${MULLE_CRAFT_EXECUTE_SH}" ]
+   then
+      . "${MULLE_CRAFT_LIBEXEC_DIR}/mulle-craft-execute.sh"
+   fi
 
    # centralize this into mulle-craft-environment.sh
 
