@@ -317,7 +317,7 @@ build_searchpath_main()
 
    configurations="${configurations}:Release"
 
-   set -f; IFS=":"
+   set -f; IFS=':'
    for configuration in ${configurations}
    do
       for platform in ${platforms}
@@ -342,7 +342,7 @@ build_searchpath_main()
                paths="${RVAL}"
             fi
 
-            set -f; IFS=":"
+            set -f; IFS=':'
          done
       done
    done

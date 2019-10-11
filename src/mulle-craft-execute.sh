@@ -1632,7 +1632,7 @@ do_build_craftorder()
    local configuration
    local sdk
 
-   set -f; IFS=":"
+   set -f; IFS=':'
    for configuration in ${configurations}
    do
       assert_sane_name "${configuration}" " as configuration name"
@@ -1654,7 +1654,7 @@ do_build_craftorder()
             then
                return 1
             fi
-            set -f; IFS=":"
+            set -f; IFS=':'
          done
       done
    done

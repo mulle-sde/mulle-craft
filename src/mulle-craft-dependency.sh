@@ -56,7 +56,7 @@ _dependency_install_tarballs()
    local tarball
    local tarflags
 
-   set -f ; IFS=":"
+   set -f ; IFS=':'
    for tarball in ${DEPENDENCY_TARBALL_PATH}
    do
       set +f ; IFS="${DEFAULT_IFS}"
@@ -100,7 +100,7 @@ _dependency_install_tarballs()
       directory="${RVAL}"
       mkdir_if_missing "${directory}"
 
-      set -f ; IFS=":"
+      set -f ; IFS=':'
       for tarball in ${tarballs}
       do
          set +f; IFS="${DEFAULT_IFS}"

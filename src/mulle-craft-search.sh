@@ -167,7 +167,7 @@ r_determine_craftinfo_dir()
 
    log_fluff "Craftinfo search order: ${searchpath}"
 
-   set -f ; IFS=":"
+   set -f ; IFS=':'
    for craftinfodir in ${searchpath}
    do
       set +f ; IFS="${DEFAULT_IFS}"
