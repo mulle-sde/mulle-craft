@@ -157,7 +157,7 @@ list_tool_logs()
       shopt -u nullglob
       if [ "${mode}" = "CMD" ]
       then
-         r_fast_basename "${i}"
+         r_basename "${i}"
          i="${RVAL}"
          r_concat "${s}" "\"${i%%.log}\"" " "
          s="${RVAL}"
@@ -230,7 +230,7 @@ build_log_list()
       do
          IFS="${DEFAULT_IFS}" ; set +o noglob
 
-         r_fast_dirname "${directory#${KITCHEN_DIR}/}"
+         r_dirname "${directory#${KITCHEN_DIR}/}"
          configuration="${RVAL}"
 
          list_tool_logs "${OPTION_OUTPUT}" "${directory}" "" "${configuration}"
@@ -255,7 +255,7 @@ build_log_list()
       do
          IFS="${DEFAULT_IFS}" ; set +o noglob
 
-         r_fast_dirname "${directory#${CRAFTORDER_KITCHEN_DIR}/}"
+         r_dirname "${directory#${CRAFTORDER_KITCHEN_DIR}/}"
          configuration_name="${RVAL}"
          configuration="${configuration_name%%/*}"
          name="${configuration_name#*/}"

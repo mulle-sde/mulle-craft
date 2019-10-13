@@ -364,15 +364,8 @@ _init()
    . "${MULLE_BASHFUNCTIONS_LIBEXEC_DIR}/mulle-path.sh" || exit 1
    . "${MULLE_BASHFUNCTIONS_LIBEXEC_DIR}/mulle-file.sh" || exit 1
 
-   local _libexec_dir
-
-   _get_libexec_dir "$0" "mulle-craft" "mulle-craft-execute.sh"
-
-   if [ -z "${_libexec_dir}" ]
-   then
-      fail "Fatal Error: Could not find libexec for ${MULLE_EXECUTABLE} ($PWD)"
-   fi
-   MULLE_CRAFT_LIBEXEC_DIR="${_libexec_dir}"
+   r_get_libexec_dir "$0" "mulle-craft" "mulle-craft-execute.sh"
+   MULLE_CRAFT_LIBEXEC_DIR="${RVAL}"
 
    #
    # minimal setup exit

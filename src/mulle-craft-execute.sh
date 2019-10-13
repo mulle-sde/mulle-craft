@@ -100,7 +100,7 @@ build_directory_name()
 
    local name="$1"
 
-   r_fast_basename "${name}"
+   r_basename "${name}"
    tr -c 'a-zA-Z0-9-' '_' <<< "${RVAL%.*}" | sed -e 's/_$//g'
 }
 
@@ -1675,7 +1675,7 @@ do_build_mainproject()
    name="${PROJECT_NAME}"
    if [ -z "${PROJECT_NAME}" ]
    then
-      r_fast_basename "${PWD}"
+      r_basename "${PWD}"
       name="${RVAL}"
    fi
 

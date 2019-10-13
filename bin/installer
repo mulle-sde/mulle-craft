@@ -71,7 +71,7 @@ r_installer_resolve_symlinks()
    path="`readlink "$1"`"
    if [ $? -eq 0 ]
    then
-      r_fast_dirname "$1"
+      r_dirname "$1"
       _r_installer_prepend_path_if_relative  "${RVAL}" "${path}"
       r_installer_resolve_symlinks "${RVAL}"
    else
@@ -101,9 +101,9 @@ installer_canonicalize_path()
          local dir
          local file
 
-         r_fast_dirname "$1"
+         r_dirname "$1"
          dir="${RVAL}"
-         r_fast_basename "$1"
+         r_basename "$1"
          file="${RVAL}"
 
          cd "${dir}" 2>/dev/null &&

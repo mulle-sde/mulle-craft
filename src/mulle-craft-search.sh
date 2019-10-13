@@ -94,7 +94,7 @@ r_determine_craftinfo_dir()
    fi
 
    # replace slashes with underscores
-   r_fast_basename "${name}"
+   r_basename "${name}"
    name="${RVAL}"
 
    local craftinfodir
@@ -236,7 +236,7 @@ build_search_main()
       name="${PROJECT_NAME}"
       if [ -z "${PROJECT_NAME}" ]
       then
-         r_fast_basename "${PWD}"
+         r_basename "${PWD}"
          name="${RVAL}"
       fi
 

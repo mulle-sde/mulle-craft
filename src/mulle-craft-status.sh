@@ -79,7 +79,7 @@ r_get_names_from_file()
          ;;
 
          *)
-            r_fast_basename "${project}"
+            r_basename "${project}"
             r_add_line "${names}" "${RVAL}"
             names="${RVAL}"
          ;;
