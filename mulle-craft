@@ -32,7 +32,7 @@
 [ "${TRACE}" = 'YES' -o "${MULLE_CRAFT_TRACE}" = 'YES' ] && set -x && : "$0" "$@"
 
 
-MULLE_EXECUTABLE_VERSION=0.16.1
+MULLE_EXECUTABLE_VERSION=0.17.0
 
 
 trap_fail()
@@ -382,4 +382,16 @@ _init()
 
 
 _init "$@" # needs params
-main "$@"
+
+quote="'"
+args=""
+for arg in "$@"
+do
+   arg="${arg//${quote}/${quote}\"${quote}\"${quote}}"
+   args="${args} '${arg}'"
+done
+
+unset quote
+unset arg
+
+eval main "${MULLE_CRAFT_FLAGS}" "${args}"

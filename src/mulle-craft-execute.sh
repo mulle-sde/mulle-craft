@@ -596,10 +596,9 @@ set to ${C_RESET_BOLD}${mulle_options_env_value}${C_VERBOSE}"
 
 
    eval_exekutor "${environment}" \
-                     '${MULLE_MAKE}' \
+                     "'${MULLE_MAKE}'" \
                         "${flags}" \
                         "${MULLE_TECHNICAL_FLAGS}" \
-                        "${MULLE_MAKE_FLAGS}" \
                     "${cmd}" \
                        "${args}" \
                        "${auxargs}" \
@@ -743,7 +742,6 @@ build_dependency_with_dispense()
 
    eval_exekutor "${MULLE_DISPENSE:-mulle-dispense}" \
                   "${MULLE_TECHNICAL_FLAGS}" \
-                  "${MULLE_DISPENSE_FLAGS}" \
                dispense \
                   "${options}" \
                   "${tmpdependencydir}" \
@@ -1806,7 +1804,6 @@ do_build_mainproject()
    # never install the project, use mulle-make for that
    if ! eval_exekutor "'${MULLE_MAKE}'" \
                            "${MULLE_TECHNICAL_FLAGS}" \
-                           "${MULLE_MAKE_FLAGS}" \
                         "build" \
                            "${OPTIONS_MULLE_MAKE_PROJECT}" \
                            "${auxargs}"

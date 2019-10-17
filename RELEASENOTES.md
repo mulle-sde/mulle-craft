@@ -1,3 +1,9 @@
+## 0.17.0
+
+* changed to mulle-bashfunctions 2 call convention
+* moved to mulle-bashfunctions v2
+
+
 ## 0.16.0
 
 * changed buildorder to craftorder for orthogonality
