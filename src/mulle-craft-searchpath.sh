@@ -53,7 +53,7 @@ Options:
    --style <style>   : adjust output to match style
    --release         : adjust output to match configuration "Release"
    --debug           : adjust output to match configuration "Debug"
-   --test            : adjust output to match configuration "Test"
+   --test            : set "Test" flag
 
 Environment:
    ADDICTION_DIR     : place to put addictions into
@@ -197,6 +197,7 @@ build_searchpath_main()
 
    local OPTION_IF_EXISTS='NO'
    local OPTION_PREFIX_ONLY='NO'
+   local OPTION_TEST='NO'
 
    local configurations
    local platforms
@@ -232,9 +233,8 @@ build_searchpath_main()
             configurations="Debug"
          ;;
 
-         --test)
-            # Release is fallback for Debug
-            configurations="Test"
+         --mulle-test)
+            OPTION_MULLE_TEST='YES'
          ;;
 
          --configurations|--configuration)

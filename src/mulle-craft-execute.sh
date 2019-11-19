@@ -48,7 +48,7 @@ Options:
    --lenient      : do not stop on errors
    --no-protect   : do not make dependency read-only
    --release      : compile for release only
-   --test         : compile for test only
+   --mulle-test   : compile for testing (defines MULLE_TEST)
    --sdk <sdk>    : specify sdk to build against (Default)
    --platform <p> : specify platform to build for (Default)
    --style <s>    : dependency style: auto, none, relax, strict, tight
@@ -490,6 +490,12 @@ This can lead to problems on darwin, but may solve problems on linux..."
    if [ ! -z "${configuration}" ]
    then
       r_concat "${args}" "--configuration '${configuration}'"
+      args="${RVAL}"
+   fi
+   # TODO: hackish! fix it
+   if [ "${OPTION_MULLE_TEST}" = 'YES' ]
+   then
+      r_concat "${args}" "--mulle-test"
       args="${RVAL}"
    fi
    if [ ! -z "${platform}" ]
@@ -1761,6 +1767,11 @@ do_build_mainproject()
       r_concat "${OPTIONS_MULLE_MAKE_PROJECT}" "--configuration '${configuration}'"
       OPTIONS_MULLE_MAKE_PROJECT="${RVAL}"
    fi
+   if [ "${OPTION_MULLE_TEST}" = 'YES' ]
+   then
+      r_concat "${OPTIONS_MULLE_MAKE_PROJECT}" "--mulle-test"
+      OPTIONS_MULLE_MAKE_PROJECT="${RVAL}"
+   fi
    if [ "${PLATFORMS}" != 'Default' ]
    then
       r_concat "${OPTIONS_MULLE_MAKE_PROJECT}" "--platform '${platform}'"
@@ -1850,6 +1861,7 @@ craft_build_common()
    local OPTION_PARALLEL_LINK='YES'
    local OPTION_PHASES="Headers Compile Link"
    local OPTION_PARALLEL='YES'
+   local OPTION_MULLE_TEST='NO'
    local OPTION_LIBRARY_STYLE
 
    while [ $# -ne 0 ]
@@ -1975,8 +1987,8 @@ craft_build_common()
             CONFIGURATIONS="Release"
          ;;
 
-         --test)
-            CONFIGURATIONS="Test"
+         --mulle-test)
+            OPTION_MULLE_TEST='YES'
          ;;
 
          --sdk|--sdks)

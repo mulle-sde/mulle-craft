@@ -213,6 +213,7 @@ main()
          then
             fail "You are running this in root, which is not supported"
          fi
+         log_fluff "mulle-craft sets MULLE_VIRTUAL_ROOT to \"${MULLE_VIRTUAL_ROOT}\""
 
          DEPENDENCY_DIR="${DEPENDENCY_DIR:-${MULLE_VIRTUAL_ROOT}/dependency}"
          ADDICTION_DIR="${ADDICTION_DIR:-${MULLE_VIRTUAL_ROOT}/addiction}"
