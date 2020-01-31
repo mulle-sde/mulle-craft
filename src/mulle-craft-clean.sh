@@ -32,7 +32,7 @@
 MULLE_CRAFT_CLEAN_SH="included"
 
 
-build_clean_usage()
+craft_clean_usage()
 {
    [ "$#" -ne 0 ] && log_error "$1"
 
@@ -95,19 +95,18 @@ remove_directories()
 # but uses mostly ENVIRONMENT variables
 # These are usually provided with mulle-sde
 #
-build_clean_main()
+craft_clean_main()
 {
-   log_entry "build_clean_main" "$@"
+   log_entry "craft_clean_main" "$@"
 
    local OPTION_DEPENDENCY="DEFAULT"
-   local OPTION_SOURCETREE_BUILD_DIR
    local OPTION_TOUCH='NO'
 
    while :
    do
       case "$1" in
          -h*|--help|help)
-            build_clean_usage
+            craft_clean_usage
          ;;
 
          --touch)
@@ -119,7 +118,7 @@ build_clean_main()
          ;;
 
          -*)
-            build_clean_usage "Unknown option \"$1\""
+            craft_clean_usage "Unknown option \"$1\""
          ;;
 
          *)
@@ -141,10 +140,10 @@ build_clean_main()
       return $?
    fi
 
-   # shellcheck source=src/mulle-craft-execute.sh
-   if [ -z "${MULLE_CRAFT_EXECUTE_SH}" ]
+   # shellcheck source=src/mulle-craft-build.sh
+   if [ -z "${MULLE_CRAFT_BUILD_SH}" ]
    then
-      . "${MULLE_CRAFT_LIBEXEC_DIR}/mulle-craft-execute.sh"
+      . "${MULLE_CRAFT_LIBEXEC_DIR}/mulle-craft-build.sh"
    fi
 
    # centralize this into mulle-craft-environment.sh

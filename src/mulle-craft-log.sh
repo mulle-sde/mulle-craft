@@ -32,7 +32,7 @@
 MULLE_CRAFT_LOG_SH="included"
 
 
-build_log_usage()
+craft_log_usage()
 {
    [ "$#" -ne 0 ] && log_error "$*"
 
@@ -69,7 +69,7 @@ EOF
 }
 
 
-build_log_list_usage()
+craft_log_list_usage()
 {
    [ "$#" -ne 0 ] && log_error "$*"
 
@@ -94,7 +94,7 @@ project_log_dirs()
 
    if [ ! -d "${KITCHEN_DIR}" ]
    then
-      return 2
+      return 4
    fi
 
    if [ ! -z "${CRAFTORDER_KITCHEN_DIR}" ]
@@ -117,7 +117,7 @@ craftorder_log_dirs()
 
    if [ ! -d "${CRAFTORDER_KITCHEN_DIR}" ]
    then
-      return 2
+      return 4
    fi
 
    rexekutor find -H "${CRAFTORDER_KITCHEN_DIR}" -type d -name .log
@@ -175,9 +175,9 @@ list_tool_logs()
 }
 
 
-build_log_list()
+craft_log_list()
 {
-   log_entry "build_log_list" "$@"
+   log_entry "craft_log_list" "$@"
 
    local directory
    local configuration
@@ -187,7 +187,7 @@ build_log_list()
    do
       case "$1" in
          -h*|--help|help)
-            build_log_cat_usage
+            craft_log_cat_usage
          ;;
 
          --output-format)
@@ -207,7 +207,7 @@ build_log_list()
          ;;
 
          -*)
-            build_log_cat_usage "Unknown option \"$1\""
+            craft_log_cat_usage "Unknown option \"$1\""
          ;;
 
          *)
@@ -266,9 +266,9 @@ build_log_list()
 }
 
 
-build_log_command()
+craft_log_command()
 {
-   log_entry "build_log_command" "$@"
+   log_entry "craft_log_command" "$@"
 
    local name="$1"; shift
 
@@ -276,11 +276,11 @@ build_log_command()
    do
       case "$1" in
          -h*|--help|help)
-            build_log_usage
+            craft_log_usage
          ;;
 
          -*)
-            build_log_usage "Unknown option \"$1\""
+            craft_log_usage "Unknown option \"$1\""
          ;;
 
          *)
@@ -424,9 +424,9 @@ build_log_command()
 # but uses mostly ENVIRONMENT variables
 # These are usually provided with mulle-sde
 #
-build_log_main()
+craft_log_main()
 {
-   log_entry "build_log_main" "$@"
+   log_entry "craft_log_main" "$@"
 
    local OPTION_CONFIGURATION="*"
    local OPTION_TOOL="*"
@@ -436,7 +436,7 @@ build_log_main()
    do
       case "$1" in
          -h*|--help|help)
-            build_log_usage
+            craft_log_usage
          ;;
 
          -e|--executable)
@@ -461,7 +461,7 @@ build_log_main()
          ;;
 
          -*)
-            build_log_usage "Unknown option \"$1\""
+            craft_log_usage "Unknown option \"$1\""
          ;;
 
          *)
@@ -480,11 +480,11 @@ build_log_main()
    case "$1" in
       list)
          shift
-         build_log_list "$@"
+         craft_log_list "$@"
       ;;
 
       *)
-         build_log_command "$@"
+         craft_log_command "$@"
       ;;
    esac
 }

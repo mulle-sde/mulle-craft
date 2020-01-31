@@ -59,7 +59,7 @@ main()
 
    # remove mock- prefix , convert to uppercase, append _REDIRECT_FILE
    envvar="`basename -- "$0" | sed 's/^mock-\(.*\)/\1/' | tr 'a-z-' 'A-Z_'`_REDIRECT_FILE"
-   filename="`eval echo "\\\$$envvar"`"
+   filename="${!envvar}"
 
    if [ ! -z "${filename}"  ]
    then

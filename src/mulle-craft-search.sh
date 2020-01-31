@@ -32,7 +32,7 @@
 MULLE_CRAFT_SEARCH_SH="included"
 
 
-build_search_usage()
+craft_search_usage()
 {
    [ "$#" -ne 0 ] && log_error "$*"
 
@@ -40,7 +40,7 @@ build_search_usage()
 Usage:
    ${MULLE_USAGE_NAME} search [options] [dependency]
 
-   Search for a craftinfo for the project or the given dependency.
+   Search for a craftinfo of the project or a given dependency.
 
 Options:
    --project-dir <dir> : project directory
@@ -93,9 +93,10 @@ r_determine_craftinfo_dir()
       extension="${MULLE_UNAME}"
    fi
 
-   # replace slashes with underscores
    r_basename "${name}"
    name="${RVAL}"
+
+   [ -z "${name}" ] && internal_fail "name is empty"
 
    local craftinfodir
    local searchpath
@@ -109,33 +110,38 @@ r_determine_craftinfo_dir()
 
    if [ ! -z "${CRAFTINFO_PATH}" ]
    then
-      searchpath="`eval "printf \"%s\\\\\\\\n\" \"${CRAFTINFO_PATH}\""`"
+      eval printf -v CRAFTINFO_PATH "%s" "${CRAFTINFO_PATH}"
    else
       case "${projecttype}" in
          "dependency")
             if [ ! -z "${DEPENDENCY_DIR}" ]
             then
+               local directory
+
                if [ ! -z "${configuration}" ]
                then
+                  local depsubdir
+
+                  r_filepath_concat "${DEPENDENCY_DIR}" "${subdir}"
+                  depsubdir="${RVAL}"
+
+                  directory="${depsubdir}/share/mulle-craft/${name}"
                   if [ "${allowplatform}" = 'YES' ]
                   then
-                     r_colon_concat "${searchpath}" \
-"${DEPENDENCY_DIR}/${subdir}/share/mulle-craft/${name}/definition.${extension}"
+                     r_colon_concat "${searchpath}" "${directory}/definition.${extension}"
                      searchpath="${RVAL}"
                   fi
-                  r_colon_concat "${searchpath}" \
-"${DEPENDENCY_DIR}/${subdir}/share/mulle-craft/${name}/definition"
+                  r_colon_concat "${searchpath}" "${directory}/definition"
                   searchpath="${RVAL}"
                fi
 
+               directory="${DEPENDENCY_DIR}/share/mulle-craft/${name}"
                if [ "${allowplatform}" = 'YES' ]
                then
-                  r_colon_concat "${searchpath}" \
-"${DEPENDENCY_DIR}/share/mulle-craft/${name}/definition.${extension}"
+                  r_colon_concat "${searchpath}" "${directory}/definition.${extension}"
                   searchpath="${RVAL}"
                fi
-               r_colon_concat "${searchpath}" \
-"${DEPENDENCY_DIR}/share/mulle-craft/${name}/definition"
+               r_colon_concat "${searchpath}" "${directory}/definition"
                searchpath="${RVAL}"
             fi
          ;;
@@ -180,16 +186,16 @@ r_determine_craftinfo_dir()
    done
    set +f ; IFS="${DEFAULT_IFS}"
 
-   log_fluff "No craftinfo found"
+   log_fluff "No craftinfo \"${name}\" found"
 
    RVAL=""
-   return 2
+   return 4
 }
 
 
-build_search_main()
+craft_search_main()
 {
-   log_entry "build_search_main" "$@"
+   log_entry "craft_search_main" "$@"
 
    local OPTION_PROJECT_DIR
    local OPTION_PLATFORM_CRAFTINFO='YES'
@@ -199,11 +205,11 @@ build_search_main()
    do
       case "$1" in
          -h*|--help|help)
-            build_search_usage
+            craft_search_usage
          ;;
 
          -d|--project-dir)
-            [ $# -eq 1 ] && build_search_usage "Missing argument to \"$1\""
+            [ $# -eq 1 ] && craft_search_usage "Missing argument to \"$1\""
             shift
 
             OPTION_PROJECT_DIR="$1"  # could be global env
@@ -218,7 +224,7 @@ build_search_main()
          ;;
 
          -*)
-            build_search_usage "Unknown option \"$1\""
+            craft_search_usage "Unknown option \"$1\""
          ;;
 
          *)

@@ -459,5 +459,5 @@ quickstatus_main()
    then
       return 0
    fi
-   return 2  # distinguish from error which is 1
+   return 4  # distinguish from error which is 1 or 2
 }

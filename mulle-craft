@@ -253,8 +253,8 @@ main()
 
    case "${cmd:-project}" in
       craftorder)
-         # shellcheck source=src/mulle-craft-execute.sh
-         . "${MULLE_CRAFT_LIBEXEC_DIR}/mulle-craft-execute.sh"
+         # shellcheck source=src/mulle-craft-build.sh
+         . "${MULLE_CRAFT_LIBEXEC_DIR}/mulle-craft-build.sh"
 
          build_craftorder_main "$@"
       ;;
@@ -263,7 +263,7 @@ main()
          # shellcheck source=src/mulle-craft-clean.sh
          . "${MULLE_CRAFT_LIBEXEC_DIR}/mulle-craft-clean.sh"
 
-         build_clean_main "$@"
+         craft_clean_main "$@"
       ;;
 
       libexec-dir)
@@ -271,8 +271,8 @@ main()
       ;;
 
       list)
-         # shellcheck source=src/mulle-craft-execute.sh
-         . "${MULLE_CRAFT_LIBEXEC_DIR}/mulle-craft-execute.sh"
+         # shellcheck source=src/mulle-craft-build.sh
+         . "${MULLE_CRAFT_LIBEXEC_DIR}/mulle-craft-build.sh"
 
          list_craftorder_main "$@"
       ;;
@@ -281,7 +281,7 @@ main()
          # shellcheck source=src/mulle-craft-log.sh
          . "${MULLE_CRAFT_LIBEXEC_DIR}/mulle-craft-log.sh"
 
-         build_log_main "$@"
+         craft_log_main "$@"
       ;;
 
       install)
@@ -290,8 +290,8 @@ main()
       ;;
 
       project)
-         # shellcheck source=src/mulle-craft-execute.sh
-         . "${MULLE_CRAFT_LIBEXEC_DIR}/mulle-craft-execute.sh"
+         # shellcheck source=src/mulle-craft-build.sh
+         . "${MULLE_CRAFT_LIBEXEC_DIR}/mulle-craft-build.sh"
 
          build_project_main "$@"
       ;;
@@ -301,18 +301,18 @@ main()
          # shellcheck source=src/mulle-craft-search.sh
          . "${MULLE_CRAFT_LIBEXEC_DIR}/mulle-craft-search.sh"
 
-         build_search_main "$@"
+         craft_search_main "$@"
       ;;
 
       searchpath)
          # shellcheck source=src/mulle-craft-searchpath.sh
          . "${MULLE_CRAFT_LIBEXEC_DIR}/mulle-craft-searchpath.sh"
 
-         build_searchpath_main "$@"
+         craft_searchpath_main "$@"
       ;;
 
       quickstatus)
-         # shellcheck source=src/mulle-craft-depedency.sh
+         # shellcheck source=src/mulle-craft-dependency.sh
          . "${MULLE_CRAFT_LIBEXEC_DIR}/mulle-craft-dependency.sh"
 
          quickstatus_main "$@"
@@ -365,7 +365,7 @@ _init()
    . "${MULLE_BASHFUNCTIONS_LIBEXEC_DIR}/mulle-path.sh" || exit 1
    . "${MULLE_BASHFUNCTIONS_LIBEXEC_DIR}/mulle-file.sh" || exit 1
 
-   r_get_libexec_dir "$0" "mulle-craft" "mulle-craft-execute.sh"
+   r_get_libexec_dir "$0" "mulle-craft" "mulle-craft-build.sh"
    MULLE_CRAFT_LIBEXEC_DIR="${RVAL}"
 
    #
@@ -378,21 +378,11 @@ _init()
    fi
 
    set -o pipefail
+
+   call_main "${MULLE_CRAFT_FLAGS}" "$@"
 }
 
 
 
 _init "$@" # needs params
 
-quote="'"
-args=""
-for arg in "$@"
-do
-   arg="${arg//${quote}/${quote}\"${quote}\"${quote}}"
-   args="${args} '${arg}'"
-done
-
-unset quote
-unset arg
-
-eval main "${MULLE_CRAFT_FLAGS}" "${args}"

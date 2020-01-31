@@ -32,7 +32,7 @@
 MULLE_CRAFT_SEARCHPATH_SH="included"
 
 
-build_searchpath_usage()
+craft_searchpath_usage()
 {
    [ "$#" -ne 0 ] && log_error "$*"
 
@@ -191,9 +191,9 @@ r_get_sdk_platform_configuration_style_string()
 }
 
 
-build_searchpath_main()
+craft_searchpath_main()
 {
-   log_entry "build_searchpath_main" "$@"
+   log_entry "craft_searchpath_main" "$@"
 
    local OPTION_IF_EXISTS='NO'
    local OPTION_PREFIX_ONLY='NO'
@@ -213,7 +213,7 @@ build_searchpath_main()
    do
       case "$1" in
          -h*|--help|help)
-            build_searchpath_usage
+            craft_searchpath_usage
          ;;
 
          --prefix-only)
@@ -266,7 +266,7 @@ build_searchpath_main()
          ;;
 
          -*)
-            build_searchpath_usage "Unknown option \"$1\""
+            craft_searchpath_usage "Unknown option \"$1\""
          ;;
 
          *)
