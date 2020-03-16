@@ -28,7 +28,7 @@ _emit_defines()
          ;;
 
          --*-dir|--configuration|--sdk)
-            printf "%s\n" "$1" "$2"
+            printf "%s %s\n" "$1" "$2"
             shift
          ;;
       esac
