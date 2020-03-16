@@ -1,3 +1,7 @@
+### 0.17.1
+
+* harp more on the distinction that craft -> build is 1:n
+
 ## 0.17.0
 
 * changed to mulle-bashfunctions 2 call convention

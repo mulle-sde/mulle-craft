@@ -335,8 +335,8 @@ craft_log_command()
 
    if [ ! -z "${name}" ]
    then
-      [ -z "${MULLE_CRAFT_EXECUTE_SH}" ] && \
-            . "${MULLE_CRAFT_LIBEXEC_DIR}/mulle-craft-execute.sh"
+      [ -z "${MULLE_CRAFT_BUILD_SH}" ] && \
+            . "${MULLE_CRAFT_LIBEXEC_DIR}/mulle-craft-build.sh"
 
 
       local _kitchendir

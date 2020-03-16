@@ -29,7 +29,7 @@
 #   ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
 #   POSSIBILITY OF SUCH DAMAGE.
 #
-MULLE_CRAFT_EXECUTE_SH="included"
+MULLE_CRAFT_BUILD_SH="included"
 
 
 build_execute_usage()
@@ -712,6 +712,8 @@ build_dependency_with_dispense()
    fi
 
    local options
+
+   options="--move"
 
    # ugliness for zlib
    # not very good, because include is OS specific
