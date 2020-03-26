@@ -1285,10 +1285,10 @@ handle_parallel_builds()
       local project
       local marks
 
-      set -f ; IFS=$'\n'
+      set -o noglob; IFS=$'\n'
       for line in ${parallel}
       do
-         set +f ; IFS="${DEFAULT_IFS}"
+         set +o noglob; IFS="${DEFAULT_IFS}"
 
          local project
          local marks
@@ -1334,7 +1334,7 @@ handle_parallel_builds()
          fi
       done
 
-      set +f ; IFS="${DEFAULT_IFS}"
+      set +o noglob; IFS="${DEFAULT_IFS}"
 
       # collect phases
       log_fluff "Waiting for phase ${phase} to complete"
@@ -1358,7 +1358,7 @@ handle_parallel_builds()
 
          local line
 
-         set -f; IFS=$'\n'
+         set -o noglob; IFS=$'\n'
          for line in ${failures}
          do
             project="${line%;*}"      # project;phase (remove ;rval)
@@ -1366,7 +1366,7 @@ handle_parallel_builds()
             project="${project%;*}"
             log_error "Parallel build of \"${project}\" failed in phase \"${phase}\""
          done
-         set +f; IFS="${DEFAULT_IFS}"
+         set +o noglob; IFS="${DEFAULT_IFS}"
 
          remove_file_if_present "${statusfile}"
 
@@ -1492,10 +1492,10 @@ _do_build_craftorder()
    local line
    local parallel
 
-   set -f ; IFS=$'\n'
+   set -o noglob; IFS=$'\n'
    for line in ${remaining}
    do
-      set +f ; IFS="${DEFAULT_IFS}"
+      set +o noglob; IFS="${DEFAULT_IFS}"
 
       local project
       local marks
@@ -1568,7 +1568,7 @@ ${C_RESET_BOLD}   mulle-sde log $RVAL"
          return $rval
       fi
    done
-   set +f ; IFS="${DEFAULT_IFS}"
+   set +o noglob; IFS="${DEFAULT_IFS}"
 
    # left over parallel
    if [ ! -z "${parallel}" ]
@@ -1649,7 +1649,7 @@ do_build_craftorder()
          assert_sane_name "${platform}" " as platform name"
          for sdk in ${sdks}
          do
-            set +f; IFS="${DEFAULT_IFS}"
+            set +o noglob; IFS="${DEFAULT_IFS}"
 
             assert_sane_name "${sdk}" " as sdk name"
             if ! _do_build_craftorder "${craftorder}" \
@@ -1666,7 +1666,7 @@ do_build_craftorder()
          done
       done
    done
-   set +f ; IFS="${DEFAULT_IFS}"
+   set +o noglob; IFS="${DEFAULT_IFS}"
 
    dependency_end_update 'complete' || exit 1
 }

@@ -336,7 +336,7 @@ main()
 
       *)
          # shellcheck source=src/mulle-craft-execute.sh
-         . "${MULLE_CRAFT_LIBEXEC_DIR}/mulle-craft-execute.sh"
+         . "${MULLE_CRAFT_LIBEXEC_DIR}/mulle-craft-build.sh"
 
          build_single_dependency_main "${cmd}" "$@"
       ;;

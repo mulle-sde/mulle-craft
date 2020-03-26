@@ -110,7 +110,7 @@ r_determine_craftinfo_dir()
 
    if [ ! -z "${CRAFTINFO_PATH}" ]
    then
-      eval printf -v CRAFTINFO_PATH "%s" "${CRAFTINFO_PATH}"
+      eval printf -v CRAFTINFO_PATH "\"%s\"" "\"${CRAFTINFO_PATH}\""
    else
       case "${projecttype}" in
          "dependency")
@@ -176,7 +176,7 @@ r_determine_craftinfo_dir()
    set -f ; IFS=':'
    for craftinfodir in ${searchpath}
    do
-      set +f ; IFS="${DEFAULT_IFS}"
+      set +o noglob; IFS="${DEFAULT_IFS}"
       if [ ! -z "${craftinfodir}" ] && [ -d "${craftinfodir}" ]
       then
          log_fluff "Craftinfo directory \"${craftinfodir}\" found"
@@ -184,7 +184,7 @@ r_determine_craftinfo_dir()
          return 0
       fi
    done
-   set +f ; IFS="${DEFAULT_IFS}"
+   set +o noglob; IFS="${DEFAULT_IFS}"
 
    log_fluff "No craftinfo \"${name}\" found"
 

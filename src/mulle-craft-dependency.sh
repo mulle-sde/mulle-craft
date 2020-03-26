@@ -59,7 +59,7 @@ _dependency_install_tarballs()
    set -f ; IFS=':'
    for tarball in ${DEPENDENCY_TARBALL_PATH}
    do
-      set +f ; IFS="${DEFAULT_IFS}"
+      set +o noglob; IFS="${DEFAULT_IFS}"
 
       if [ -z "${tarball}" ]
       then
@@ -75,7 +75,7 @@ _dependency_install_tarballs()
       r_colon_concat "${tarballs}" "${RVAL}"
       tarballs="${RVAL}"
    done
-   set +f ; IFS="${DEFAULT_IFS}"
+   set +o noglob; IFS="${DEFAULT_IFS}"
 
    [ -z "${tarballs}" ] && return 0
 
@@ -103,7 +103,7 @@ _dependency_install_tarballs()
       set -f ; IFS=':'
       for tarball in ${tarballs}
       do
-         set +f; IFS="${DEFAULT_IFS}"
+         set +o noglob; IFS="${DEFAULT_IFS}"
 
          if [ -f "${tarball}" ]
          then
@@ -320,10 +320,10 @@ r_dependency_existing_dirs_path()
    local subdir
 
    RVAL=""
-   set -f ; IFS=$'\n'
+   set -o noglob; IFS=$'\n'
    for subdir in ${subdirectories}
    do
-      set +f ; IFS="${DEFAULT_IFS}"
+      set +o noglob; IFS="${DEFAULT_IFS}"
 
       if [ -d "${DEPENDENCY_DIR}/${subdir}" ]
       then
@@ -331,7 +331,7 @@ r_dependency_existing_dirs_path()
       fi
    done
 
-   set +f; IFS="${DEFAULT_IFS}"
+   set +o noglob; IFS="${DEFAULT_IFS}"
 }
 
 

@@ -324,7 +324,7 @@ craft_searchpath_main()
       do
          for sdk in ${sdks}
          do
-            set +f; IFS="${DEFAULT_IFS}"
+            set +o noglob; IFS="${DEFAULT_IFS}"
 
             r_get_sdk_platform_configuration_style_string "${sdk}" \
                                                           "${platform}" \
@@ -346,7 +346,7 @@ craft_searchpath_main()
          done
       done
    done
-   set +f ; IFS="${DEFAULT_IFS}"
+   set +o noglob; IFS="${DEFAULT_IFS}"
 
    r_filepath_concat "${ADDICTION_DIR}" "${subdir}"
    r_absolutepath "${RVAL}"
@@ -358,14 +358,14 @@ craft_searchpath_main()
 
    local searchpath
 
-   set -f ; IFS=$'\n'
+   set -o noglob; IFS=$'\n'
    for directory in ${paths}
    do
-      set +f ;  IFS="${DEFAULT_IFS}"
+      set +o noglob; IFS="${DEFAULT_IFS}"
       r_colon_concat "${searchpath}" "${directory}"
       searchpath="${RVAL}"
    done
-   set +f ; IFS="${DEFAULT_IFS}"
+   set +o noglob; IFS="${DEFAULT_IFS}"
 
    [ ! -z "${searchpath}" ] && printf "%s\n" "${searchpath}"
 }

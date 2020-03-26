@@ -63,10 +63,10 @@ r_get_names_from_file()
    local line
    local names
 
-   set -f ; IFS=$'\n'
+   set -o noglob; IFS=$'\n'
    for line in ${lines}
    do
-      set +f ; IFS="${DEFAULT_IFS}"
+      set +o noglob; IFS="${DEFAULT_IFS}"
 
       local project
       local marks
@@ -86,7 +86,7 @@ r_get_names_from_file()
       esac
 
    done
-   set +f; IFS="${DEFAULT_IFS}"
+   set +o noglob; IFS="${DEFAULT_IFS}"
 
    RVAL="${names}"
 }
@@ -118,7 +118,7 @@ output_names_with_status()
       fail_suffix=": build"
    fi
 
-   set -f ; IFS=$'\n'
+   set -o noglob; IFS=$'\n'
    for name in ${all_names}
    do
       if find_line "${built_names}" "${name}"
@@ -128,7 +128,7 @@ output_names_with_status()
          printf "   %b\n" "${fail_prefix}${name}${fail_suffix}"
       fi
    done
-   set +f; IFS="${DEFAULT_IFS}"
+   set +o noglob; IFS="${DEFAULT_IFS}"
 }
 
 
