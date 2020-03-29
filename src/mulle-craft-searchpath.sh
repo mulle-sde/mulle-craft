@@ -41,7 +41,8 @@ Usage:
    ${MULLE_USAGE_NAME} searchpath [options] <framework|header|library>
 
    Emit a colon separated searchpath for searching libraries, headers,
-   frameworks.
+   frameworks in the local dependencies and addictions. It does not include
+   system headers. Use mulle-platform for finding the system searchpaths.
 
    Release is always a fallback for Debug.
 
