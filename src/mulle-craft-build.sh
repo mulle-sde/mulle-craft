@@ -539,6 +539,11 @@ This can lead to problems on darwin, but may solve problems on linux..."
       r_concat "${args}" "--allow-script"
       args="${RVAL}"
    fi
+   if [ "${OPTION_PARALLEL_MAKE}" = 'NO' ]
+   then
+      r_concat "${args}" "--serial"
+      args="${RVAL}"
+   fi
 
    local sdk_path
 
@@ -1791,6 +1796,11 @@ do_build_mainproject()
       r_concat "${OPTIONS_MULLE_MAKE_PROJECT}" "--allow-script"
       OPTIONS_MULLE_MAKE_PROJECT="${RVAL}"
    fi
+   if [ "${OPTION_PARALLEL_MAKE}" = 'NO' ]
+   then
+      r_concat "${OPTIONS_MULLE_MAKE_PROJECT}" "--serial"
+      OPTIONS_MULLE_MAKE_PROJECT="${RVAL}"
+   fi
 
    local sdk_path
 
@@ -1865,6 +1875,7 @@ craft_build_common()
    local OPTION_PARALLEL_LINK='YES'
    local OPTION_PHASES="Headers Compile Link"
    local OPTION_PARALLEL='YES'
+   local OPTION_PARALLEL_MAKE='YES'
    local OPTION_MULLE_TEST='NO'
    local OPTION_LIBRARY_STYLE
 
@@ -1925,10 +1936,20 @@ craft_build_common()
 
          --parallel)
             OPTION_PARALLEL='YES'
+            OPTION_PARALLEL_MAKE='YES'
          ;;
 
          --no-parallel|--serial)
             OPTION_PARALLEL='NO'
+            OPTION_PARALLEL_MAKE='NO'
+         ;;
+
+         --parallel-make)
+            OPTION_PARALLEL_MAKE='YES'
+         ;;
+
+         --no-parallel-make|--serial-make)
+            OPTION_PARALLEL_MAKE='NO'
          ;;
 
          --parallel-link)

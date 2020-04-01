@@ -1,3 +1,8 @@
+## 0.18.0
+
+* add option --serial-make passed to mulle-make, so that ninja/make hopefully not parallelize the build
+
+
 ### 0.17.1
 
 * harp more on the distinction that craft -> build is 1:n
