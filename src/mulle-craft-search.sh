@@ -110,7 +110,8 @@ r_determine_craftinfo_dir()
 
    if [ ! -z "${CRAFTINFO_PATH}" ]
    then
-      eval printf -v CRAFTINFO_PATH "\"%s\"" "\"${CRAFTINFO_PATH}\""
+      r_expanded_string "${CRAFTINFO_PATH}"
+      CRAFTINFO_PATH="${RVAL}"
    else
       case "${projecttype}" in
          "dependency")
