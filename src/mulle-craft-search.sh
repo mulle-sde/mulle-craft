@@ -160,13 +160,21 @@ r_determine_craftinfo_dir()
       then
          if [ "${allowlocal}" = 'YES' ]
          then
+            local localdir
+
+            localdir="${projectdir}/.mulle/etc/craft"
+            if [ ! -d "${localdir}" ]
+            then
+               localdir="${projectdir}/.mulle/share/craft"
+            fi
+
             if [ "${allowplatform}" = 'YES' ]
             then
                r_colon_concat "${searchpath}" \
-                              "${projectdir}/.mulle/etc/craft/definition.${extension}"
+                              "${localdir}/definition.${extension}"
                searchpath="${RVAL}"
             fi
-            r_colon_concat "${searchpath}" "${projectdir}/.mulle/etc/craft/definition"
+            r_colon_concat "${searchpath}" "${localdir}/definition"
             searchpath="${RVAL}"
          fi
       fi

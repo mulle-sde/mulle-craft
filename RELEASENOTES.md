@@ -1,3 +1,7 @@
+### 0.18.2
+
+* .mulle/share/craft is now properly used as a fallback to .mulle/etc/craft
+
 ## 0.18.0
 
 * add option --serial-make passed to mulle-make, so that ninja/make hopefully not parallelize the build

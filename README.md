@@ -88,7 +88,7 @@ An *info-folder* with a matching extension is preferred over a matching name
 with no extension.
 
 If mulle-craft finds no info-folder there then a project specific
-`.mulle/etc/craft` folder is searched if present.
+`.mulle/etc/craft` or `.mulle/share/craft` folder is searched if present.
 
 ![Searching](dox/searchpath.png)
 
