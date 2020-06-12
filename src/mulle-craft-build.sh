@@ -322,8 +322,9 @@ build_project()
    local platform="$6"
    local configuration="$7"
    local style="$8"
+   local phase="$9"
 
-   shift 8
+   shift 9
 
    [ -z "${cmd}" ]         && internal_fail "cmd is empty"
    [ -z "${destination}" ] && internal_fail "destination is empty"
@@ -331,6 +332,7 @@ build_project()
    [ -z "${project}" ]     && internal_fail "project is empty"
    [ -z "${name}" ]        && internal_fail "name is empty"
    [ -z "${kitchendir}" ]  && internal_fail "kitchendir is empty"
+   [ -z "${phase}" ]       && internal_fail "phase is empty"
 
    #
    # if projects exist with duplicate names, add a random number at end
@@ -367,13 +369,6 @@ build_project()
    esac
    craftinfodir="${RVAL}"
 
-   # remove old logs
-   local logdir
-
-   r_filepath_concat "${kitchendir}" ".log"
-   logdir="${RVAL}"
-
-   rmdir_safer "${logdir}"
 
    # subdir for configuration / sdk
 
@@ -400,6 +395,18 @@ build_project()
 
    __set_various_paths "${sdk}" "${platform}" "${configuration}" "${style}"
 
+   # remove old logs
+   local logdir
+
+   r_filepath_concat "${kitchendir}" ".log"
+   logdir="${RVAL}"
+
+   case "${phase}" in
+      'Singlephase'|'Headers')
+         rmdir_safer "${logdir}"
+      ;;
+   esac
+
    #
    # call mulle-make with all we've got now
    #
@@ -412,6 +419,16 @@ build_project()
       r_concat "${args}" "--name '${name}'"
       args="${RVAL}"
    fi
+
+   case "${phase}" in
+      'Singlephase')
+      ;;
+
+      'Headers'|'Compile'|'Link')
+         r_concat "${args}" "--phase ${phase}"
+         args="${RVAL}"
+      ;;
+   esac
 
    #
    # this is supposed to be a global override
@@ -641,6 +658,7 @@ build_dependency_directly()
 #   local platform="$6"
 #   local configuration="$7"
    local style="$8"
+#   local phase="$9"
 
    if [ -z "${PARALLEL}" ]
    then
@@ -651,7 +669,6 @@ build_dependency_directly()
 
    build_project "${cmd}" "${dependency_dir}" "$@"
    rval=$?
-
 
    if [ $rval -ne 0 ]
    then
@@ -793,6 +810,7 @@ build_craftorder_node()
    local platform="$6"
    local configuration="$7"
    local style="$8"
+   local phase="$9"
 
    case ",${marks}," in
       *',no-require,'*) # |*",no-require-${MULLE_UNAME},"*)
@@ -1042,6 +1060,7 @@ handle_build()
    local configuration="$1"; shift
    local style="$1"; shift
    local kitchendir="$1"; shift
+   local phase="$1"; shift
 
    local _name
    local _evaledproject
@@ -1082,6 +1101,7 @@ handle_build()
                          "${platform}" \
                          "${_configuration}" \
                          "${style}" \
+                         "${phase}" \
                          "$@"
    rval=$?
 
@@ -1183,7 +1203,7 @@ handle_build_step()
                 "${configuration}" \
                 "${style}" \
                 "${kitchendir}" \
-                "--phase" "${phase}" \
+                "${phase}" \
                 "$@"
    rval=$?
 
@@ -1553,6 +1573,7 @@ _do_build_craftorder()
                    "${configuration}" \
                    "${style}" \
                    "${kitchendir}" \
+                   "Singlephase" \
                    "$@"
       rval=$?
 
