@@ -1,3 +1,7 @@
+### 0.18.3
+
+* Fix phases overwriting each others logfiles
+
 ### 0.18.2
 
 * .mulle/share/craft is now properly used as a fallback to .mulle/etc/craft

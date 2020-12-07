@@ -16,4 +16,4 @@ tests/01-passthru-build/infodir.mulle-build/
 tests/02-sourcetree-build/.mulle-sourcetree/db/
 tests/02-sourcetree-build/.mulle/var/sourcetree/
 tests/02-sourcetree-build/src/.mulle-sourcetree-fix
-
+bin/warning-grep
