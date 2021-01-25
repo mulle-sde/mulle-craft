@@ -1395,6 +1395,7 @@ handle_parallel_builds()
 
          remove_file_if_present "${statusfile}"
 
+         set +f
          return 1
       fi
 
@@ -1631,6 +1632,14 @@ do_build_craftorder()
    [ -z "${PLATFORMS}" ]       && internal_fail "PLATFORMS is empty"
    [ -z "${DISPENSE_STYLE}" ]  && internal_fail "DISPENSE_STYLE is empty"
 
+
+   if [ "${craftorder}" = "NONE" ]
+   then
+      dependency_end_update 'complete' || exit 1
+      log_verbose "The craftorder file is NONE, nothing to build"
+      return
+   fi
+
    local configurations
    local platforms
    local sdks
@@ -1675,7 +1684,7 @@ do_build_craftorder()
          assert_sane_name "${platform}" " as platform name"
          for sdk in ${sdks}
          do
-            set +o noglob; IFS="${DEFAULT_IFS}"
+            set +f; IFS="${DEFAULT_IFS}"
 
             assert_sane_name "${sdk}" " as sdk name"
             if ! _do_build_craftorder "${craftorder}" \
@@ -1692,7 +1701,7 @@ do_build_craftorder()
          done
       done
    done
-   set +o noglob; IFS="${DEFAULT_IFS}"
+   set +f; IFS="${DEFAULT_IFS}"
 
    dependency_end_update 'complete' || exit 1
 }
@@ -2131,10 +2140,10 @@ ${currentenv}"
       #
       if [ -z "${CRAFTORDER_FILE}" ]
       then
-         fail "Failed to specify craftorder with --craftorder-file <file>"
+         fail "You must specify the craftorder with --craftorder-file <file>"
       fi
 
-      if [ ! -f "${CRAFTORDER_FILE}" ]
+      if [ "${CRAFTORDER_FILE}" != "NONE" -a ! -f "${CRAFTORDER_FILE}" ]
       then
          fail "Missing craftorder file \"${CRAFTORDER_FILE}\""
       fi

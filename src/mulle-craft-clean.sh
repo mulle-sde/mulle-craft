@@ -129,8 +129,7 @@ craft_clean_main()
       shift
    done
 
-   KITCHEN_DIR="${KITCHEN_DIR:-${BUILD_DIR}}"
-   KITCHEN_DIR="${KITCHEN_DIR:-kitchen}"
+   [ -z "${KITCHEN_DIR}" ] && internal_fail "KITCHEN_DIR is empty"
 
    if [ $# -eq 0 ]
    then

@@ -170,7 +170,13 @@ status_main()
 
    if [ -z "${CRAFTORDER_FILE}" ]
    then
-      fail "Failed to specify craftorder with --craftorder-file <file>"
+      fail "You must specify the craftorder with --craftorder-file <file>"
+   fi
+
+   if [ "${CRAFTORDER_FILE}" != "NONE" ]
+   then
+      log_info "Nothing to craft as craftorder filke is NONE"
+      return 0
    fi
 
    if [ ! -f "${CRAFTORDER_FILE}" ]
@@ -194,6 +200,7 @@ status_main()
       log_info "Nothing crafted yet"
       return 0
    fi
+
    for donefile in `rexekutor find -H "${CRAFTORDER_KITCHEN_DIR}" -name ".*.crafted" -type f -print`
    do
       # strip off */.<name>.crafted

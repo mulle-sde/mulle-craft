@@ -185,7 +185,7 @@ r_determine_craftinfo_dir()
    set -f ; IFS=':'
    for craftinfodir in ${searchpath}
    do
-      set +o noglob; IFS="${DEFAULT_IFS}"
+      set +f; IFS="${DEFAULT_IFS}"
       if [ ! -z "${craftinfodir}" ] && [ -d "${craftinfodir}" ]
       then
          log_fluff "Craftinfo directory \"${craftinfodir}\" found"
@@ -193,7 +193,7 @@ r_determine_craftinfo_dir()
          return 0
       fi
    done
-   set +o noglob; IFS="${DEFAULT_IFS}"
+   set +f; IFS="${DEFAULT_IFS}"
 
    log_fluff "No craftinfo \"${name}\" found"
 

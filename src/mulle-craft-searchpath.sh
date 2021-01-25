@@ -325,7 +325,7 @@ craft_searchpath_main()
       do
          for sdk in ${sdks}
          do
-            set +o noglob; IFS="${DEFAULT_IFS}"
+            set +f; IFS="${DEFAULT_IFS}"
 
             r_get_sdk_platform_configuration_style_string "${sdk}" \
                                                           "${platform}" \
@@ -347,7 +347,7 @@ craft_searchpath_main()
          done
       done
    done
-   set +o noglob; IFS="${DEFAULT_IFS}"
+   set +f; IFS="${DEFAULT_IFS}"
 
    r_filepath_concat "${ADDICTION_DIR}" "${subdir}"
    r_absolutepath "${RVAL}"
