@@ -44,6 +44,8 @@ Usage:
    frameworks in the local dependencies and addictions. It does not include
    system headers. Use mulle-platform for finding the system searchpaths.
 
+   Used by build scripts to determine proper search paths.
+
    Release is always a fallback for Debug.
 
    Example output:
@@ -59,137 +61,11 @@ Options:
 Environment:
    ADDICTION_DIR     : place to put addictions into
    DEPENDENCY_DIR    : place to put dependencies into (generally required)
-   DISPENSE_STYLE    : how build productes are placed into DEPENDENCY_DIR
+   MULLE_CRAFT_DISPENSE_STYLE    : how build productes are placed into DEPENDENCY_DIR
 EOF
   exit 1
 }
 
-
-#
-#
-#
-#
-#
-#
-r_get_sdk_platform_style_string()
-{
-   log_entry "r_get_sdk_platform_style_string" "$@"
-
-   local sdk="$1"
-   local platform="$2"
-   local style="$3"
-
-   [ -z "${sdk}" ]        && internal_fail "sdk must not be empty"
-   [ -z "${platform}" ]   && internal_fail "platform must not be empty"
-   [ -z "${style}" ]      && internal_fail "style must not be empty"
-
-   case "${style}" in
-      none)
-         RVAL=
-      ;;
-
-      strict)
-         RVAL="${sdk}-${platform}"
-      ;;
-
-      i-strict)
-         RVAL="${platform}-${sdk}"
-      ;;
-
-      auto|relax|tight)
-         if [ "${sdk}" = "Default" ]
-         then
-            if [ "${platform}" = "Default" ]
-            then
-               RVAL=""
-            else
-               RVAL="${platform}"
-            fi
-         else
-            if [ "${platform}" = "Default" ]
-            then
-               RVAL="${sdk}"
-            else
-               RVAL="${sdk}-${platform}"
-            fi
-         fi
-      ;;
-
-      i-auto|i-relax|i-tight)
-         if [ "${sdk}" = "Default" ]
-         then
-            if [ "${platform}" = "Default" ]
-            then
-               RVAL=""
-            else
-               RVAL="${platform}"
-            fi
-         else
-            if [ "${platform}" = "Default" ]
-            then
-               RVAL="${sdk}"
-            else
-               RVAL="${platform}-${sdk}"
-            fi
-         fi
-      ;;
-
-
-      *)
-         fail "Unknown dispense style \"${style}\""
-      ;;
-   esac
-}
-
-
-#
-# Note:  build directories are always like relax dispense-style
-#        this is relevant for dispensing
-#
-# TODO: make style a formatter, so ppl can chose arbitrarily
-#
-r_get_sdk_platform_configuration_style_string()
-{
-   log_entry "r_get_sdk_platform_configuration_style_string" "$@"
-
-   local sdk="$1"
-   local platform="$2"
-   local configuration="$3"
-   local style="$4"
-
-   r_get_sdk_platform_style_string "${sdk}" "${platform}" "${style}"
-   case "${style}" in
-      i-tight)
-         r_filepath_concat "${configuration}-${RVAL}"
-      ;;
-
-      i-strict|i-relax)
-         r_filepath_concat "${configuration}" "${RVAL}"
-      ;;
-
-      i-auto)
-         if [ "${configuration}" != "Release" ]
-         then
-            r_filepath_concat "${configuration}" "${RVAL}"
-         fi
-      ;;
-
-      tight)
-         r_filepath_concat "${RVAL}-${configuration}"
-      ;;
-
-      strict|relax)
-         r_filepath_concat "${RVAL}" "${configuration}"
-      ;;
-
-      auto)
-         if [ "${configuration}" != "Release" ]
-         then
-            r_filepath_concat "${RVAL}" "${configuration}"
-         fi
-      ;;
-   esac
-}
 
 
 craft_searchpath_main()
@@ -207,8 +83,8 @@ craft_searchpath_main()
 
    configurations="${CONFIGURATIONS:-Debug:Release}"
    sdks="${SDKS:-Default}"
-   platforms="${PLATFORMS:-Default}"
-   style="${DISPENSE_STYLE:-none}"
+   platforms="${PLATFORMS:-${MULLE_UNAME}}"
+   style="${MULLE_CRAFT_DISPENSE_STYLE:-none}"
 
    while [ $# -ne 0 ]
    do
@@ -239,28 +115,28 @@ craft_searchpath_main()
          ;;
 
          --configurations|--configuration)
-            [ $# -eq 1 ] && build_execute_usage "Missing argument to \"$1\""
+            [ $# -eq 1 ] && craft_searchpath_usage "Missing argument to \"$1\""
             shift
 
             configurations="$1"
          ;;
 
          --platforms)
-            [ $# -eq 1 ] && build_execute_usage "Missing argument to \"$1\""
+            [ $# -eq 1 ] && craft_searchpath_usage "Missing argument to \"$1\""
             shift
 
             platforms="$1"
          ;;
 
          --style)
-            [ $# -eq 1 ] && build_execute_usage "Missing argument to \"$1\""
+            [ $# -eq 1 ] && craft_searchpath_usage "Missing argument to \"$1\""
             shift
 
             style="$1"
          ;;
 
          --sdks)
-            [ $# -eq 1 ] && build_execute_usage "Missing argument to \"$1\""
+            [ $# -eq 1 ] && craft_searchpath_usage "Missing argument to \"$1\""
             shift
 
             sdks="$1"
@@ -277,6 +153,11 @@ craft_searchpath_main()
 
       shift
    done
+
+   if [ -z "${MULLE_CRAFT_PATH_SH}" ]
+   then
+      . "${MULLE_CRAFT_LIBEXEC_DIR}/mulle-craft-path.sh" || exit 1
+   fi
 
    local type="$1"
 

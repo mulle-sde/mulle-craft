@@ -49,8 +49,13 @@ usage()
 Usage:
    ${MULLE_USAGE_NAME} [flags] [command]
 
-   Craft projects given by a "craftorder" file. Then craft the main project if
-   desired.
+   Crafts either projects given by a "craftorder" file. Or crafts the "project"
+   in the current directory. The actual build of each individual is done via
+   mulle-make.
+
+   mulle-craft searches for definition directories, which may contain
+   compiler flags or commands and forwards them to mulle-make. See "search"
+   fot more details.
 
    See the various commands for more help.
 
@@ -71,13 +76,15 @@ EOF
    cat <<EOF
 
 Commands:
-   craftorder : craft projects using a craftorder file
-   clean      : clean output
-   list       : list remaining builds in craftorder file
-   log        : inspect kitchen logs
-   project    : craft main project without a craftorder file (default)
-   search     : search for craftinfos (dependeny) or makeinfo (project)
-   status     : returns 0 if dependency is ready
+   craftorder      : craft projects using a craftorder file
+   clean           : clean output
+   list            : list remaining builds in craftorder file
+   log             : inspect kitchen logs
+   project         : craft main project without a craftorder file (default)
+   qualify         : test build qualifiers used in craftorder files
+   search          : search for a specific craftinfo
+   craftorder-path : show current craftinfo searchpath
+   status          : returns 0 if dependency is ready
 EOF
 
    if [ "${MULLE_FLAG_LOG_VERBOSE}" = 'NO' ]
@@ -89,6 +96,51 @@ EOF
    fi
 
    exit 1
+}
+
+
+craft_setup_environment()
+{
+
+   case "${MULLE_VIRTUAL_ROOT}" in
+      "")
+         MULLE_VIRTUAL_ROOT="`pwd -P`"
+         if [ "${MULLE_VIRTUAL_ROOT}" = "/" ]
+         then
+            fail "You are running this in root, which is not supported"
+         fi
+
+         if [ "${MULLE_SQUELCH_ENVIRONMENT_WARNING}" != 'YES' ]
+         then
+            log_warning "Command is running outside of the mulle-sde environment"
+         fi
+         log_verbose "(MULLE_VIRTUAL_ROOT set to \"${MULLE_VIRTUAL_ROOT}\")"
+      ;;
+
+      */)
+         fail "MULLE_VIRTUAL_ROOT \"${MULLE_VIRTUAL_ROOT}\" must not end with /"
+      ;;
+   esac
+
+   DEPENDENCY_DIR="${DEPENDENCY_DIR:-${MULLE_CRAFT_DEPENDENCY_DIR}}"
+   DEPENDENCY_DIR="${DEPENDENCY_DIR:-${MULLE_VIRTUAL_ROOT}/${MULLE_CRAFT_DEPENDENCY_DIRNAME:-dependency}}"
+
+   ADDICTION_DIR="${ADDICTION_DIR:-${MULLE_CRAFT_ADDICTION_DIR}}"
+   ADDICTION_DIR="${ADDICTION_DIR:-${MULLE_VIRTUAL_ROOT}/${MULLE_CRAFT_ADDICTION_DIRNAME:-addiction}}"
+
+   #prefer KITCHEN_DIR over older BUILD_DIR
+   KITCHEN_DIR="${KITCHEN_DIR:-${BUILD_DIR}}"
+   KITCHEN_DIR="${KITCHEN_DIR:-${MULLE_CRAFT_KITCHEN_DIR}}"
+   KITCHEN_DIR="${KITCHEN_DIR:-${MULLE_VIRTUAL_ROOT}/${MULLE_CRAFT_KITCHEN_DIRNAME:-kitchen}}"
+
+   CRAFTORDER_KITCHEN_DIR="${CRAFTORDER_KITCHEN_DIR:-${MULLE_CRAFT_CRAFTORDER_KITCHEN_DIR}}"
+   CRAFTORDER_KITCHEN_DIR="${CRAFTORDER_KITCHEN_DIR:-${KITCHEN_DIR}/${MULLE_CRAFT_CRAFTORDER_KITCHEN_DIRNAME:-.craftorder}}"
+
+   if [ "${MULLE_FLAG_LOG_SETTINGS}" = 'YES' ]
+   then
+      log_trace2 "KITCHEN_DIR :           ${KITCHEN_DIR}"
+      log_trace2 "CRAFTORDER_KITCHEN_DIR: ${CRAFTORDER_KITCHEN_DIR}"
+   fi
 }
 
 
@@ -208,46 +260,18 @@ main()
 
    options_setup_trace "${MULLE_TRACE}"
 
-   case "${MULLE_VIRTUAL_ROOT}" in
-      "")
-         MULLE_VIRTUAL_ROOT="`pwd -P`"
-         if [ "${MULLE_VIRTUAL_ROOT}" = "/" ]
-         then
-            fail "You are running this in root, which is not supported"
-         fi
-         log_info "mulle-craft sets MULLE_VIRTUAL_ROOT to \"${MULLE_VIRTUAL_ROOT}\""
-         log_warning "warning: project settings have not been read"
-      ;;
-
-      */)
-         fail "MULLE_VIRTUAL_ROOT \"${MULLE_VIRTUAL_ROOT}\" must not end with /"
-      ;;
-   esac
-
-   DEPENDENCY_DIR="${DEPENDENCY_DIR:-${MULLE_CRAFT_DEPENDENCY_DIR}}"
-   DEPENDENCY_DIR="${DEPENDENCY_DIR:-${MULLE_VIRTUAL_ROOT}/${MULLE_CRAFT_DEPENDENCY_DIRNAME:-dependency}}"
-
-   ADDICTION_DIR="${ADDICTION_DIR:-${MULLE_CRAFT_ADDICTION_DIR}}"
-   ADDICTION_DIR="${ADDICTION_DIR:-${MULLE_VIRTUAL_ROOT}/${MULLE_CRAFT_ADDICTION_DIRNAME:-addiction}}"
-
-   #prefer KITCHEN_DIR over older BUILD_DIR
-   KITCHEN_DIR="${KITCHEN_DIR:-${BUILD_DIR}}"
-   KITCHEN_DIR="${KITCHEN_DIR:-${MULLE_CRAFT_KITCHEN_DIR}}"
-   KITCHEN_DIR="${KITCHEN_DIR:-${MULLE_VIRTUAL_ROOT}/${MULLE_CRAFT_KITCHEN_DIRNAME:-kitchen}}"
-
-   CRAFTORDER_KITCHEN_DIR="${CRAFTORDER_KITCHEN_DIR:-${MULLE_CRAFT_CRAFTORDER_KITCHEN_DIR}}"
-   CRAFTORDER_KITCHEN_DIR="${CRAFTORDER_KITCHEN_DIR:-${KITCHEN_DIR}/${MULLE_CRAFT_CRAFTORDER_KITCHEN_DIRNAME:-.craftorder}}"
-
    local cmd="$1"
 
    [ $# -eq 0 ] || shift
 
-   # dir commands should be fast thouth
+   # dir commands should be fast though, which don't need environment stuff
    case "${cmd}" in
-      *-dir)
+      *-dir|qualifier)
       ;;
 
       *)
+         craft_setup_environment
+
          MULLE_MAKE="${MULLE_MAKE:-`command -v mulle-make`}"
          [ -z "${MULLE_MAKE}" ] && fail "mulle-make not in PATH"
 
@@ -255,14 +279,6 @@ main()
          [ -z "${MULLE_DISPENSE}" ] && fail "mulle-dispense not in PATH"
       ;;
    esac
-
-
-
-   if [ "${MULLE_FLAG_LOG_SETTINGS}" = 'YES' ]
-   then
-      log_trace2 "KITCHEN_DIR :           ${KITCHEN_DIR}"
-      log_trace2 "CRAFTORDER_KITCHEN_DIR: ${CRAFTORDER_KITCHEN_DIR}"
-   fi
 
    #
    # project can give the default way to build this
@@ -304,6 +320,14 @@ main()
          printf "%s\n" "${MULLE_CRAFT_LIBEXEC_DIR}"
       ;;
 
+      # rename to find ? again ??
+      craftorder-path)
+         # shellcheck source=src/mulle-craft-path.sh
+         . "${MULLE_CRAFT_LIBEXEC_DIR}/mulle-craft-path.sh"
+
+         craft_craftorder_searchpath_main "$@"
+      ;;
+
       install)
          log_info "mulle-craft doesn't install. Use mulle-make directly."
          exit 1
@@ -337,19 +361,11 @@ main()
          build_project_main "$@"
       ;;
 
-      # rename to find ? again ??
-      search)
-         # shellcheck source=src/mulle-craft-search.sh
-         . "${MULLE_CRAFT_LIBEXEC_DIR}/mulle-craft-search.sh"
+      qualifier)
+         # shellcheck source=src/mulle-craft-qualifier.sh
+         . "${MULLE_CRAFT_LIBEXEC_DIR}/mulle-craft-qualifier.sh"
 
-         craft_search_main "$@"
-      ;;
-
-      searchpath)
-         # shellcheck source=src/mulle-craft-searchpath.sh
-         . "${MULLE_CRAFT_LIBEXEC_DIR}/mulle-craft-searchpath.sh"
-
-         craft_searchpath_main "$@"
+         craft_qualifier_main "$@"
       ;;
 
       quickstatus)
@@ -357,6 +373,21 @@ main()
          . "${MULLE_CRAFT_LIBEXEC_DIR}/mulle-craft-dependency.sh"
 
          quickstatus_main "$@"
+      ;;
+
+      # rename to find ? again ??
+      search)
+         # shellcheck source=src/mulle-craft-craftorder.sh
+         . "${MULLE_CRAFT_LIBEXEC_DIR}/mulle-craft-craftorder.sh"
+
+         craft_craftorder_search_main "$@"
+      ;;
+
+      searchpath)
+         # shellcheck source=src/mulle-craft-searchpath.sh
+         . "${MULLE_CRAFT_LIBEXEC_DIR}/mulle-craft-searchpath.sh"
+
+         craft_searchpath_main "$@"
       ;;
 
       status)

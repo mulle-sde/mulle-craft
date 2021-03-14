@@ -117,7 +117,7 @@ craftorder_log_dirs()
 
    if [ ! -d "${CRAFTORDER_KITCHEN_DIR}" ]
    then
-      return 4
+      return 2
    fi
 
    rexekutor find -H "${CRAFTORDER_KITCHEN_DIR}" -type d -name .log
@@ -301,7 +301,7 @@ craft_log_command()
    local sdk="${OPTION_SDK}"
    local platform="${OPTION_PLATFORM}"
    local configuration="${OPTION_CONFIGURATION}"
-   local style="${DISPENSE_STYLE}"
+   local style="${MULLE_CRAFT_DISPENSE_STYLE:-none}"
 
    local lastsdk
    local lastplatform
@@ -330,7 +330,7 @@ craft_log_command()
    configuration="${configuration:-${lastconfiguration}}"
 
    sdk="${sdk:-Default}"
-   platform="${platform:-Default}"
+   platform="${platform:-${MULLE_UNAME}}"
    configuration="${configuration:-Release}"
 
    if [ ! -z "${name}" ]

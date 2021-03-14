@@ -175,7 +175,7 @@ status_main()
 
    if [ "${CRAFTORDER_FILE}" != "NONE" ]
    then
-      log_info "Nothing to craft as craftorder filke is NONE"
+      log_verbose "Nothing to craft as no craftorder file was given"
       return 0
    fi
 
@@ -229,7 +229,7 @@ status_main()
          info="${sdk}"
       fi
 
-      if [ "${platform}" != 'Default' ]
+      if [ "${platform}" != "${MULLE_UNAME}" ]
       then
          r_concat "${info}" "${platform}"
          info="${RVAL}"

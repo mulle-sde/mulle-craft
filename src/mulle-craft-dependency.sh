@@ -37,12 +37,12 @@ MULLE_CRAFT_DEPENDENCY_SH="included"
 # bin share lib  folders and so on. The dependency folder is
 # write protected by default.
 #
-# You add stuff to ./dependency by callin `dependency_begin_update`
+# You add stuff to ./dependency by calling `dependency_begin_update`
 # and when you are done you call  `dependency_end_update`. During that
 # time ./dependency is not write protected.
 #
 # The dependency folder can be preloaded with tarball content and directory
-# contents, if the environment variable DEPENDENCY_TARBALL_PATH is set
+# contents, if the environment variable DEPENDENCY_TARBALLS is set
 # (it contains a : separated list of tarball paths)
 #
 #
@@ -56,8 +56,9 @@ _dependency_install_tarballs()
    local tarball
    local tarflags
 
+   # cDEPENDENCY_TARBALL_PATH is old name, fallen out of favor
    set -f ; IFS=':'
-   for tarball in ${DEPENDENCY_TARBALL_PATH}
+   for tarball in ${DEPENDENCY_TARBALLS:-${DEPENDENCY_TARBALL_PATH}}
    do
       set +o noglob; IFS="${DEFAULT_IFS}"
 
@@ -84,18 +85,18 @@ _dependency_install_tarballs()
       tarflags="-v"
    fi
 
-   if [ -z "${MULLE_CRAFT_SEARCHPATH_SH}" ]
+   if [ -z "${MULLE_CRAFT_PATH_SH}" ]
    then
-      . "${MULLE_CRAFT_LIBEXEC_DIR}/mulle-craft-searchpath.sh" || exit 1
+      . "${MULLE_CRAFT_LIBEXEC_DIR}/mulle-craft-path.sh" || exit 1
    fi
 
    (
       local directory
 
       r_get_sdk_platform_configuration_style_string "Default" \
-                                              "Default" \
-                                              "Release" \
-                                              "${style}"
+                                                    "${MULLE_UNAME}" \
+                                                    "Release" \
+                                                    "${style}"
       r_filepath_concat "${DEPENDENCY_DIR}" "${RVAL}"
       directory="${RVAL}"
       mkdir_if_missing "${directory}"
@@ -286,7 +287,7 @@ dependency_end_update()
 
    local state="${1:-ready}"
 
-   [ -z "${DEPENDENCY_DIR}" ] && fail "DEPENDENCY_DIR not set"
+   [ -z "${DEPENDENCY_DIR}" ] && internal_fail "DEPENDENCY_DIR not set"
 
    if [ "${state}" = "complete" -a  "${OPTION_PROTECT_DEPENDENCY}" = 'YES' ]
    then
@@ -347,9 +348,9 @@ r_dependency_dir_locations()
 
    [ -z "${DEPENDENCY_DIR}" ] && internal_fail "DEPENDENCY_DIR not set"
 
-   if [ -z "${MULLE_CRAFT_SEARCHPATH_SH}" ]
+   if [ -z "${MULLE_CRAFT_PATH_SH}" ]
    then
-      . "${MULLE_CRAFT_LIBEXEC_DIR}/mulle-craft-searchpath.sh" || exit 1
+      . "${MULLE_CRAFT_LIBEXEC_DIR}/mulle-craft-path.sh" || exit 1
    fi
 
    local subdir
@@ -459,5 +460,5 @@ quickstatus_main()
    then
       return 0
    fi
-   return 4  # distinguish from error which is 1 or 2
+   return 2  # distinguish from error which is 1
 }
