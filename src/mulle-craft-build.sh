@@ -743,13 +743,15 @@ build_dependency_with_dispense()
    # need to late eval this
    case ",${marks}," in
       *',no-rootheader,'*)
-         options="--header-dir 'include/${name}'"
+         r_concat "${options}" "--header-dir 'include/${name}'"
+         options="${RVAL}"
       ;;
    esac
 
    case ",${marks}," in
       *',only-liftheaders,'*)
-         options="--lift-headers"
+         r_concat "${options}" "--lift-headers"
+         options="${RVAL}"
       ;;
    esac
 
@@ -813,12 +815,19 @@ build_craftorder_node()
    local style="$8"
    local phase="$9"
 
+   # no-platform- no-build, no-build-... will be filtered out in the
+   # craftorder already
+
    #
    # memo keeping this code here because this information could change
    # behind the back of the filtered craftorder or ?
    #
    case ",${marks}," in
-      *',no-require,'*|*",no-require-os-${MULLE_UNAME},"*)
+      *',no-require,'*\
+      |*",no-require-os-${MULLE_UNAME},"*\
+      |*",no-require-platform-${platform},"*\
+      |*",no-require-sdk-${sdk},"*\
+      |*",no-require-configuration-${configuration},"*)
          if [ ! -d "${project}" ]
          then
             log_verbose "\"${project}\" does not exist, but it's not required"
@@ -885,9 +894,9 @@ r_name_from_evaledproject()
    name="${name#${MULLE_SOURCETREE_STASH_DIRNAME:-stash}/}"
 
    # replace everything thats not an identifier or . _ - + with -
-   name="`tr -c 'A-Za-z0-9_.+-' '-' <<< "${name}" `"
-   name="${name#-}"
-   name="${name%-}"
+   name="${name//[^a-zA-Z0-9_.+-]/-}"
+   name="${name##-}"
+   name="${name%%-}"
 
    [ -z "${name}" ] && internal_fail "Name is empty from \"${project}\""
    RVAL="${name}"
@@ -896,9 +905,10 @@ r_name_from_evaledproject()
 
 r_name_from_project()
 {
-   local  project="$1"
+   local project="$1"
 
-   r_name_from_evaledproject "`eval "echo \"${project}\""`"
+   r_expanded_string "${project}"
+   r_name_from_evaledproject "${RVAL}"
 }
 
 
@@ -1000,7 +1010,8 @@ _evaluate_craft_variables()
       _configuration="${configuration}"
       log_fluff "Configuration mapping will not be found by logs"
    else
-      _evaledproject="`eval "echo \"${project}\"" `"
+      r_expanded_string "${project}"
+      _evaledproject="${RVAL}"
       r_name_from_evaledproject "${_evaledproject}"
       _name="${RVAL}"
 
@@ -1138,7 +1149,8 @@ handle_build_rval()
 
    local evaledproject
 
-   evaledproject="`eval "echo \"${project}\""`"
+   r_expanded_string "${project}"
+   evaledproject="${RVAL}"
 
    if [ ${rval} -eq 1 ]
    then
@@ -1162,7 +1174,6 @@ the enabled leniency option"
    log_debug "Build of \"${evaledproject}\" returned ${rval}"
    return 1
 }
-
 
 
 handle_build_step()
@@ -1245,7 +1256,7 @@ handle_parallel_builds()
    local PARALLEL
    local cmd
 
-   _r_make_tmp_in_dir "${KITCHEN_DIR}" ".build-status" "f"
+   _r_make_tmp_in_dir "${KITCHEN_DIR}" ".build-status" "f" || exit 1
    statusfile="${RVAL}"
 
    local parallel_link="NO"
@@ -1309,7 +1320,10 @@ handle_parallel_builds()
          local project
          local marks
 
-         IFS=";" read project marks <<< "${line}"
+         IFS=";" read -r project marks <<< "${line}"
+
+         # need a project and not empty spaces
+         [ -z "${project## }" ] && internal_fail "project is empty"
 
          #
          # TODO: we are somewhat overoptimistic, that we don't build
@@ -1524,10 +1538,7 @@ _do_build_craftorder()
       project="${line%%;*}"
       marks="${line#*;}"
 
-      if [ -z "${project}" ]
-      then
-         internal_fail "empty project fail"
-      fi
+      [ -z "${project## }" ] && internal_fail "empty project fail"
 
       if [ "${OPTION_PARALLEL}" = 'YES' -a  \
            "${OPTION_LIST_REMAINING}" = 'NO' -a \
@@ -1659,8 +1670,18 @@ do_build_craftorder()
       return
    fi
 
-   # patch this with environment variables ?
-
+   # IDEE: Was wir gerne hätten wäre, daß mulle-sde craft gleich auch noch
+   #       auf macOS für mehrere ARCHs zusammenbaut. `cmake` kann das von sich
+   #       aus, von daher bräuchten wir keine "ARCHS" in mulle-craft.
+   #       mulle-make hingegen könnte das für "autoconf/configure" Projekte
+   #       machen und nach dem man für beides gebaut hat (in temporären
+   #       build verzeichnissen) das ganze dann zusammenführen. Was dann quasi
+   #       lipo macht. Macht das dann wieder mulle-dispense ?
+   #       Auf linux oder anderen Systemen müsste man die libraries kopieren
+   #       und irgendwie mit nem suffix versehen oder so.
+   #       Einziges Problem. Ev. hat man zwei verschiedene SDKs, eins für
+   #       ARM und eins für x86_64 und was macht man dann ?
+   #
    local configuration
    local platform
    local sdk
@@ -2212,8 +2233,24 @@ build_craftorder_main()
    log_entry "build_craftorder_main" "$@"
 
    USAGE_BUILD_STYLE="craftorder"
-   USAGE_INFO="Build the craftorder only.
-"
+   USAGE_INFO="Build projects according to a given craftorder file.
+   Specify the craftorder with the command *flag* --craftorder-file <path>.
+   The craftorder file specifies the projects to craft on each line and in
+   order of their dependencies amongst each other.  A line is made up of the
+   form <path>;<marks>. Where marks are comma separated identifiers, typically
+   starting with 'no-'. For example a project, that partakes in multiphase
+   craft, has a 'no-singlephase' mark. Projects that are header only have a
+   'no-link' mark. There are lots of other marks. See the mulle-sde Wiki for
+   more information.
+
+Example:
+   cat <<EOF > file.txt
+   stash/tiny;no-link,no-singlephase
+   stash/foo;no-singlephase
+   stash/bar;no-singlephase
+   EOF
+   ${MULLE_USAGE_NAME} --craftorder-file file.txt craftorder"
+
    local OPTION_USE_PROJECT
    local OPTION_USE_CRAFTORDER
    local OPTION_MUST_HAVE_BUILDORDER

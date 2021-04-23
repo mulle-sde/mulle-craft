@@ -56,9 +56,9 @@ _dependency_install_tarballs()
    local tarball
    local tarflags
 
-   # cDEPENDENCY_TARBALL_PATH is old name, fallen out of favor
+   # DEPENDENCY_TARBALL_PATH is old name, fallen out of favor
    set -f ; IFS=':'
-   for tarball in ${DEPENDENCY_TARBALLS:-${DEPENDENCY_TARBALL_PATH}}
+   for tarball in ${TARBALLS:-${DEPENDENCY_TARBALL_PATH}}
    do
       set +o noglob; IFS="${DEFAULT_IFS}"
 

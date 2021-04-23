@@ -40,12 +40,15 @@ craft_qualifier_usage()
 Usage:
    ${MULLE_USAGE_NAME} qualifier [options] <print|match> [marks]
 
-   Print the craftorder qualifier that is used or math it against a list
-   of marks.
+   Print the craftorder qualifier that will be used. You can also match it
+   against a list of marks. This qualifier will be used by mulle-craft with
+   mulle-sourcetree walk --qualifier option to filter the craftorder.
 
 Examples:
       ${MULLE_USAGE_NAME} qualifier --platform linux print
       ${MULLE_USAGE_NAME} qualifier --platform linux match only-os-darwin
+      mulle-sourcetree walk --qualifier "\`${MULLE_USAGE_NAME} qualifier --no-lf\`" \
+         'printf "%s\n" "${WALK_INDENT}${NODE_ADDRESS} ${NODE_MARKS}"'
 
 Options:
    --configuration <name> : set configuration (Debug)
@@ -53,6 +56,7 @@ Options:
    --platform <name>      : setz platform  (${MULLE_UNAME})
    --release              : set configuration to "Release"
    --sdk <name>           : set SDK for (Default)
+   --no-lf                : replace output linefeeds with space
 EOF
   exit 1
 }
@@ -114,22 +118,22 @@ r_craftorder_qualifier()
    version="${RVAL}"
 
    # Default is not matchable, as we don't know it
-   if [ "${sdk}" != 'Default' ]
+   if [ "${sdk}" != 'default' ]
    then
-      clause="ENABLE sdk-${sdk}"
+      clause="ENABLES sdk-${sdk}"
 
       r_concat "${qualifier}" "${clause}" $'\n'"AND "
       qualifier="${RVAL}"
    fi
 
    # platform is at least the current
-   clause="ENABLE platform-${platform}"
+   clause="ENABLES platform-${platform}"
 
    r_concat "${qualifier}" "${clause}" $'\n'"AND "
    qualifier="${RVAL}"
 
    # configuration can't be empty
-   clause="ENABLE configuration-${configuration}"
+   clause="ENABLES configuration-${configuration}"
 
    r_concat "${qualifier}" "${clause}" $'\n'"AND "
    qualifier="${RVAL}"
@@ -154,7 +158,7 @@ r_craftorder_qualifier()
       local match_version
 
       match_version="${sdk}"
-      if [ "${match_version}" = "Default" ]
+      if [ "${match_version}" = "default" ]
       then
          match_version="${platform}"
       fi
@@ -201,12 +205,15 @@ r_filtered_craftorder()
 
    local qualifier
 
+   r_concat "MATCHES build" "MATCHES build-os-${MULLE_UNAME}" $'\n'"AND "
+   qualifier="${RVAL}"
+
    r_craftorder_qualifier "${sdk}" \
                           "${platform}" \
                           "${configuration}" \
                           "${version}"
 
-   r_concat "MATCHES build" "${RVAL}" $'\n'"AND "
+   r_concat "${qualifier}" "${RVAL}" $'\n'"AND "
    qualifier="${RVAL}"
 
    local line
@@ -242,6 +249,7 @@ craft_qualifier_main()
    local OPTION_PLATFORM
    local OPTION_SDK
    local OPTION_VERSION
+   local OPTION_LF
 
    while [ $# -ne 0 ]
    do
@@ -257,6 +265,14 @@ craft_qualifier_main()
          --debug)
             # Release is fallback for Debug
             OPTION_CONFIGURATION="Debug"
+         ;;
+
+         --lf)
+            OPTION_LF="YES"
+         ;;
+
+         --no-lf)
+            OPTION_LF="NO"
          ;;
 
          --configuration)
@@ -394,6 +410,10 @@ version-max-${OPTION_PLATFORM:-${MULLE_UNAME}} to work and vice versa"
 
    [ $# -eq 0 ] || craft_qualifier_usage "Superflous arguments \"$*\""
 
+   if [ "${OPTION_LF}" = "NO" ]
+   then
+      RVAL="${RVAL//$'\n'/ }"
+   fi
    printf "%s\n" "${RVAL}"
 }
 
