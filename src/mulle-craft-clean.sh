@@ -144,6 +144,10 @@ craft_clean_main()
    then
       . "${MULLE_CRAFT_LIBEXEC_DIR}/mulle-craft-build.sh"
    fi
+   if [ -z "${MULLE_CRAFT_PATH_SH}" ]
+   then
+      . "${MULLE_CRAFT_LIBEXEC_DIR}/mulle-craft-path.sh"
+   fi
 
    # centralize this into mulle-craft-environment.sh
 
@@ -223,7 +227,9 @@ craft_clean_main()
 
             local directory
 
-            directory="`build_directory_name "${cleantarget}"`"
+            r_build_directory_name "${cleantarget}"
+            directory="${RVAL}"
+
             if [ "${OPTION_TOUCH}" = 'NO' ]
             then
                shopt -s nullglob
@@ -235,18 +241,29 @@ craft_clean_main()
             r_escaped_sed_pattern "${cleantarget}"
             escaped="${RVAL}"
 
-            for donefile in "${CRAFTORDER_KITCHEN_DIR}"/.*.crafted
+
+            for donefile in "${DEPENDENCY_DIR}/etc"/craftorder-*
             do
                if [ -f "${donefile}" ]
                then
-                  inplace_sed -n -e "/^${escaped};/q;p" "${donefile}"
-                  inplace_sed -n -e "/^.*\/${escaped};/q;p" "${donefile}"
-
-                  # an empty donefile is bad for fgrep
-                  if [ -z "`egrep -v '^#' "${donefile}"`" ]
+                  if [ -z "${MULLE_CRAFT_DEPENDENCY_SH}" ]
                   then
-                     remove_file_if_present "${donefile}"
+                     . "${MULLE_CRAFT_LIBEXEC_DIR}/mulle-craft-dependency.sh"
                   fi
+
+                  # need to unprotect dependency_dir
+                  dependency_unprotect
+
+                     inplace_sed -n -e "/^${escaped};/q;p" "${donefile}"
+                     inplace_sed -n -e "/^.*\/${escaped};/q;p" "${donefile}"
+
+                     # an empty donefile is bad for fgrep
+                     if [ -z "`egrep -v '^#' "${donefile}"`" ]
+                     then
+                        remove_file_if_present "${donefile}"
+                     fi
+
+                  dependency_protect
                fi
             done
 

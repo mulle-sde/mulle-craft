@@ -307,6 +307,26 @@ r_determine_craftinfo_searchpath()
 
 
 
+r_craft_shared_donefile()
+{
+   local sdk="$1"
+   local platform="$2"
+   local configuration="$3"
+
+   RVAL="${ADDICTION_DIR}/etc/craftorder-${sdk}--${platform}--${configuration}"
+}
+
+r_craft_donefile()
+{
+   local sdk="$1"
+   local platform="$2"
+   local configuration="$3"
+
+   RVAL="${DEPENDENCY_DIR}/etc/craftorder-${sdk}--${platform}--${configuration}"
+}
+
+
+
 r_determine_craftinfo_dir()
 {
    log_entry "r_determine_craftinfo_dir" "$@"

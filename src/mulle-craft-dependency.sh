@@ -155,11 +155,12 @@ dependency_unprotect()
 
    [ -z "${DEPENDENCY_DIR}" ] && internal_fail "DEPENDENCY_DIR not set"
 
-   if [ ! -e "${DEPENDENCY_DIR}" ]
+   if [ ! -d "${DEPENDENCY_DIR}" ]
    then
       return
    fi
 
+   log_fluff "Unprotecting ${DEPENDENCY_DIR#${MULLE_USER_PWD}/}"
    exekutor chmod -R ug+w "${DEPENDENCY_DIR}" || fail "could not chmod \"${DEPENDENCY_DIR}\""
 }
 
@@ -170,11 +171,12 @@ dependency_protect()
 
    [ -z "${DEPENDENCY_DIR}" ] && internal_fail "DEPENDENCY_DIR not set"
 
-   if [ ! -e "${DEPENDENCY_DIR}" ]
+   if [ ! -d "${DEPENDENCY_DIR}" ]
    then
       return
    fi
 
+   log_fluff "Protecting ${DEPENDENCY_DIR#${MULLE_USER_PWD}/}"
    exekutor chmod -R a-w "${DEPENDENCY_DIR}" || fail "could not chmod \"${DEPENDENCY_DIR}\""
 }
 
@@ -226,6 +228,9 @@ dependency_clean()
 }
 
 
+#
+# style is pushed through for tarball install
+#
 dependency_begin_update()
 {
    log_entry "dependency_begin_update" "$@"
@@ -256,7 +261,7 @@ dependency_begin_update()
          then
             log_warning "dependencies: Updating an incomplete previous dependency update"
          fi
-         return
+         # still want to unprotect, changing state again to updating is harmless
       ;;
 
       incomplete)
@@ -266,9 +271,9 @@ dependency_begin_update()
       *)
          internal_fail "Empty or unknown dependency state \"${state}\""
       ;;
-
    esac
 
+   log_fluff "Dependency update started"
 
    if [ "${OPTION_PROTECT_DEPENDENCY}" = 'YES' ]
    then
@@ -289,6 +294,8 @@ dependency_end_update()
 
    [ -z "${DEPENDENCY_DIR}" ] && internal_fail "DEPENDENCY_DIR not set"
 
+   log_fluff "Dependency update ended with ${state}"
+
    if [ "${state}" = "complete" -a  "${OPTION_PROTECT_DEPENDENCY}" = 'YES' ]
    then
       exekutor chmod ug+wX "${DEPENDENCY_DIR}"
@@ -298,7 +305,7 @@ dependency_end_update()
    log_verbose "Dependency folder marked as ${state}"
    redirect_exekutor "${DEPENDENCY_DIR}/.state" printf "%s\n" "${state}"
 
-   if [ "${OPTION_PROTECT_DEPENDENCY}" = 'YES' ]
+   if [ "${state}" = "complete" -a "${OPTION_PROTECT_DEPENDENCY}" = 'YES' ]
    then
       dependency_protect
    fi

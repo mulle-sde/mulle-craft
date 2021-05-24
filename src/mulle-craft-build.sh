@@ -55,17 +55,17 @@ Options:
    --             : pass remaining options to mulle-make
 
 Environment:
-   ADDICTION_DIR           : place to get addictions from (optional)
-   KITCHEN_DIR             : place for intermediate craft products (required)
-   CONFIGURATIONS          : configurations to build, ':' separated
-   CRAFTINFO_PATH          : places to find craftinfos
-   DISPENSE_STYLE          : how to place build products into dependency (none)
-   DEPENDENCY_DIR          : place to put dependencies into
-   DEPENDENCY_TARBALLS     : tarballs to install into dependency, ':' separated
-   MULLE_CRAFT_MAKE_FLAGS  : additional flags passed to mulle-make
-   MULLE_CRAFT_USE_SCRIPT  : enables building with scripts
-   PLATFORMS               : platforms to build, ':' separated
-   SDKS                    : sdks to build, ':' separated
+   ADDICTION_DIR          : place to get addictions from (optional)
+   KITCHEN_DIR            : place for intermediate craft products (required)
+   CONFIGURATIONS         : configurations to build, ':' separated
+   CRAFTINFO_PATH         : places to find craftinfos
+   DISPENSE_STYLE         : how to place build products into dependency (none)
+   DEPENDENCY_DIR         : place to put dependencies into
+   DEPENDENCY_TARBALLS    : tarballs to install into dependency, ':' separated
+   MULLE_CRAFT_MAKE_FLAGS : additional flags passed to mulle-make
+   MULLE_CRAFT_USE_SCRIPT : enables building with scripts
+   PLATFORMS              : platforms to build, ':' separated
+   SDKS                   : sdks to build, ':' separated
 
 Styles:
    none    : use root only. Only useful for a single configuration/sdk/platform
@@ -84,7 +84,15 @@ assert_sane_name()
 {
    local name="$1"; shift
 
-   if [ "`tr -d -c 'a-zA-Z0-9_.-' <<< "${name}" `" != "${name}" ]
+   r_identifier "${name}" in
+
+   case "${name}" in
+      *--*)
+         fail "\"${name}\" contains two consecutive '-' characters"
+      ;;
+   esac
+
+   if [ ! -z "${name//[a-zA-Z0-9_.-]/}" ]
    then
       fail "\"${name}\" contains invalid characters$*"
    fi
@@ -92,16 +100,17 @@ assert_sane_name()
 
 
 #
-# remove any non-identifiers and file extension from name
+# remove any non-identifiers and file extensions from name
 #
-build_directory_name()
+r_build_directory_name()
 {
-   log_entry "build_directory_name" "$@"
+   log_entry "r_build_directory_name" "$@"
 
-   local name="$1"
-
-   r_basename "${name}"
-   tr -c 'a-zA-Z0-9-' '_' <<< "${RVAL%.*}" | sed -e 's/_$//g'
+   r_basename "$1"         # just filename
+   RVAL="${RVAL%%.*}"      # remove file extensions
+   r_identifier "${RVAL}"  # make identifier (bad chars -> '_')
+   RVAL="${RVAL%%_}"       # remove trailing '_'
+   RVAL="${RVAL##_}"       # remove leading '_'
 }
 
 
@@ -125,6 +134,36 @@ __set_various_paths()
    r_get_sdk_platform_style_string "${sdk}" "${platform}" "${style}"
    sdk_platform="${RVAL}"
 
+   if [ -d "${DEPENDENCY_DIR}/bin" ]
+   then
+      r_colon_concat "${DEPENDENCY_DIR}/bin" "${_binpath}"
+      _binpath="${RVAL}"
+   fi
+
+   if [ -d "${DEPENDENCY_DIR}/${configuration}/bin" ]
+   then
+      r_colon_concat "${DEPENDENCY_DIR}/${configuration}/bin" "${_binpath}"
+      _binpath="${RVAL}"
+   fi
+
+   if [ ! -z "${sdk_platform}" ]
+   then
+      if [ -d "${DEPENDENCY_DIR}/${sdk_platform}/bin" ]
+      then
+         r_colon_concat "${DEPENDENCY_DIR}/${sdk_platform}/bin" "${_binpath}"
+         _binpath="${RVAL}"
+      fi
+
+      if [ -d "${DEPENDENCY_DIR}/${sdk_platform}/${configuration}/bin" ]
+      then
+         r_colon_concat "${DEPENDENCY_DIR}/${sdk_platform}/${configuration}/bin" "${_binpath}"
+         _binpath="${RVAL}"
+      fi
+   fi
+
+   #
+   # Do addictions afterwards, so that dependency overrides addiction
+   #
    if [ ! -z "${ADDICTION_DIR}" ]
    then
       if [ ! -z "${sdk_platform}" ]
@@ -178,33 +217,6 @@ __set_various_paths()
          _binpath="${RVAL}"
       fi
    fi
-
-   if [ -d "${DEPENDENCY_DIR}/bin" ]
-   then
-      r_colon_concat "${DEPENDENCY_DIR}/bin" "${_binpath}"
-      _binpath="${RVAL}"
-   fi
-
-   if [ -d "${DEPENDENCY_DIR}/${configuration}/bin" ]
-   then
-      r_colon_concat "${DEPENDENCY_DIR}/${configuration}/bin" "${_binpath}"
-      _binpath="${RVAL}"
-   fi
-
-   if [ ! -z "${sdk_platform}" ]
-   then
-      if [ -d "${DEPENDENCY_DIR}/${sdk_platform}/bin" ]
-      then
-         r_colon_concat "${DEPENDENCY_DIR}/${sdk_platform}/bin" "${_binpath}"
-         _binpath="${RVAL}"
-      fi
-
-      if [ -d "${DEPENDENCY_DIR}/${sdk_platform}/${configuration}/bin" ]
-      then
-         r_colon_concat "${DEPENDENCY_DIR}/${sdk_platform}/${configuration}/bin" "${_binpath}"
-         _binpath="${RVAL}"
-      fi
-   fi
 }
 
 
@@ -225,7 +237,8 @@ r_effective_project_kitchendir()
       ;;
 
       *)
-         directory="`build_directory_name "${name}" `"
+         r_build_directory_name "${name}"
+         directory="${RVAL}"
       ;;
    esac
 
@@ -382,15 +395,24 @@ build_project()
 
    if [ ! -z "${DEPENDENCY_DIR}" ]
    then
-      r_dependency_include_path  "${sdk}" "${platform}" "${configuration}" "${style}"
+      r_dependency_include_path  "${sdk}" \
+                                 "${platform}" \
+                                 "${configuration}" \
+                                 "${style}"
       _includepath="${RVAL}"
 
-      r_dependency_lib_path "${sdk}" "${platform}" "${configuration}" "${style}"
+      r_dependency_lib_path "${sdk}" \
+                            "${platform}" \
+                            "${configuration}" \
+                            "${style}"
       _libpath="${RVAL}"
 
       case "${MULLE_UNAME}" in
          darwin)
-            r_dependency_frameworks_path "${sdk}" "${platform}" "${configuration}" "${style}"
+            r_dependency_frameworks_path "${sdk}" \
+                                         "${platform}" \
+                                         "${configuration}" \
+                                         "${style}"
             _frameworkspath="${RVAL}"
          ;;
       esac
@@ -457,7 +479,8 @@ build_project()
          ;;
 
          *)
-            fail "Unknown library style \"${MULLE_CRAFT_LIBRARY_STYLE}\" (use dynamic/static/standalone)"
+            fail "Unknown library style \"${MULLE_CRAFT_LIBRARY_STYLE}\" \
+(use dynamic/static/standalone)"
          ;;
       esac
    else
@@ -475,8 +498,8 @@ build_project()
                ;;
 
                *)
-                  log_verbose "Project \"${project}\" is marked as \"no-static-link\" \
-and \"all-load\".
+                  log_verbose "Project \"${project}\" is marked \
+as \"no-static-link\" \ and \"all-load\".
 This can lead to problems on darwin, but may solve problems on linux..."
                ;;
             esac
@@ -882,6 +905,8 @@ user wish)"
 
 r_name_from_evaledproject()
 {
+   log_entry "r_name_from_evaledproject" "$@"
+
    local evaledproject="$1"
 
    [ -z "${evaledproject}" ] && internal_fail "evaledproject is empty"
@@ -899,12 +924,15 @@ r_name_from_evaledproject()
    name="${name%%-}"
 
    [ -z "${name}" ] && internal_fail "Name is empty from \"${project}\""
+
    RVAL="${name}"
 }
 
 
 r_name_from_project()
 {
+   log_entry "r_name_from_project" "$@"
+
    local project="$1"
 
    r_expanded_string "${project}"
@@ -1138,7 +1166,8 @@ handle_build_rval()
 
             if [ ! -z "${donefile}" ]
             then
-               redirect_append_exekutor "${donefile}" printf "%s\n" "${line}"
+               redirect_append_exekutor "${donefile}" printf "%s\n" "${line}" \
+               || internal_fail "failed to append to \"${donefile}\""
             else
                log_debug "Not remembering success as we have no donefile"
             fi
@@ -1424,10 +1453,20 @@ r_remaining_craftorder_lines()
 
    local craftorder="$1"
    local donefile="$2"
+   local shared_donefile="$3"
 
    local remaining
 
+   #
+   # weed out those that are in the shared donefile, which we don't have to
+   # build anyway
+   #
    remaining="${craftorder}"
+   if [ ! -z "${shared_donefile}" ] && [ -f "${shared_donefile}" ]
+   then
+      remaining="`rexekutor fgrep -x -v -f "${shared_donefile}" <<< "${remaining}"`"
+   fi
+
    if [ ! -z "${OPTION_SINGLE_DEPENDENCY}" ]
    then
       local escaped
@@ -1439,22 +1478,21 @@ r_remaining_craftorder_lines()
       then
          fail "\"${OPTION_SINGLE_DEPENDENCY}\" is unknown in the craftorder"
       fi
-   else
-      if [ ! -z "${donefile}" ]
+      RVAL="${remaining}"
+      return 0
+   fi
+
+   if [ ! -z "${donefile}" ] && [ -f "${donefile}" ]
+   then
+      if [ "${OPTION_REBUILD_BUILDORDER}" = 'YES' ]
       then
-         if [ -f "${donefile}" ]
+         remove_file_if_present "${donefile}"
+      else
+         remaining="`rexekutor fgrep -x -v -f "${donefile}" <<< "${remaining}"`"
+         if [ -z "${remaining}" ]
          then
-            if [ "${OPTION_REBUILD_BUILDORDER}" = 'YES' ]
-            then
-               remove_file_if_present "${donefile}"
-            else
-               remaining="`rexekutor fgrep -x -v -f "${donefile}" <<< "${remaining}"`"
-               if [ -z "${remaining}" ]
-               then
-                  RVAL=""
-                  return 1
-               fi
-            fi
+            RVAL=""
+            return 1
          fi
       fi
    fi
@@ -1478,8 +1516,6 @@ _do_build_craftorder()
 
    shift 7
 
-   local remaining
-   local donefile
 
    if [ "${MULLE_FLAG_LOG_SETTINGS}" = 'YES' ]
    then
@@ -1491,31 +1527,65 @@ _do_build_craftorder()
    # actual buildir because that's to be determined later
    # at least for now
    #
-   donefile="${kitchendir}/.${sdk}--${platform}--${configuration}.crafted"
+   local donefile
+   local shared_donefile
+
+   r_craft_shared_donefile "${sdk}" "${platform}" "${configuration}"
+   shared_donefile="${RVAL}"
+
+   r_craft_donefile "${sdk}" "${platform}" "${configuration}"
+   donefile="${RVAL}"
+
+   local have_a_donefile
+
+   have_a_donefile="NO"
    if [ -f "${donefile}" ]
    then
-      log_fluff "Donefile \"${donefile}\" is present"
+      log_fluff "A donefile \"${donefile}\" is present"
+      have_a_donefile='YES'
       if [ "${MULLE_FLAG_LOG_SETTINGS}" = 'YES' ]
       then
          log_trace2 "donefile: `cat "${donefile}"`"
       fi
-      if ! r_remaining_craftorder_lines "${craftorder}" "${donefile}"
+   else
+      r_mkdir_parent_if_missing "${donefile}"
+   fi
+
+   if [ -f "${shared_donefile}" ]
+   then
+      log_fluff "A shared donefile \"${shared_donefile}\" is present"
+      have_a_donefile='YES'
+      if [ "${MULLE_FLAG_LOG_SETTINGS}" = 'YES' ]
+      then
+         log_trace2 "shared donefile: `cat "${shared_donefile}"`"
+      fi
+   fi
+
+   local remaining
+
+   if [ "${have_a_donefile}" = 'YES' ]
+   then
+      if ! r_remaining_craftorder_lines "${craftorder}" \
+                                        "${donefile}" \
+                                        "${shared_donefile}"
       then
          log_fluff "Everything in the craftorder has been crafted already"
          return
       fi
       remaining="${RVAL}"
    else
-      log_fluff "Donefile \"${donefile}\" is not present, build everything"
+      log_fluff "A donefile \"${donefile}\" or \"${shared_donefile}\" \
+is not present, build everything"
       remaining="${craftorder}"
-
-      mkdir_if_missing "${kitchendir}"
    fi
 
    #
    # remember what we built last so mulle-craft log can make a good guess
    # what the user wants to see
    #
+
+   mkdir_if_missing "${kitchendir}"
+
    redirect_exekutor "${kitchendir}/.mulle-craft-last" \
       printf "%s\n" "${sdk};${platform};${configuration}"
 
@@ -1542,10 +1612,19 @@ _do_build_craftorder()
 
       if [ "${OPTION_PARALLEL}" = 'YES' -a  \
            "${OPTION_LIST_REMAINING}" = 'NO' -a \
+           "${MULLE_CRAFT_FORCE_SINGLEPHASE}" != 'YES' -a \
            -z "${OPTION_SINGLE_DEPENDENCY}" ]
       then
          case ",${marks}," in
             *,no-singlephase,*)
+               case ",${marks}," in
+                  *,only-framework,*)
+                     log_warning "${project} is marked as no-singlephase and \
+only-framework.
+Frameworks can not be built with multi-phase currently."
+                  ;;
+               esac
+
                r_add_line "${parallel}" "${line}"
                parallel="${RVAL}"
                log_fluff "Collected ${line} for parallel build"
@@ -1641,6 +1720,9 @@ do_build_craftorder()
    [ -z "${DISPENSE_STYLE}" ]  && internal_fail "DISPENSE_STYLE is empty"
 
 
+   #
+   # "NONE" creates no dependency folder
+   #
    if [ "${craftorderfile}" = "NONE" ]
    then
       dependency_end_update 'complete' || exit 1
@@ -1657,7 +1739,7 @@ do_build_craftorder()
 
    #
    # Do this once initially, even if there are no dependencies
-   # That allows tarballs to be installed. Also now the existance of the
+   # That allows tarballs to be installed. Also now the existence of the
    # dependency folders, means something
    #
    dependency_begin_update  "${style}"  || exit 1
@@ -1814,7 +1896,8 @@ do_build_mainproject()
    mkdir_if_missing "${kitchendir}"
 
    # use KITCHEN_DIR not kitchendir
-   redirect_exekutor "${KITCHEN_DIR}/.mulle-craft-last" printf "%s\n" "${sdk};${platform};${configuration}"
+   redirect_exekutor "${KITCHEN_DIR}/.mulle-craft-last" printf "# remember sdk;platform;configuration used for build
+%s\n" "${sdk};${platform};${configuration}"
 
    if [ ! -z "${PROJECT_LANGUAGE}" ]
    then
@@ -2157,6 +2240,7 @@ craft_build_common()
       rmdir_safer "${KITCHEN_DIR}"
       mkdir_if_missing "${KITCHEN_DIR}"
       redirect_exekutor "${filenameenv}" echo "# mulle-craft environment info
+# For verification that ${KITCHEN_DIR} contents are valid, if it gets copied to another machine
 ${currentenv}"
    fi
 
