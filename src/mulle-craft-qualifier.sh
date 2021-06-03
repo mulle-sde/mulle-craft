@@ -93,6 +93,9 @@ r_determine_platform_sdk_version()
 }
 
 
+#
+# TODO: all marks used here should be of the form craftorder-* ?
+#
 r_craftorder_qualifier()
 {
    log_entry "r_craftorder_qualifier" "$@"
@@ -120,20 +123,26 @@ r_craftorder_qualifier()
    # Default is not matchable, as we don't know it
    if [ "${sdk}" != 'default' ]
    then
-      clause="ENABLES sdk-${sdk}"
+      clause="ENABLES craft-sdk-${sdk}"
 
       r_concat "${qualifier}" "${clause}" $'\n'"AND "
       qualifier="${RVAL}"
    fi
 
-   # platform is at least the current
+   # also check the global platform flag
    clause="ENABLES platform-${platform}"
 
    r_concat "${qualifier}" "${clause}" $'\n'"AND "
    qualifier="${RVAL}"
 
+   # now check craft-specfic flags, sdk and configuration are only
+   # interesting for craft, so there aren't global versions      
+   clause="ENABLES craft-platform-${platform}"
+   r_concat "${qualifier}" "${clause}" $'\n'"AND "
+   qualifier="${RVAL}"
+
    # configuration can't be empty
-   clause="ENABLES configuration-${configuration}"
+   clause="ENABLES craft-configuration-${configuration}"
 
    r_concat "${qualifier}" "${clause}" $'\n'"AND "
    qualifier="${RVAL}"

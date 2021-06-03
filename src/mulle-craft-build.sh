@@ -1621,7 +1621,7 @@ is not present, build everything"
                   *,only-framework,*)
                      log_warning "${project} is marked as no-singlephase and \
 only-framework.
-Frameworks can not be built with multi-phase currently."
+${C_INFO}Frameworks can not be built with multi-phase currently."
                   ;;
                esac
 
