@@ -158,7 +158,10 @@ craft_searchpath_main()
    then
       . "${MULLE_CRAFT_LIBEXEC_DIR}/mulle-craft-path.sh" || exit 1
    fi
-
+   if [ -z "${MULLE_CRAFT_STYLE_SH}" ]
+   then
+      . "${MULLE_CRAFT_LIBEXEC_DIR}/mulle-craft-style.sh" || exit 1
+   fi
    local type="$1"
 
    [ -z "${type}" ] && usage "Type is missing"

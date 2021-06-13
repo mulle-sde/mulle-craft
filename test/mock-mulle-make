@@ -48,7 +48,9 @@ emit_defines()
 
    escaped_test_path="`escaped_sed_pattern "${MULLE_TEST_DIR}"`"
    escaped_tmp_path="`escaped_sed_pattern "${MULLE_TMP_DIR}"`"
-   _emit_defines "$@"| sed -e "s/${escaped_test_path:-^}/\${MULLE_TEST_DIR}/g" -e "s/${escaped_tmp_path:-^}/\${MULLE_TMP_DIR}/g"
+   _emit_defines "$@" \
+   | sed -e "s/${escaped_test_path:-^}/\${MULLE_TEST_DIR}/g" \
+         -e "s/${escaped_tmp_path:-^}/\${MULLE_TMP_DIR}/g"
 }
 
 

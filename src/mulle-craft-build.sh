@@ -874,6 +874,12 @@ user wish)"
       esac
    fi
 
+   if [ -z "${MULLE_CRAFT_STYLE_SH}" ]
+   then
+      # shellcheck source=src/mulle-craft-style.sh
+      . "${MULLE_CRAFT_LIBEXEC_DIR}/mulle-craft-style.sh" || exit 1
+   fi
+
    #
    # Figure out where to dispense into
    #
@@ -1050,9 +1056,10 @@ _evaluate_craft_variables()
    #
    # this is the build style which is always "relax"
    #
-   if [ -z "${MULLE_CRAFT_PATH_SH}" ]
+   if [ -z "${MULLE_CRAFT_STYLE_SH}" ]
    then
-      . "${MULLE_CRAFT_LIBEXEC_DIR}/mulle-craft-path.sh" || exit 1
+      # shellcheck source=src/mulle-craft-style.sh
+      . "${MULLE_CRAFT_LIBEXEC_DIR}/mulle-craft-style.sh" || exit 1
    fi
 
    r_get_sdk_platform_configuration_style_string "${sdk}" \
@@ -1464,7 +1471,28 @@ r_remaining_craftorder_lines()
    remaining="${craftorder}"
    if [ ! -z "${shared_donefile}" ] && [ -f "${shared_donefile}" ]
    then
-      remaining="`rexekutor fgrep -x -v -f "${shared_donefile}" <<< "${remaining}"`"
+      local remaining_after_shared
+
+      remaining_after_shared="`rexekutor fgrep -x -v -f "${shared_donefile}" <<< "${remaining}"`"
+      if [ "${remaining_after_shared}" != "${remaining}" ]
+      then
+         if [ "${MULLE_FLAG_LOG_SETTINGS}" = 'YES' ]
+         then
+            log_trace2 "Remaining
+----
+${remaining}
+----
+reduced to
+----
+${remaining_after_shared}
+----
+"
+
+         fi
+         remaining="${remaining_after_shared}"
+      else
+         log_warning "Craftorder unchanged after applying the shared donefile"
+      fi
    fi
 
    if [ ! -z "${OPTION_SINGLE_DEPENDENCY}" ]
@@ -1530,6 +1558,12 @@ _do_build_craftorder()
    local donefile
    local shared_donefile
 
+   if [ -z "${MULLE_CRAFT_STYLE_SH}" ]
+   then
+      # shellcheck source=src/mulle-craft-style.sh
+      . "${MULLE_CRAFT_LIBEXEC_DIR}/mulle-craft-style.sh" || exit 1
+   fi
+
    r_craft_shared_donefile "${sdk}" "${platform}" "${configuration}"
    shared_donefile="${RVAL}"
 
@@ -1541,7 +1575,7 @@ _do_build_craftorder()
    have_a_donefile="NO"
    if [ -f "${donefile}" ]
    then
-      log_fluff "A donefile \"${donefile}\" is present"
+      log_fluff "A donefile \"${donefile#${MULLE_USER_PWD}/}\" is present"
       have_a_donefile='YES'
       if [ "${MULLE_FLAG_LOG_SETTINGS}" = 'YES' ]
       then
@@ -1553,12 +1587,14 @@ _do_build_craftorder()
 
    if [ -f "${shared_donefile}" ]
    then
-      log_fluff "A shared donefile \"${shared_donefile}\" is present"
+      log_verbose "A shared donefile \"${shared_donefile#${MULLE_USER_PWD}/}\" is present"
       have_a_donefile='YES'
       if [ "${MULLE_FLAG_LOG_SETTINGS}" = 'YES' ]
       then
          log_trace2 "shared donefile: `cat "${shared_donefile}"`"
       fi
+   else
+      log_fluff "There is no shared donefile \"${shared_donefile#${MULLE_USER_PWD}/}\""
    fi
 
    local remaining
@@ -1574,8 +1610,8 @@ _do_build_craftorder()
       fi
       remaining="${RVAL}"
    else
-      log_fluff "A donefile \"${donefile}\" or \"${shared_donefile}\" \
-is not present, build everything"
+      log_fluff "No donefiles \"${donefile#${MULLE_USER_PWD}/}\" or \"${shared_donefile#${MULLE_USER_PWD}/}\" \
+are present, so build everything"
       remaining="${craftorder}"
    fi
 
@@ -1862,6 +1898,12 @@ do_build_mainproject()
    else
       r_concat "${OPTIONS_MULLE_MAKE_PROJECT}" "--definition-dir 'NONE'"
       OPTIONS_MULLE_MAKE_PROJECT="${RVAL}"
+   fi
+
+   if [ -z "${MULLE_CRAFT_STYLE_SH}" ]
+   then
+      # shellcheck source=src/mulle-craft-style.sh
+      . "${MULLE_CRAFT_LIBEXEC_DIR}/mulle-craft-style.sh" || exit 1
    fi
 
    #

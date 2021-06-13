@@ -2,4 +2,4 @@
 --configuration Debug
 --definition-dir NONE
 --log-dir ${MULLE_TMP_DIR}/build/Debug/.log
-MULLE_SDK_PATH=${MULLE_TEST_DIR}/dependency:${MULLE_TEST_DIR}/addiction
+MULLE_SDK_PATH=${MULLE_TMP_DIR}/dependency:${MULLE_TMP_DIR}/addiction

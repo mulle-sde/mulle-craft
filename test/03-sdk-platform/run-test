@@ -13,6 +13,7 @@ run_mulle_craft()
    exekutor "${MULLE_CRAFT}" ${MULLE_CRAFT_FLAGS} "$@"
 }
 
+
 run_test()
 {
    local directory="$1" ; shift
@@ -20,6 +21,8 @@ run_test()
 
    MULLE_TMP_DIR="${directory}" \
    MULLE_TEST_DIR="${PWD}" \
+   ADDICTION_DIR="${directory}/addiction" \
+   DEPENDENCY_DIR="${directory}/dependency" \
    BUILD_DIR="${directory}/build" \
       run_mulle_craft "$@"
 
@@ -58,10 +61,10 @@ main()
 
    local filename
 
-   filename="${directory}/build/.craftorder/SDK_A-PLATFORM_1/Release/foreign-project/CMakeCache.txt"
+   filename="${directory}/build/.craftorder/SDK_A-PLATFORM_1/Release/foreign_project/CMakeCache.txt"
    [ -f "${filename}" ] || internal_fail "expected file \"${filename}\" missing"
 
-   filename="${directory}/build/.craftorder/SDK_B-PLATFORM_2/Debug/foreign-project/CMakeCache.txt"
+   filename="${directory}/build/.craftorder/SDK_B-PLATFORM_2/Debug/foreign_project/CMakeCache.txt"
    [ -f "${filename}" ] || internal_fail "expected file \"${filename}\" missing"
 
    log_verbose "----- #1 PASSED -----"

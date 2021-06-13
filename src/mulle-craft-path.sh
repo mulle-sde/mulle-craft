@@ -80,132 +80,6 @@ EOF
 }
 
 
-r_get_sdk_platform_style_string()
-{
-   log_entry "r_get_sdk_platform_style_string" "$@"
-
-   local sdk="$1"
-   local platform="$2"
-   local style="$3"
-
-   [ -z "${sdk}" ]        && internal_fail "sdk must not be empty"
-   [ -z "${platform}" ]   && internal_fail "platform must not be empty"
-   [ -z "${style}" ]      && internal_fail "style must not be empty"
-
-   if [ "${platform}" = 'Default' ]
-   then
-      platform="${MULLE_UNAME}"
-   fi
-
-   case "${style}" in
-      none)
-         RVAL=
-      ;;
-
-      strict)
-         RVAL="${sdk}-${platform}"
-      ;;
-
-      i-strict)
-         RVAL="${platform}-${sdk}"
-      ;;
-
-      auto|relax|tight)
-         if [ "${sdk}" = "Default" ]
-         then
-            if [ "${platform}" = "${MULLE_UNAME}" ]
-            then
-               RVAL=""
-            else
-               RVAL="${platform}"
-            fi
-         else
-            if [ "${platform}" = "${MULLE_UNAME}" ]
-            then
-               RVAL="${sdk}"
-            else
-               RVAL="${sdk}-${platform}"
-            fi
-         fi
-      ;;
-
-      i-auto|i-relax|i-tight)
-         if [ "${sdk}" = "Default" ]
-         then
-            if [ "${platform}" = "${MULLE_UNAME}" ]
-            then
-               RVAL=""
-            else
-               RVAL="${platform}"
-            fi
-         else
-            if [ "${platform}" = "${MULLE_UNAME}" ]
-            then
-               RVAL="${sdk}"
-            else
-               RVAL="${platform}-${sdk}"
-            fi
-         fi
-      ;;
-
-
-      *)
-         fail "Unknown dispense style \"${style}\""
-      ;;
-   esac
-}
-
-
-#
-# Note:  build directories are always like relax dispense-style
-#        this is relevant for dispensing
-#
-# TODO: make style a formatter, so ppl can chose arbitrarily
-#
-r_get_sdk_platform_configuration_style_string()
-{
-   log_entry "r_get_sdk_platform_configuration_style_string" "$@"
-
-   local sdk="$1"
-   local platform="$2"
-   local configuration="$3"
-   local style="$4"
-
-   r_get_sdk_platform_style_string "${sdk}" "${platform}" "${style}"
-   case "${style}" in
-      i-tight)
-         r_filepath_concat "${configuration}-${RVAL}"
-      ;;
-
-      i-strict|i-relax)
-         r_filepath_concat "${configuration}" "${RVAL}"
-      ;;
-
-      i-auto)
-         if [ "${configuration}" != "Release" ]
-         then
-            r_filepath_concat "${configuration}" "${RVAL}"
-         fi
-      ;;
-
-      tight)
-         r_filepath_concat "${RVAL}-${configuration}"
-      ;;
-
-      strict|relax)
-         r_filepath_concat "${RVAL}" "${configuration}"
-      ;;
-
-      auto)
-         if [ "${configuration}" != "Release" ]
-         then
-            r_filepath_concat "${RVAL}" "${configuration}"
-         fi
-      ;;
-   esac
-}
-
-
 r_concat_craftinfo_searchpath()
 {
    log_entry "r_concat_craftinfo_searchpath" "$@"
@@ -306,27 +180,6 @@ r_determine_craftinfo_searchpath()
 }
 
 
-
-r_craft_shared_donefile()
-{
-   local sdk="$1"
-   local platform="$2"
-   local configuration="$3"
-
-   RVAL="${ADDICTION_DIR}/etc/craftorder-${sdk}--${platform}--${configuration}"
-}
-
-r_craft_donefile()
-{
-   local sdk="$1"
-   local platform="$2"
-   local configuration="$3"
-
-   RVAL="${DEPENDENCY_DIR}/etc/craftorder-${sdk}--${platform}--${configuration}"
-}
-
-
-
 r_determine_craftinfo_dir()
 {
    log_entry "r_determine_craftinfo_dir" "$@"
@@ -361,6 +214,11 @@ r_determine_craftinfo_dir()
    if [ -z "${MULLE_CRAFT_SEARCHPATH_SH}" ]
    then
       . "${MULLE_CRAFT_LIBEXEC_DIR}/mulle-craft-searchpath.sh" || exit 1
+   fi
+   if [ -z "${MULLE_CRAFT_STYLE_SH}" ]
+   then
+      # shellcheck source=src/mulle-craft-style.sh
+      . "${MULLE_CRAFT_LIBEXEC_DIR}/mulle-craft-style.sh" || exit 1
    fi
 
    local subdir
@@ -538,6 +396,12 @@ craft_craftorder_searchpath_main()
 
    log_info "${OPTION_SDK}-${OPTION_PLATFORM}/${OPTION_CONFIGURATION}"
 
+   if [ -z "${MULLE_CRAFT_STYLE_SH}" ]
+   then
+      # shellcheck source=src/mulle-craft-style.sh
+      . "${MULLE_CRAFT_LIBEXEC_DIR}/mulle-craft-style.sh" || exit 1
+   fi
+
    r_get_sdk_platform_configuration_style_string "${OPTION_SDK}" \
                                                  "${OPTION_PLATFORM}" \
                                                  "${OPTION_CONFIGURATION}" \
@@ -680,3 +544,4 @@ craft_craftorder_search_main()
 
    return $rval
 }
+

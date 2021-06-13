@@ -32,7 +32,7 @@
 [ "${TRACE}" = 'YES' -o "${MULLE_CRAFT_TRACE}" = 'YES' ] && set -x && : "$0" "$@"
 
 
-MULLE_EXECUTABLE_VERSION=0.18.3
+MULLE_EXECUTABLE_VERSION=0.19.0
 
 
 trap_fail()
@@ -112,7 +112,7 @@ craft_setup_environment()
 
          if [ "${MULLE_SQUELCH_ENVIRONMENT_WARNING}" != 'YES' ]
          then
-            log_warning "Command is running outside of the mulle-sde environment"
+            log_warning "Command is run outside of the mulle-sde environment"
          fi
          log_verbose "(MULLE_VIRTUAL_ROOT set to \"${MULLE_VIRTUAL_ROOT}\")"
       ;;
@@ -328,6 +328,13 @@ main()
          craft_craftorder_searchpath_main "$@"
       ;;
 
+      donefiles)
+         # shellcheck source=src/mulle-craft-style.sh
+         . "${MULLE_CRAFT_LIBEXEC_DIR}/mulle-craft-style.sh"
+
+         craft_craftorder_donefiles_main "$@"
+      ;;
+
       install)
          log_info "mulle-craft doesn't install. Use mulle-make directly."
          exit 1
@@ -395,6 +402,13 @@ main()
          . "${MULLE_CRAFT_LIBEXEC_DIR}/mulle-craft-status.sh"
 
          status_main "$@"
+      ;;
+
+      style)
+         # shellcheck source=src/mulle-craft-style.sh
+         . "${MULLE_CRAFT_LIBEXEC_DIR}/mulle-craft-style.sh"
+
+         craft_craftorder_style_main "$@"
       ;;
 
       uname)

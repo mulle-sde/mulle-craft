@@ -1,6 +1,6 @@
 # mulle-craft
 
-🚬 Build projects with and without mulle sourcetrees
+🚬 Build projects with and without sourcetrees
 
 ![Last version](https://img.shields.io/github/tag/mulle-sde/mulle-craft.svg)
 
@@ -97,9 +97,11 @@ If mulle-craft finds no info-folder there then a project specific
 
 *mulle-craft* builds dependencies in various configuration such as
 unoptimized (Debug) or optimized (Release). It can also craft for multiple
-SDKs and platforms. If only a single depedency folder destination would be
-used the output would clobber each other. That's where the *dispense style*
-comes into play. The easiest to understand is the *strict* style.
+SDKs and platforms. If only a single depedency folder destination were to be
+used the outputs of the various configurations would clobber each other.
+That's where the *dispense style* comes into play.
+
+The easiest to understand is the *strict* style.
 
 ![Strict](dox/dispense-strict.png)
 
@@ -107,7 +109,8 @@ comes into play. The easiest to understand is the *strict* style.
 > platform. Otherwise the "sdk" folders would be multiplied by the number
 > of platforms to craft for (with the platform name appended)
 
-The `auto` style is the default and somewhat more convenient in actual usage:
+The `auto` style is the default and it is somewhat more convenient in actual
+usage:
 
 ![Auto](dox/dispense-auto.png)
 

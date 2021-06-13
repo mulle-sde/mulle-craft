@@ -32,6 +32,34 @@
 MULLE_CRAFT_DEPENDENCY_SH="included"
 
 
+craft_install_tarball()
+{
+   local tarball="$1"
+   local dst_dir="$2"
+
+   log_info "Installing tarball \"${tarball#${MULLE_USER_PWD}/}\" in \"${dst_dir#${MULLE_USER_PWD}/}\""
+   exekutor "${TAR:-tar}" -xz ${TARFLAGS} \
+                          -C "${dst_dir}" \
+                          -f "${tarball}" || fail "failed to extract ${tar}"
+}
+
+
+craft_install_directory()
+{
+   local src_dir="$1"
+   local dst_dir="$2"
+
+   log_info "Copying directory \"${src_dir#${MULLE_USER_PWD}/}\" to \"${dst_dir#${MULLE_USER_PWD}/}\""
+   (
+      cd "${src_dir}" &&
+      exekutor "${TAR:-tar}" -cf ${TARFLAGS} .
+   ) |
+   (
+      cd "${dst_dir}" &&
+      exekutor "${TAR:-tar}" -xf -
+   ) || fail "failed to copy ${src_dir}"
+}
+
 #
 # The ./dependency folder is somewhat like a /usr folder, a root for
 # bin share lib  folders and so on. The dependency folder is
@@ -56,7 +84,7 @@ _dependency_install_tarballs()
    local tarball
    local tarflags
 
-   # DEPENDENCY_TARBALL_PATH is old name, fallen out of favor
+   # DEPENDENCY_TARBALL_PATH is the old name, fallen out of favor
    set -f ; IFS=':'
    for tarball in ${TARBALLS:-${DEPENDENCY_TARBALL_PATH}}
    do
@@ -85,10 +113,12 @@ _dependency_install_tarballs()
       tarflags="-v"
    fi
 
-   if [ -z "${MULLE_CRAFT_PATH_SH}" ]
+   if [ -z "${MULLE_CRAFT_STYLE_SH}" ]
    then
-      . "${MULLE_CRAFT_LIBEXEC_DIR}/mulle-craft-path.sh" || exit 1
+      # shellcheck source=src/mulle-craft-style.sh
+      . "${MULLE_CRAFT_LIBEXEC_DIR}/mulle-craft-style.sh" || exit 1
    fi
+
 
    (
       local directory
@@ -97,31 +127,34 @@ _dependency_install_tarballs()
                                                     "${MULLE_UNAME}" \
                                                     "Release" \
                                                     "${style}"
+
       r_filepath_concat "${DEPENDENCY_DIR}" "${RVAL}"
       directory="${RVAL}"
-      mkdir_if_missing "${directory}"
 
       set -f ; IFS=':'
       for tarball in ${tarballs}
       do
          set +o noglob; IFS="${DEFAULT_IFS}"
 
+         local dst_dir
+
+         dst_dir="${directory}"
+
+         # little hack for convenience..
+         case "${tarball}" in 
+            *\.[Ff][Rr][Aa][Mm][Ee][Ww][Oo][Rr][Kk]\.*|*\.[Ff][Rr][Aa][Mm][Ee][Ww][Oo][Rr][Kk][Ss].*)
+               r_filepath_concat "${directory}" "Frameworks"
+               dst_dir="${RVAL}"
+            ;;
+         esac
+
+         mkdir_if_missing "${dst_dir}"
+
          if [ -f "${tarball}" ]
          then
-            log_info "Installing tarball \"${tarball#${MULLE_USER_PWD}/}\" in \"${directory#${MULLE_USER_PWD}/}\""
-            exekutor "${TAR:-tar}" -xz ${TARFLAGS} \
-                                   -C "${directory}" \
-                                   -f "${tarball}" || fail "failed to extract ${tar}"
+            craft_install_tarball "${tarball}" "${dst_dir}"
          else
-            log_info "Copying directory \"${tarball}\" to \"${directory#${MULLE_USER_PWD}/}\""
-            (
-               cd "${tarball}" &&
-               exekutor "${TAR:-tar}" -cf ${TARFLAGS} .
-            ) |
-            (
-               cd "${directory}" &&
-               exekutor "${TAR:-tar}" -xf -
-            ) || fail "failed to copy ${tarball}"
+            craft_install_directory "${tarball}" "${dst_dir}"
          fi
       done
    ) || exit 1
@@ -355,9 +388,10 @@ r_dependency_dir_locations()
 
    [ -z "${DEPENDENCY_DIR}" ] && internal_fail "DEPENDENCY_DIR not set"
 
-   if [ -z "${MULLE_CRAFT_PATH_SH}" ]
+   if [ -z "${MULLE_CRAFT_STYLE_SH}" ]
    then
-      . "${MULLE_CRAFT_LIBEXEC_DIR}/mulle-craft-path.sh" || exit 1
+      # shellcheck source=src/mulle-craft-style.sh
+      . "${MULLE_CRAFT_LIBEXEC_DIR}/mulle-craft-style.sh" || exit 1
    fi
 
    local subdir
