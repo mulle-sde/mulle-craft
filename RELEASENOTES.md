@@ -7,8 +7,7 @@
 * use `TARBALLS` instead of `DEPENDENCY_TARBALL_PATH` now
 * improved **qualifier** command and gave it a new option `--no-lf`
 * added qualifier command to get the sourcetree qualifier used to match entries for the craftorder
-* allow `--craftorder-file NONE`
-
+* allow --craftorder-file NONE
 
 ### 0.18.3
 
