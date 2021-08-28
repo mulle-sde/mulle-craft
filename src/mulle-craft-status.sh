@@ -43,6 +43,8 @@ Usage:
 
    Show the craft status of the project dependencies (without subprojects).
 
+   Use mulle-sde craftorder --print-craftorder-file to get the necessary craftorder file.
+
 Options:
    --output-no-color  : don't output colorized status
    -f <craftorder>    : supply craftorder file (required)
@@ -63,10 +65,10 @@ r_get_names_from_file()
    local line
    local names
 
-   set -o noglob; IFS=$'\n'
+   shell_disable_glob; IFS=$'\n'
    for line in ${lines}
    do
-      set +o noglob; IFS="${DEFAULT_IFS}"
+      shell_enable_glob; IFS="${DEFAULT_IFS}"
 
       local project
       local marks
@@ -86,7 +88,7 @@ r_get_names_from_file()
       esac
 
    done
-   set +o noglob; IFS="${DEFAULT_IFS}"
+   shell_enable_glob; IFS="${DEFAULT_IFS}"
 
    RVAL="${names}"
 }
@@ -96,8 +98,15 @@ output_names_with_status()
 {
    log_entry "output_names_with_status" "$@"
 
+   local sdk="$1"
+   local platform="$2"
+   local configuration="$3"
+
+   shift 3
    local all_names="$1"
    local built_names="$2"
+   local kitchendir="$3"
+   local is_main="${4:-NO}"
 
    local name
    local rval
@@ -118,17 +127,175 @@ output_names_with_status()
       fail_suffix=": build"
    fi
 
-   set -o noglob; IFS=$'\n'
+   ##
+   ## get build directoy and retrieve some info
+   ##
+   local _name
+   local _evaledproject
+   local _kitchendir
+   local _configuration
+
+   local phase
+   local project
+   local state
+   local rval
+
+   shell_disable_glob; IFS=$'\n'
    for name in ${all_names}
    do
+      #
+      # get remapped _configuration
+      # get actual _kitchendir
+      #
+
+      if [ -z "${MULLE_CRAFT_STYLE_SH}" ]
+      then
+         . "${MULLE_CRAFT_LIBEXEC_DIR}/mulle-craft-style.sh"
+      fi
+
+      _evaluate_craft_variables "${name}" \
+                                "${sdk}" \
+                                "${platform}" \
+                                "${configuration}" \
+                                "relax" \
+                                "${kitchendir}" \
+                                "NO"
+
+      if [ "${MULLE_FLAG_LOG_SETTINGS}" = 'YES' ]
+      then
+         log_trace2 "_kitchendir:    ${_kitchendir}"
+         log_trace2 "_configuration: ${_configuration}"
+      fi
+
+      phase="`egrep -v '^#' "${_kitchendir}/.phase" 2> /dev/null`"
+      project="`egrep -v '^#' "${_kitchendir}/.project" 2> /dev/null`"
+      rval="`egrep -v '^#' "${_kitchendir}/.status" 2> /dev/null`"
+
+      if [ ! -z "${phase}" ]
+      then
+         phase="${phase}-phase"
+      fi
+
       if find_line "${built_names}" "${name}"
       then
-         printf "   %b\n" "${ok_prefix}${name}${ok_suffix}"
+         printf "   %b" "${ok_prefix}${name}${ok_suffix}"
+         case "${rval}" in
+            0)
+               state="OK"
+               rval=""
+            ;;
+
+            *)
+               state="???"
+            ;;
+         esac
       else
-         printf "   %b\n" "${fail_prefix}${name}${fail_suffix}"
+         printf "   %b" "${fail_prefix}${name}${fail_suffix}"
+         if [ -z "${project}" ]
+         then
+            state=""
+            rval=""
+         else
+            state="FAIL"
+         fi
       fi
+      printf ";%s;%s;%s\n" "${state}" "${phase:-Singlephase}" "${rval}"
    done
-   set +o noglob; IFS="${DEFAULT_IFS}"
+   shell_enable_glob; IFS="${DEFAULT_IFS}"
+}
+
+
+craft_status_output()
+{
+   log_entry "craft_status_output" "$@"
+
+   column_cmd="cat"
+
+   column="`command -v column`"
+   if [ ! -z "${column}" ]
+   then
+      column_cmd="'${column}' '-t' '-s;'"
+      output_names_with_status "$@" \
+      | eval ${column_cmd}
+   else
+      log_warning "column command not installed, unformatted output (but with colors)"
+      output_names_with_status "$@"
+   fi
+}
+
+
+#   local _configuration
+#   local _sdk
+#   local _platform
+__craft_status_parse_triple()
+{
+   log_entry "__craft_status_parse_triple" "$@"
+
+   local name="$1"
+
+
+   # format sdk-platform-configuration
+
+   local s
+
+   s="${name#craftorder-}"
+   _sdk="${s%%--*}"
+   s="${s#${_sdk}}"
+   s="${s#--}"
+   _platform="${s%%--*}"
+   s="${s#${_platform}--}"
+   _configuration="$s"
+
+   if [ "${MULLE_FLAG_LOG_SETTINGS}" = 'YES' ]
+   then
+      log_trace2 "sdk:           ${_sdk}"
+      log_trace2 "platform:      ${_platform}"
+      log_trace2 "configuration: ${_configuration}"
+   fi
+}
+
+
+#   local _configuration
+#   local _sdk
+#   local _platform
+__craft_status_parse_donefile()
+{
+   log_entry "__craft_status_parse_donefile" "$@"
+
+   local donefile="$1"
+
+   r_extensionless_basename "${donefile}"
+   name="${RVAL}"
+
+   __craft_status_parse_triple "${name}"
+}
+
+
+
+status_output_with_donefile()
+{
+   log_entry "status_output_with_donefile" "$@"
+
+   local donefile="$1"
+   local kitchendir="$2"
+
+   local _configuration
+   local _sdk
+   local _platform
+
+   __craft_status_parse_donefile "${donefile}"
+
+   log_info " SDK:${C_MAGENTA}${C_BOLD}${_sdk}${C_INFO} \
+Platform:${C_MAGENTA}${C_BOLD}${_platform}${C_INFO} \
+Configuration:${C_MAGENTA}${C_BOLD}${_configuration}${C_INFO}"
+
+   local done_names
+
+   r_get_names_from_file "${donefile}"
+   done_names="${RVAL}"
+
+   craft_status_output "${_sdk}" "${_platform}" "${_configuration}" \
+                       "${all_names}" "${done_names}" "${kitchendir}"
 }
 
 
@@ -173,9 +340,9 @@ status_main()
       fail "You must specify the craftorder with --craftorder-file <file>"
    fi
 
-   if [ "${CRAFTORDER_FILE}" != "NONE" ]
+   if [ "${CRAFTORDER_FILE}" = "NONE" ]
    then
-      log_verbose "Nothing to craft as no craftorder file was given"
+      log_verbose "Nothing to show as no craftorder file was given"
       return 0
    fi
 
@@ -189,11 +356,8 @@ status_main()
    r_get_names_from_file "${CRAFTORDER_FILE}"
    all_names="${RVAL}"
 
-   local configuration
-   local sdk
-   local platform
-   local donefile
-   local name
+   log_debug "names: ${all_names}"
+
 
    if [ ! -d "${CRAFTORDER_KITCHEN_DIR}" ]
    then
@@ -201,48 +365,69 @@ status_main()
       return 0
    fi
 
-   for donefile in `rexekutor find -H "${CRAFTORDER_KITCHEN_DIR}" -name ".*.crafted" -type f -print`
-   do
-      # strip off */.<name>.crafted
-      r_extensionless_basename "${donefile}"
-      name="${RVAL#.}"
+   local addiction_donefiles
+   local dependency_donefiles
+   local dependency_donefiles
 
-      # format sdk-platform-configuration
+   # retarded bash shell can't nullglob variables
+   addiction_donefiles="$( echo "${ADDICTION_DIR}/etc/craftorder"-*--*--* )"
+   dependency_donefiles="$( echo "${DEPENDENCY_DIR}/etc/craftorder"-*--*--* )"
 
-      sdk="${name%%--*}"
-      configuration="${name##*--}"
-      platform="${name#${sdk}--}"
-      platform="${platform%--${configuration}}"
+   if [ "${addiction_donefiles}" = "${ADDICTION_DIR}/etc/craftorder-*--*--*" ]
+   then
+      addiction_donefiles=
+   fi
+   if [ "${dependency_donefiles}" = "${DEPENDENCY_DIR}/etc/craftorder-*--*--*" ]
+   then
+      dependency_donefiles=
+   fi
 
-      if [ "${MULLE_FLAG_LOG_SETTINGS}" = 'YES' ]
+   if [ ! -f "${KITCHEN_DIR}/.mulle-craft" ]
+   then
+      if [ -z "${dependency_donefiles}" -a -z "${addiction_donefiles}" ]
       then
-         log_trace2 "donefile:      ${donefile}"
-         log_trace2 "sdk:           ${sdk}"
-         log_trace2 "platform:      ${platform}"
-         log_trace2 "configuration: ${configuration}"
+         log_info "Not dependencies have been built yet"
+         return 0
       fi
+   fi
 
-      local  info
+   local donefile
 
-      if [ "${sdk}" != 'Default' ]
-      then
-         info="${sdk}"
-      fi
+   if [ ! -z "${addiction_donefiles}" ]
+   then
+      log_info "Craft status of ${C_RESET_BOLD}${ADDICTION_DIR#${MULLE_USER_PWD}/}"
+      for donefile in ${addiction_donefiles}
+      do
+         status_output_with_donefile "${donefile}" "${CRAFTORDER_KITCHEN_DIR}"
+      done
+   fi
 
-      if [ "${platform}" != "${MULLE_UNAME}" ]
-      then
-         r_concat "${info}" "${platform}"
-         info="${RVAL}"
-      fi
+   if [ ! -z "${dependency_donefiles}" ]
+   then
+      log_info "Craft status of ${C_RESET_BOLD}${DEPENDENCY_DIR#${MULLE_USER_PWD}/}"
+      for donefile in ${dependency_donefiles}
+      do
+         status_output_with_donefile "${donefile}" "${CRAFTORDER_KITCHEN_DIR}"
+      done
+   fi
 
-      r_concat "${info}" "${configuration}"
-      info="${RVAL}"
+   if [ -f "${KITCHEN_DIR}/.mulle-craft-last" ]
+   then
+      log_info "Craft status of ${C_RESET_BOLD}${PROJECT_NAME}"
 
-      log_info "${info}"
+      local triple
 
-      r_get_names_from_file "${donefile}"
+      triple="`egrep -v '^#' "${KITCHEN_DIR}/.mulle-craft-last" `"
 
-      output_names_with_status "${all_names}" "${RVAL}"
-   done
+      local _configuration
+      local _sdk
+      local _platform
+
+      __craft_status_parse_triple "${triple//;/--}"
+
+      craft_status_output "${_sdk}" "${_platform}" "${_configuration}" \
+                          "${PROJECT_NAME}" "${PROJECT_NAME}" \
+                          "${KITCHEN_DIR}" "YES"
+   fi
 }
 

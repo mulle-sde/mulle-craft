@@ -85,10 +85,10 @@ _dependency_install_tarballs()
    local tarflags
 
    # DEPENDENCY_TARBALL_PATH is the old name, fallen out of favor
-   set -f ; IFS=':'
+   shell_disable_glob ; IFS=':'
    for tarball in ${TARBALLS:-${DEPENDENCY_TARBALL_PATH}}
    do
-      set +o noglob; IFS="${DEFAULT_IFS}"
+      shell_enable_glob; IFS="${DEFAULT_IFS}"
 
       if [ -z "${tarball}" ]
       then
@@ -104,7 +104,7 @@ _dependency_install_tarballs()
       r_colon_concat "${tarballs}" "${RVAL}"
       tarballs="${RVAL}"
    done
-   set +o noglob; IFS="${DEFAULT_IFS}"
+   shell_enable_glob; IFS="${DEFAULT_IFS}"
 
    [ -z "${tarballs}" ] && return 0
 
@@ -131,10 +131,10 @@ _dependency_install_tarballs()
       r_filepath_concat "${DEPENDENCY_DIR}" "${RVAL}"
       directory="${RVAL}"
 
-      set -f ; IFS=':'
+      shell_disable_glob ; IFS=':'
       for tarball in ${tarballs}
       do
-         set +o noglob; IFS="${DEFAULT_IFS}"
+         shell_enable_glob; IFS="${DEFAULT_IFS}"
 
          local dst_dir
 
@@ -361,10 +361,10 @@ r_dependency_existing_dirs_path()
    local subdir
 
    RVAL=""
-   set -o noglob; IFS=$'\n'
+   shell_disable_glob; IFS=$'\n'
    for subdir in ${subdirectories}
    do
-      set +o noglob; IFS="${DEFAULT_IFS}"
+      shell_enable_glob; IFS="${DEFAULT_IFS}"
 
       if [ -d "${DEPENDENCY_DIR}/${subdir}" ]
       then
@@ -372,7 +372,7 @@ r_dependency_existing_dirs_path()
       fi
    done
 
-   set +o noglob; IFS="${DEFAULT_IFS}"
+   shell_enable_glob; IFS="${DEFAULT_IFS}"
 }
 
 

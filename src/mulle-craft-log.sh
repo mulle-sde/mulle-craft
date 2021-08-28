@@ -149,12 +149,12 @@ list_tool_logs()
       cmdline="${cmdline} -c \"${configuration}\""
    fi
 
-   log_info "${project}"
+   log_info "${C_VERBOSE}${project}"
 
-   shopt -s nullglob
+   shell_enable_nullglob
    for i in "${logdir}"/*.log
    do
-      shopt -u nullglob
+      shell_disable_nullglob
       if [ "${mode}" = "CMD" ]
       then
          r_basename "${i}"
@@ -165,8 +165,7 @@ list_tool_logs()
          printf "%s\n" "${i#${MULLE_USER_PWD}/}"
       fi
    done
-   shopt -u nullglob
-
+   shell_disable_nullglob
 
    if [ "${mode}" = "CMD" ]
    then
@@ -225,17 +224,17 @@ craft_log_list()
    then
       log_info "Project logs"
 
-      set -o noglob; IFS=$'\n'
+      shell_disable_glob; IFS=$'\n'
       for directory in ${directories}
       do
-         IFS="${DEFAULT_IFS}" ; set +o noglob
+         IFS="${DEFAULT_IFS}" ; shell_enable_glob
 
          r_dirname "${directory#${KITCHEN_DIR}/}"
          configuration="${RVAL}"
 
          list_tool_logs "${OPTION_OUTPUT}" "${directory}" "" "${configuration}"
       done
-      IFS="${DEFAULT_IFS}" ; set +o noglob
+      IFS="${DEFAULT_IFS}" ; shell_enable_glob
    fi
 
    directories="`craftorder_log_dirs`"
@@ -243,17 +242,15 @@ craft_log_list()
 
    if [ ! -z "${directories}" ]
    then
-
       log_info "Craftorder logs"
 
       local configuration_name
       local name
 
-
-      set -o noglob; IFS=$'\n'
+      shell_disable_glob; IFS=$'\n'
       for directory in ${directories}
       do
-         IFS="${DEFAULT_IFS}" ; set +o noglob
+         IFS="${DEFAULT_IFS}" ; shell_enable_glob
 
          r_dirname "${directory#${CRAFTORDER_KITCHEN_DIR}/}"
          configuration_name="${RVAL}"
@@ -261,7 +258,7 @@ craft_log_list()
          name="${configuration_name#*/}"
          list_tool_logs "${OPTION_OUTPUT}" "${directory}" "${name}" "${configuration}"
       done
-      IFS="${DEFAULT_IFS}" ; set +o noglob
+      IFS="${DEFAULT_IFS}" ; shell_enable_glob
    fi
 }
 
@@ -335,8 +332,8 @@ craft_log_command()
 
    if [ ! -z "${name}" ]
    then
-      [ -z "${MULLE_CRAFT_BUILD_SH}" ] && \
-            . "${MULLE_CRAFT_LIBEXEC_DIR}/mulle-craft-build.sh"
+      [ -z "${MULLE_CRAFT_STYLE_SH}" ] && \
+            . "${MULLE_CRAFT_LIBEXEC_DIR}/mulle-craft-style.sh"
 
 
       local _kitchendir
@@ -362,20 +359,20 @@ craft_log_command()
       local globpattern
 
       globpattern="${directory}/.log/${OPTION_TOOL}.log"
-      echo ${globpattern}
+#      echo ${globpattern}
 
       # just ensure globbing is ON!
-      shopt -s nullglob
-      echo ""
+      shell_enable_nullglob
+#      echo ""
       for i in ${globpattern}
       do
-         shopt -u nullglob
+         shell_disable_nullglob
 
          log_info "${C_RESET_BOLD}${i}:"
          exekutor "${cmd}" "$@" "${i}"
          found="YES"
       done
-      shopt -u nullglob
+      shell_disable_nullglob
 
       if [ -z "${found}" ]
       then
@@ -402,14 +399,14 @@ craft_log_command()
 
          if [ ! -z "${logfiles}" ]
          then
-            shopt -s nullglob
+            shell_enable_nullglob
             for i in ${logfiles}
             do
-               shopt -u nullglob
+               shell_disable_nullglob
                log_info "${C_RESET_BOLD}${i}:"
                exekutor "${cmd}" "$@" "${i}"
             done
-            shopt -u nullglob
+            shell_disable_nullglob
          else
             log_verbose "No project logs match"
          fi

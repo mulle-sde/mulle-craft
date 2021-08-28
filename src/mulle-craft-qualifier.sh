@@ -101,7 +101,7 @@ r_craftorder_qualifier()
    log_entry "r_craftorder_qualifier" "$@"
 
    local sdk="${1:-Default}"
-   local platform="${2:-${MULLE_UNAME}}"
+   local platform="${2:-Default}"
    local configuration="${3:-Debug}"
    local version="$4"
 
@@ -111,6 +111,11 @@ r_craftorder_qualifier()
    r_lowercase "${sdk}"
    sdk="${RVAL}"
 
+   if [ "${platform}" = 'Default' ]
+   then
+      platform="${MULLE_UNAME}"
+   fi
+   
    r_lowercase "${platform}"
    platform="${RVAL}"
 
@@ -230,10 +235,10 @@ r_filtered_craftorder()
    local marks
 
    result=
-   set -o noglob; IFS=$'\n'
+   shell_disable_glob; IFS=$'\n'
    for line in ${craftorder}
    do
-      set +o noglob; IFS="${DEFAULT_IFS}"
+      shell_enable_glob; IFS="${DEFAULT_IFS}"
 
       marks="${line#*;}"
 
@@ -243,7 +248,7 @@ r_filtered_craftorder()
          result="${RVAL}"
       fi
    done
-   set +o noglob; IFS="${DEFAULT_IFS}"
+   shell_enable_glob; IFS="${DEFAULT_IFS}"
 
    RVAL="${result}"
 }

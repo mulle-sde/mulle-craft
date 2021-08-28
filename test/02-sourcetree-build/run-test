@@ -116,12 +116,12 @@ main()
 {
    MULLE_CRAFT_FLAGS="$@"
 
-   _options_mini_main "$@"
+   _options_mini_main "$@" && set -x
 
    local directory
 
-   directory="`make_tmp_directory`"
-   directory="${directory:-/tmp/test}"
+   r_make_tmp_directory
+   directory="${RVAL:-/tmp/test}"
 
    #
    # Check that some simple pass through stuff works

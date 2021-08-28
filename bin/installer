@@ -66,13 +66,13 @@ _r_installer_prepend_path_if_relative()
 
 r_installer_resolve_symlinks()
 {
-   local path
+   local filepath
 
-   path="`readlink "$1"`"
+   filepath="`readlink "$1"`"
    if [ $? -eq 0 ]
    then
       r_dirname "$1"
-      _r_installer_prepend_path_if_relative  "${RVAL}" "${path}"
+      _r_installer_prepend_path_if_relative  "${RVAL}" "${filepath}"
       r_installer_resolve_symlinks "${RVAL}"
    else
       RVAL="$1"

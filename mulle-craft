@@ -1,4 +1,4 @@
-#! /usr/bin/env bash
+#! /bin/sh
 #
 #   Copyright (c) 2017 Nat! - Mulle kybernetiK
 #   All rights reserved.
@@ -32,13 +32,69 @@
 [ "${TRACE}" = 'YES' -o "${MULLE_CRAFT_TRACE}" = 'YES' ] && set -x && : "$0" "$@"
 
 
+####
+#
+# Prelude to be placed at top of each script. Rerun this script either in
+# bash or zsh, if not already running in either (which can happen!)
+# Allows script to run on systems that either have bash (linux) or
+# zsh (macOS) only by default.
+
+if [ "$1" != --no-auto-shell ]
+then
+   if [ -z "${BASH_VERSION}" -a -z "${ZSH_VERSION}" ]
+   then
+      exe_shell="`command -v "bash" `"
+      exe_shell="${exe_shell:-`command -v "zsh" `}"
+
+      script="$0"
+
+      #
+      # Quote incoming arguments for shell expansion
+      #
+      args=""
+      for arg in "$@"
+      do
+         # True bourne sh doesn't know ${a//b/c} and <<<
+         case "${arg}" in
+            *\'*)
+               # Use cat instead of echo to avoid possible echo -n
+               # problems. Escape single quotes in string.
+               arg="`cat <<EOF | sed -e s/\'/\'\\\"\'\\\"\'/g
+${arg}
+EOF
+`"
+            ;;
+         esac
+         if [ -z "${args}" ]
+         then
+            args="'${arg}'"
+         else
+            args="${args} '${arg}'"
+         fi
+      done
+
+      #
+      # bash/zsh will use arg after -c <arg> as $0, convenient!
+      #
+
+      exec "${exe_shell:-bash}" -c ". ${script} --no-auto-shell ${args}" "${script}"
+   fi
+   if [ ! -z "${BASH_VERSION}" ]
+   then
+      set +o posix
+   fi
+else
+   shift    # get rid of --no-auto-shell
+fi
+
+
+#
+# Main script to follow, runs now either in zsh or bash
+#
+####
+
+
 MULLE_EXECUTABLE_VERSION=0.19.0
-
-
-trap_fail()
-{
-   exit 1
-}
 
 
 usage()
@@ -76,15 +132,15 @@ EOF
    cat <<EOF
 
 Commands:
-   craftorder      : craft projects using a craftorder file
-   clean           : clean output
-   list            : list remaining builds in craftorder file
-   log             : inspect kitchen logs
-   project         : craft main project without a craftorder file (default)
-   qualify         : test build qualifiers used in craftorder files
-   search          : search for a specific craftinfo
-   craftorder-path : show current craftinfo searchpath
-   status          : returns 0 if dependency is ready
+   craftorder           : craft projects using a craftorder file
+   craftinfo-seatchpath : show current craftinfo searchpath
+   clean                : clean output
+   list                 : list remaining builds in craftorder file
+   log                  : inspect kitchen logs
+   project              : craft main project without craftorder (default)
+   qualify              : test build qualifiers used in craftorder files
+   search               : search for a specific craftinfo
+   status               : returns 0 if dependency is ready
 EOF
 
    if [ "${MULLE_FLAG_LOG_VERBOSE}" = 'NO' ]
@@ -207,6 +263,10 @@ main()
             exekutor cd "$1" || exit 1
          ;;
 
+         --no-craftorder-file)
+            CRAFTORDER_FILE='NONE'
+         ;;
+
          --craftorder-file)
             [ $# -eq 1 ] && usage "Missing argument to \"$1\""
             shift
@@ -258,7 +318,7 @@ main()
       shift
    done
 
-   options_setup_trace "${MULLE_TRACE}"
+   options_setup_trace "${MULLE_TRACE}" && set -x
 
    local cmd="$1"
 
@@ -320,15 +380,14 @@ main()
          printf "%s\n" "${MULLE_CRAFT_LIBEXEC_DIR}"
       ;;
 
-      # rename to find ? again ??
-      craftorder-path)
-         # shellcheck source=src/mulle-craft-path.sh
+      # rename to "find" ? again ??
+      craftinfo-searchpath)         # shellcheck source=src/mulle-craft-path.sh
          . "${MULLE_CRAFT_LIBEXEC_DIR}/mulle-craft-path.sh"
 
-         craft_craftorder_searchpath_main "$@"
+         craft_craftinfo_searchpath_main "$@"
       ;;
 
-      donefiles)
+      donefile|donefiles)
          # shellcheck source=src/mulle-craft-style.sh
          . "${MULLE_CRAFT_LIBEXEC_DIR}/mulle-craft-style.sh"
 
@@ -383,11 +442,11 @@ main()
       ;;
 
       # rename to find ? again ??
-      search)
+      search|craftinfo-search)
          # shellcheck source=src/mulle-craft-craftorder.sh
          . "${MULLE_CRAFT_LIBEXEC_DIR}/mulle-craft-craftorder.sh"
 
-         craft_craftorder_search_main "$@"
+         craft_craftinfo_search_main "$@"
       ;;
 
       searchpath)
@@ -436,11 +495,15 @@ main()
 ###
 _init()
 {
-   if [ "$1" = "version" ]
-   then
-      printf "%s\n" "${MULLE_ENV_VERSION}"
-      exit 0
-   fi
+   #
+   # leading backslash ? looks like we're getting called from
+   # mingw via a .BAT or so
+   #
+   case "$PATH" in
+      '\\'*)
+         PATH="${PATH//\\/\/}"
+      ;;
+   esac
 
    MULLE_BASHFUNCTIONS_LIBEXEC_DIR="`mulle-bashfunctions-env libexec-dir 2> /dev/null`"
    [ -z "${MULLE_BASHFUNCTIONS_LIBEXEC_DIR}" ] && \
@@ -451,24 +514,40 @@ _init()
    . "${MULLE_BASHFUNCTIONS_LIBEXEC_DIR}/mulle-path.sh" || exit 1
    . "${MULLE_BASHFUNCTIONS_LIBEXEC_DIR}/mulle-file.sh" || exit 1
 
-   r_get_libexec_dir "$0" "mulle-craft" "mulle-craft-build.sh"
-   MULLE_CRAFT_LIBEXEC_DIR="${RVAL}"
-
-   #
-   # minimal setup exit
-   #
-   if [ "$1" = "libexec-dir" ]
+   if [ -z "${MULLE_CRAFT_LIBEXEC_DIR}" ]
    then
-      printf "%s\n" "${MULLE_CRAFT_LIBEXEC_DIR}"
-      exit 0
+      r_get_libexec_dir "${MULLE_EXECUTABLE}" "mulle-craft" "mulle-craft-build.sh"
+      MULLE_CRAFT_LIBEXEC_DIR="${RVAL}"
    fi
 
-   set -o pipefail
+   #
+   # commands with minimal trap setup
+   #
+   if [ $# -eq 1 ]
+   then
+      case "${1}" in
+         libexec-dir|library-path)
+            printf "%s\n" "${MULLE_CRAFT_LIBEXEC_DIR}"
+            exit 0
+         ;;
+
+         version)
+            printf "%s\n" "${MULLE_EXECUTABLE_VERSION}"
+            exit 0
+         ;;
+      esac
+   fi
+
+   shell_enable_pipefail
+   shell_enable_extglob
 
    call_main "${MULLE_CRAFT_FLAGS}" "$@"
 }
 
 
 
+MULLE_EXECUTABLE="${MULLE_EXECUTABLE:-${BASH_SOURCE[0]:-${(%):-%x}}}"
+
 _init "$@" # needs params
+
 

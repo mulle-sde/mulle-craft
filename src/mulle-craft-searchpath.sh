@@ -202,14 +202,14 @@ craft_searchpath_main()
 
    configurations="${configurations}:Release"
 
-   set -f; IFS=':'
+   shell_disable_glob; IFS=':'
    for configuration in ${configurations}
    do
       for platform in ${platforms}
       do
          for sdk in ${sdks}
          do
-            set +f; IFS="${DEFAULT_IFS}"
+            shell_enable_glob; IFS="${DEFAULT_IFS}"
 
             r_get_sdk_platform_configuration_style_string "${sdk}" \
                                                           "${platform}" \
@@ -227,11 +227,11 @@ craft_searchpath_main()
                paths="${RVAL}"
             fi
 
-            set -f; IFS=':'
+            shell_disable_glob; IFS=':'
          done
       done
    done
-   set +f; IFS="${DEFAULT_IFS}"
+   shell_enable_glob; IFS="${DEFAULT_IFS}"
 
    r_filepath_concat "${ADDICTION_DIR}" "${subdir}"
    r_absolutepath "${RVAL}"
@@ -243,14 +243,14 @@ craft_searchpath_main()
 
    local searchpath
 
-   set -o noglob; IFS=$'\n'
+   shell_disable_glob; IFS=$'\n'
    for directory in ${paths}
    do
-      set +o noglob; IFS="${DEFAULT_IFS}"
+      shell_enable_glob; IFS="${DEFAULT_IFS}"
       r_colon_concat "${searchpath}" "${directory}"
       searchpath="${RVAL}"
    done
-   set +o noglob; IFS="${DEFAULT_IFS}"
+   shell_enable_glob; IFS="${DEFAULT_IFS}"
 
    [ ! -z "${searchpath}" ] && printf "%s\n" "${searchpath}"
 }

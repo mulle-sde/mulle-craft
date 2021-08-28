@@ -139,13 +139,14 @@ craft_clean_main()
       return $?
    fi
 
-   # shellcheck source=src/mulle-craft-build.sh
-   if [ -z "${MULLE_CRAFT_BUILD_SH}" ]
+   if [ -z "${MULLE_CRAFT_STYLE_SH}" ]
    then
-      . "${MULLE_CRAFT_LIBEXEC_DIR}/mulle-craft-build.sh"
+      # shellcheck source=src/mulle-craft-style.sh
+      . "${MULLE_CRAFT_LIBEXEC_DIR}/mulle-craft-style.sh"
    fi
    if [ -z "${MULLE_CRAFT_PATH_SH}" ]
    then
+      # shellcheck source=src/mulle-craft-path.sh
       . "${MULLE_CRAFT_LIBEXEC_DIR}/mulle-craft-path.sh"
    fi
 
@@ -176,7 +177,7 @@ craft_clean_main()
          "project")
             log_verbose "Cleaning project"
 
-            shopt -s nullglob
+            shell_enable_nullglob
             for i in "${KITCHEN_DIR}"/*
             do
                if [ -d "${i}" ]
@@ -184,7 +185,7 @@ craft_clean_main()
                   remove_directory "${i}"
                fi
             done
-            shopt -u nullglob
+            shell_disable_nullglob
          ;;
 
          "")
@@ -232,15 +233,14 @@ craft_clean_main()
 
             if [ "${OPTION_TOUCH}" = 'NO' ]
             then
-               shopt -s nullglob
+               shell_enable_nullglob
                remove_directories "${CRAFTORDER_KITCHEN_DIR}"/*/"${directory}" \
                                   "${CRAFTORDER_KITCHEN_DIR}"/*/*/"${directory}"
-               shopt -u nullglob
+               shell_disable_nullglob
             fi
 
             r_escaped_sed_pattern "${cleantarget}"
             escaped="${RVAL}"
-
 
             for donefile in "${DEPENDENCY_DIR}/etc"/craftorder-*
             do

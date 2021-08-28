@@ -32,13 +32,13 @@
 MULLE_CRAFT_PATH_SH="included"
 
 
-craft_craftorder_searchpath_usage()
+craft_craftinfo_searchpath_usage()
 {
    [ "$#" -ne 0 ] && log_error "$*"
 
     cat <<EOF >&2
 Usage:
-   ${MULLE_USAGE_NAME} craftorder-searchpath [options] <framework|header|library>
+   ${MULLE_USAGE_NAME} craftinfo-searchpath [options] <framework|header|library>
 
    Emits the craftinfo searchpath.
 
@@ -48,15 +48,16 @@ Options:
    --debug           : adjust output to match configuration "Debug"
 
 Environment:
-   DEPENDENCY_DIR    : place to put dependencies into (generally required)
-   MULLE_CRAFT_DISPENSE_STYLE    : how build productes are placed into DEPENDENCY_DIR
+
+   DEPENDENCY_DIR             : place to store dependencies (usually required)
+   MULLE_CRAFT_DISPENSE_STYLE : how products are placed into DEPENDENCY_DIR
 EOF
   exit 1
 }
 
 
 
-craft_craftorder_search_usage()
+craft_craftinfo_search_usage()
 {
    [ "$#" -ne 0 ] && log_error "$*"
 
@@ -256,10 +257,10 @@ r_determine_craftinfo_dir()
 
    log_fluff "Craftinfo search order: ${searchpath}"
 
-   set -f ; IFS=':'
+   shell_disable_glob ; IFS=':'
    for craftinfodir in ${searchpath}
    do
-      set +f; IFS="${DEFAULT_IFS}"
+      shell_enable_glob; IFS="${DEFAULT_IFS}"
       if [ ! -z "${craftinfodir}" ] && [ -d "${craftinfodir}" ]
       then
          log_fluff "Craftinfo directory \"${craftinfodir}\" found"
@@ -267,7 +268,7 @@ r_determine_craftinfo_dir()
          return 0
       fi
    done
-   set +f; IFS="${DEFAULT_IFS}"
+   shell_enable_glob; IFS="${DEFAULT_IFS}"
 
    log_fluff "No craftinfo \"${name}\" found"
 
@@ -277,9 +278,9 @@ r_determine_craftinfo_dir()
 
 
 
-craft_craftorder_searchpath_main()
+craft_craftinfo_searchpath_main()
 {
-   log_entry "craft_craftorder_searchpath_main" "$@"
+   log_entry "craft_craftinfo_searchpath_main" "$@"
 
    local OPTION_PROJECT_DIR="${PWD}"
    local OPTION_PROJECT_TYPE="mainproject"
@@ -295,7 +296,7 @@ craft_craftorder_searchpath_main()
    do
       case "$1" in
          -h*|--help|help)
-            craft_craftorder_searchpath_usage
+            craft_craftinfo_searchpath_usage
          ;;
 
          --release)
@@ -324,14 +325,14 @@ craft_craftorder_searchpath_main()
          ;;
 
          --name)
-            [ $# -eq 1 ] && craft_craftorder_searchpath_usage "Missing argument to \"$1\""
+            [ $# -eq 1 ] && craft_craftinfo_searchpath_usage "Missing argument to \"$1\""
             shift
 
             OPTION_NAME="$1"
          ;;
 
          --project-dir)
-            [ $# -eq 1 ] && craft_craftorder_searchpath_usage "Missing argument to \"$1\""
+            [ $# -eq 1 ] && craft_craftinfo_searchpath_usage "Missing argument to \"$1\""
             shift
 
             OPTION_PROJECT_DIR="$1"
@@ -339,7 +340,7 @@ craft_craftorder_searchpath_main()
 
 
          --project-type)
-            [ $# -eq 1 ] && craft_craftorder_searchpath_usage "Missing argument to \"$1\""
+            [ $# -eq 1 ] && craft_craftinfo_searchpath_usage "Missing argument to \"$1\""
             shift
 
             OPTION_PROJECT_TYPE="$1"
@@ -349,35 +350,35 @@ craft_craftorder_searchpath_main()
          # quadruple of sdk/platform/configuration/style
          #
          --configuration)
-            [ $# -eq 1 ] && craft_craftorder_searchpath_usage "Missing argument to \"$1\""
+            [ $# -eq 1 ] && craft_craftinfo_searchpath_usage "Missing argument to \"$1\""
             shift
 
             OPTION_CONFIGURATION="$1"
          ;;
 
          --platform)
-            [ $# -eq 1 ] && craft_craftorder_searchpath_usage "Missing argument to \"$1\""
+            [ $# -eq 1 ] && craft_craftinfo_searchpath_usage "Missing argument to \"$1\""
             shift
 
             OPTION_PLATFORM="$1"
          ;;
 
          --sdk)
-            [ $# -eq 1 ] && craft_craftorder_searchpath_usage "Missing argument to \"$1\""
+            [ $# -eq 1 ] && craft_craftinfo_searchpath_usage "Missing argument to \"$1\""
             shift
 
             OPTION_SDK="$1"
          ;;
 
          --style)
-            [ $# -eq 1 ] && craft_craftorder_searchpath_usage "Missing argument to \"$1\""
+            [ $# -eq 1 ] && craft_craftinfo_searchpath_usage "Missing argument to \"$1\""
             shift
 
             OPTION_STYLE="$1"
          ;;
 
          -*)
-            craft_craftorder_searchpath_usage "Unknown option \"$1\""
+            craft_craftinfo_searchpath_usage "Unknown option \"$1\""
          ;;
 
          *)
@@ -392,7 +393,7 @@ craft_craftorder_searchpath_main()
    OPTION_PROJECT_DIR="${OPTION_PROJECT_DIR:-${PWD}}"
    OPTION_NAME="${OPTION_NAME:-`basename -- "${OPTION_PROJECT_DIR}"`}"
 
-   [ $# -ne 0 ] && craft_craftorder_searchpath_usage "Superflous parameters \"$*\""
+   [ $# -ne 0 ] && craft_craftinfo_searchpath_usage "Superflous parameters \"$*\""
 
    log_info "${OPTION_SDK}-${OPTION_PLATFORM}/${OPTION_CONFIGURATION}"
 
@@ -422,9 +423,9 @@ craft_craftorder_searchpath_main()
 
 
 
-craft_craftorder_search_main()
+craft_craftinfo_search_main()
 {
-   log_entry "craft_craftorder_search_main" "$@"
+   log_entry "craft_craftinfo_search_main" "$@"
 
    local OPTION_PROJECT_DIR
    local OPTION_PLATFORM_CRAFTINFO='YES'
@@ -438,11 +439,11 @@ craft_craftorder_search_main()
    do
       case "$1" in
          -h*|--help|help)
-            craft_craftorder_search_usage
+            craft_craftinfo_search_usage
          ;;
 
          -d|--project-dir)
-            [ $# -eq 1 ] && craft_craftorder_search_usage "Missing argument to \"$1\""
+            [ $# -eq 1 ] && craft_craftinfo_search_usage "Missing argument to \"$1\""
             shift
 
             OPTION_PROJECT_DIR="$1"  # could be global env
@@ -460,35 +461,35 @@ craft_craftorder_search_main()
          # quadruple of sdk/platform/configuration/style
          #
          --configuration)
-            [ $# -eq 1 ] && craft_craftorder_searchpath_usage "Missing argument to \"$1\""
+            [ $# -eq 1 ] && craft_craftinfo_searchpath_usage "Missing argument to \"$1\""
             shift
 
             OPTION_CONFIGURATION="$1"
          ;;
 
          --platform)
-            [ $# -eq 1 ] && craft_craftorder_searchpath_usage "Missing argument to \"$1\""
+            [ $# -eq 1 ] && craft_craftinfo_searchpath_usage "Missing argument to \"$1\""
             shift
 
             OPTION_PLATFORM="$1"
          ;;
 
          --sdk)
-            [ $# -eq 1 ] && craft_craftorder_searchpath_usage "Missing argument to \"$1\""
+            [ $# -eq 1 ] && craft_craftinfo_searchpath_usage "Missing argument to \"$1\""
             shift
 
             OPTION_SDK="$1"
          ;;
 
          --style)
-            [ $# -eq 1 ] && craft_craftorder_searchpath_usage "Missing argument to \"$1\""
+            [ $# -eq 1 ] && craft_craftinfo_searchpath_usage "Missing argument to \"$1\""
             shift
 
             OPTION_STYLE="$1"
          ;;
 
          -*)
-            craft_craftorder_search_usage "Unknown option \"$1\""
+            craft_craftinfo_search_usage "Unknown option \"$1\""
          ;;
 
          *)

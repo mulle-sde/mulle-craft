@@ -48,6 +48,7 @@ Options:
    --lenient      : do not stop on errors
    --no-protect   : do not make dependency read-only
    --release      : compile for release only
+   --serial       : don't build in parallel
    --mulle-test   : compile for testing (defines MULLE_TEST)
    --sdk <sdk>    : specify sdk to build against (Default)
    --platform <p> : specify platform to build for (${MULLE_UNAME})
@@ -96,21 +97,6 @@ assert_sane_name()
    then
       fail "\"${name}\" contains invalid characters$*"
    fi
-}
-
-
-#
-# remove any non-identifiers and file extensions from name
-#
-r_build_directory_name()
-{
-   log_entry "r_build_directory_name" "$@"
-
-   r_basename "$1"         # just filename
-   RVAL="${RVAL%%.*}"      # remove file extensions
-   r_identifier "${RVAL}"  # make identifier (bad chars -> '_')
-   RVAL="${RVAL%%_}"       # remove trailing '_'
-   RVAL="${RVAL##_}"       # remove leading '_'
 }
 
 
@@ -217,107 +203,6 @@ __set_various_paths()
          _binpath="${RVAL}"
       fi
    fi
-}
-
-
-r_effective_project_kitchendir()
-{
-   log_entry "r_effective_project_kitchendir" "$@"
-
-   local name="$1"
-   local parentkitchendir="$2"
-   local verify="${3:-YES}"
-
-   local directory
-
-   # allow '*' for log, possibly foo* too
-   case "${name}" in
-      *'*')
-         directory="${name}"
-      ;;
-
-      *)
-         r_build_directory_name "${name}"
-         directory="${RVAL}"
-      ;;
-   esac
-
-   #
-   # find proper build directory
-   # find proper log directory
-   #
-   local kitchendir
-
-   r_filepath_concat "${parentkitchendir}" "${directory}"
-   kitchendir="${RVAL}"
-
-   r_absolutepath "${kitchendir}"
-   kitchendir="${RVAL}"
-
-   #
-   # allow name dupes, but try to avoid proliferation of
-   # builddirs
-   #
-   if [ "${verify}" = 'YES' ] && [ -d "${kitchendir}" ]
-   then
-      local oldproject
-
-      oldproject="`cat "${kitchendir}/.project" 2> /dev/null`"
-      if [ ! -z "${oldproject}" -a "${oldproject}" = "${project}" ]
-      then
-         RVAL="${kitchendir}"
-         return 0
-      fi
-
-      #
-      # if projects exist with duplicate names, add a random number at end
-      # to differentiate
-      #
-      local randomstring
-
-      while [ -d "${kitchendir}" ]
-      do
-         randomstring="`uuidgen | cut -c'1-6'`"
-         r_filepath_concat "${parentkitchendir}" "${directory}-${randomstring}"
-         kitchendir="${RVAL}"
-      done
-   fi
-
-   log_fluff "Kitchen directory is \"${kitchendir}\""
-
-   RVAL="${kitchendir}"
-   return 0
-}
-
-#
-# TODO: prefix MULLE_ prefix on MULLE_SDK_PATH is a bit weird since
-# all other flags known by mulle-make do not have a MULLE_ prefix
-#
-r_get_mulle_sdk_path()
-{
-   log_entry "r_get_mulle_sdk_path" "$@"
-
-   local sdk="$1"
-   local platform="$2"
-   local style="$3"
-
-   local sdk_platform
-
-   r_get_sdk_platform_style_string "${sdk}" "${platform}" "${style}"
-   sdk_platform="${RVAL}"
-
-   local addiction_dir
-   local dependency_dir
-
-   r_filepath_concat "${ADDICTION_DIR}" "${sdk_platform}"
-   addiction_dir="${RVAL}"
-   r_filepath_concat "${DEPENDENCY_DIR}" "${sdk_platform}"
-   dependency_dir="${RVAL}"
-
-   r_colon_concat "${dependency_dir}" "${addiction_dir}"
-   r_colon_concat "${RVAL}" "${MULLE_SDK_PATH}"
-
-   log_debug "sdk_path: ${RVAL}"
 }
 
 
@@ -611,7 +496,13 @@ This can lead to problems on darwin, but may solve problems on linux..."
    r_identifier "${RVAL}"
    r_uppercase "${RVAL}"
    mulle_options_env_key="MULLE_CRAFT_${RVAL}_MAKE_OPTIONS"
-   mulle_options_env_value="${!RVAL}"
+
+   if [ ! -z "${ZSH_VERSION}" ]
+   then
+      mulle_options_env_value="${(P)RVAL}"
+   else
+      mulle_options_env_value="${!RVAL}"
+   fi
 
    local auxargs
    local i
@@ -661,6 +552,14 @@ set to ${C_RESET_BOLD}${mulle_options_env_value}${C_VERBOSE}"
    if [ ${rval} -ne 0 ]
    then
       log_fluff "Build of \"${project}\" failed ($rval)"
+   fi
+
+   if [ ! -z "${OPTION_CALLBACK}" ]
+   then
+      MULLE_CRAFT_PROJECT="${project}" \
+      MULLE_CRAFT_DESTINATION="${destination}" \
+      MULLE_CRAFT_RVAL="${rval}" \
+      eval_exekutor "${OPTION_CALLBACK}" || fail "Callback failed"
    fi
 
    return $rval
@@ -909,177 +808,6 @@ user wish)"
 }
 
 
-r_name_from_evaledproject()
-{
-   log_entry "r_name_from_evaledproject" "$@"
-
-   local evaledproject="$1"
-
-   [ -z "${evaledproject}" ] && internal_fail "evaledproject is empty"
-
-   local name
-#   log_trace2 "MULLE_VIRTUAL_ROOT=${MULLE_VIRTUAL_ROOT}"
-#   log_trace2 "MULLE_SOURCETREE_STASH_DIR=${MULLE_SOURCETREE_STASH_DIR}"
-
-   name="${evaledproject#${MULLE_VIRTUAL_ROOT:-${PWD}}/}"
-   name="${name#${MULLE_SOURCETREE_STASH_DIRNAME:-stash}/}"
-
-   # replace everything thats not an identifier or . _ - + with -
-   name="${name//[^a-zA-Z0-9_.+-]/-}"
-   name="${name##-}"
-   name="${name%%-}"
-
-   [ -z "${name}" ] && internal_fail "Name is empty from \"${project}\""
-
-   RVAL="${name}"
-}
-
-
-r_name_from_project()
-{
-   log_entry "r_name_from_project" "$@"
-
-   local project="$1"
-
-   r_expanded_string "${project}"
-   r_name_from_evaledproject "${RVAL}"
-}
-
-
-#
-# local _configuration
-# local _evaledproject
-# local _name
-#
-r_mapped_configuration()
-{
-   log_entry "r_mapped_configuration" "$@"
-
-   local name="$1"
-   local configuration="$2"
-
-   if [ -z "${MULLE_CASE_SH}" ]
-   then
-     . "${MULLE_BASHFUNCTIONS_LIBEXEC_DIR}/mulle-case.sh" || exit 1
-   fi
-
-   local base_identifier
-
-   r_tweaked_de_camel_case "${name}"
-   r_uppercase "${RVAL}"
-   r_identifier "${RVAL}"
-   base_identifier="${RVAL}"
-
-   #
-   # Map some configurations (e.g. Debug -> Release for mulle-objc-runtime)
-   # You can also map to empty, to skip a configuration
-   #
-   local value
-   local identifier
-
-   identifier="MULLE_CRAFT_${base_identifier}_MAP_CONFIGURATIONS"
-   value="${!identifier}"
-
-   RVAL="${configuration}"
-   if [ -z "${value}" ]
-   then
-      return
-   fi
-
-   local mapped
-   local escaped
-
-   case ",${value}," in
-      *",${configuration}->"*","*)
-         r_escaped_sed_pattern "${configuration}"
-         escaped="${RVAL}"
-
-         mapped="`LC_ALL=C sed -n -e "s/.*,${escaped}->\([^,]*\),.*/\\1/p" <<< ",${value},"`"
-         if [ -z "${mapped}" ]
-         then
-         log_verbose "Configuration \"${configuration}\" skipped due \
-to \"${identifier}\""
-            return 0
-         fi
-
-         log_verbose "Configuration \"${configuration}\" mapped to \
-\"${mapped}\" due to environment variable \"${identifier}\""
-         RVAL="${mapped}"
-      ;;
-   esac
-}
-
-
-#
-# uses passed in values to evaluate final ones. This code may change the
-# configuration (f.e. a nice feature, if a project doesn't support it)
-# and will finalize the name of the build directory and the name to be shown
-# as what gets compiled.
-#
-# local _kitchendir
-# local _configuration
-# local _evaledproject
-# local _name
-#
-_evaluate_craft_variables()
-{
-   log_entry "_evaluate_craft_variables" "$@"
-
-   local project="$1"
-   local sdk="$2"
-   local platform="$3"
-   local configuration="$4"
-   local style="$5"
-   local kitchendir="$6"
-   local verify="$7"   # can be left empty
-
-   #
-   # getting the project name nice is fairly crucial to figure out when
-   # things go wrong. project * happens when we run log command
-   #
-   if [ "${project}" = '*' ]
-   then
-      _name="${project}"
-      _evaledproject=""
-      _configuration="${configuration}"
-      log_fluff "Configuration mapping will not be found by logs"
-   else
-      r_expanded_string "${project}"
-      _evaledproject="${RVAL}"
-      r_name_from_evaledproject "${_evaledproject}"
-      _name="${RVAL}"
-
-      r_mapped_configuration "${_name}" "${configuration}"
-      _configuration="${RVAL}"
-   fi
-
-   #
-   # this is the build style which is always "relax"
-   #
-   if [ -z "${MULLE_CRAFT_STYLE_SH}" ]
-   then
-      # shellcheck source=src/mulle-craft-style.sh
-      . "${MULLE_CRAFT_LIBEXEC_DIR}/mulle-craft-style.sh" || exit 1
-   fi
-
-   r_get_sdk_platform_configuration_style_string "${sdk}" \
-                                                 "${platform}" \
-                                                 "${_configuration}" \
-                                                 "relax"
-   r_filepath_concat "${kitchendir}" "${RVAL}"
-   r_effective_project_kitchendir "${_name}" "${RVAL}" "${verify}"
-   _kitchendir="${RVAL}"
-
-   if [ "${MULLE_FLAG_LOG_SETTINGS}" = 'YES' ]
-   then
-      log_trace2 "kitchendir     : \"${_kitchendir}\""
-      log_trace2 "configuration  : \"${_configuration}\""
-      log_trace2 "evaledproject  : \"${_evaledproject}\""
-      log_trace2 "name           : \"${_name}\""
-   fi
-}
-
-
 handle_build()
 {
    log_entry "handle_build" "$@"
@@ -1102,6 +830,11 @@ handle_build()
    local _kitchendir
    local _configuration
 
+   if [ -z "${MULLE_CRAFT_STYLE_SH}" ]
+   then
+      . "${MULLE_CRAFT_LIBEXEC_DIR}/mulle-craft-style.sh"
+   fi
+
    #
    # get remapped _configuration
    # get actual _kitchendir
@@ -1122,8 +855,9 @@ handle_build()
    mkdir_if_missing "${_kitchendir}" || fail "Could not create build directory"
 
    # memo project to avoid clobbering builddirs
-   redirect_exekutor "${_kitchendir}/.project" printf "%s\n" "${project}" || \
-      fail "Could not write into ${_kitchendir}"
+   redirect_exekutor "${_kitchendir}/.project" printf "%s\n" "${project}" \
+   || fail "Could not write into ${_kitchendir}"
+   remove_file_if_present "${_kitchendir}/.status"
 
    local rval
 
@@ -1141,6 +875,9 @@ handle_build()
    rval=$?
 
    log_debug "${C_RESET_BOLD}Build finished with: ${C_MAGENTA}${C_BOLD}${rval}"
+
+   redirect_exekutor "${_kitchendir}/.status" printf "%s\n" "${rval}"  \
+   || fail "Could not write into ${_kitchendir}"
 
    return ${rval}
 }
@@ -1323,7 +1060,7 @@ handle_parallel_builds()
       log_trace2 "parallel : ${parallel}"
    fi
 
-   set -f
+   shell_disable_glob
    for phase in ${OPTION_PHASES}
    do
       log_verbose "Starting phase ${phase}"
@@ -1343,15 +1080,19 @@ handle_parallel_builds()
          Link)
             cmd='install'
          ;;
+
+         *)
+            fail "Unknown phase \"${phase}\", need one of: Headers,Compile,Link"
+         ;;
       esac
 
       local project
       local marks
 
-      set -o noglob; IFS=$'\n'
+      shell_disable_glob; IFS=$'\n'
       for line in ${parallel}
       do
-         set +o noglob; IFS="${DEFAULT_IFS}"
+         shell_enable_glob; IFS="${DEFAULT_IFS}"
 
          local project
          local marks
@@ -1366,7 +1107,7 @@ handle_parallel_builds()
          #       1000 projects in parallel here and run into system
          #       limitations...
          #
-         if [ "${phase}" != 'Link' -o "${parallel_link}" = 'YES'  ]
+         if [ "${phase}" != 'Link' -o "${parallel_link}" = 'YES' ] && [ "${OPTION_PARALLEL_PHASE}" = 'YES' ]
          then
             (
                handle_build_step "${cmd}" \
@@ -1400,7 +1141,7 @@ handle_parallel_builds()
          fi
       done
 
-      set +o noglob; IFS="${DEFAULT_IFS}"
+      shell_enable_glob; IFS="${DEFAULT_IFS}"
 
       # collect phases
       log_fluff "Waiting for phase ${phase} to complete"
@@ -1424,7 +1165,7 @@ handle_parallel_builds()
 
          local line
 
-         set -o noglob; IFS=$'\n'
+         shell_disable_glob; IFS=$'\n'
          for line in ${failures}
          do
             project="${line%;*}"      # project;phase (remove ;rval)
@@ -1432,11 +1173,11 @@ handle_parallel_builds()
             project="${project%;*}"
             log_error "Parallel build of \"${project}\" failed in phase \"${phase}\""
          done
-         set +o noglob; IFS="${DEFAULT_IFS}"
+         shell_enable_glob; IFS="${DEFAULT_IFS}"
 
          remove_file_if_present "${statusfile}"
 
-         set +f
+         shell_enable_glob
          return 1
       fi
 
@@ -1446,7 +1187,7 @@ handle_parallel_builds()
          ;;
       esac
    done
-   set +f
+   shell_enable_glob
 
    remove_file_if_present "${statusfile}"
 
@@ -1530,6 +1271,7 @@ ${remaining_after_shared}
 }
 
 
+
 _do_build_craftorder()
 {
    log_entry "_do_build_craftorder" "$@"
@@ -1544,19 +1286,14 @@ _do_build_craftorder()
 
    shift 7
 
-
    if [ "${MULLE_FLAG_LOG_SETTINGS}" = 'YES' ]
    then
       log_trace2 "craftorder: ${craftorder}"
    fi
 
-   #
-   # the donefile is stored in a different place then the
-   # actual buildir because that's to be determined later
-   # at least for now
-   #
-   local donefile
-   local shared_donefile
+   local remaining
+   local _donefile
+   local _shared_donefile  # filled by __craft_have_donefiles sideeffect
 
    if [ -z "${MULLE_CRAFT_STYLE_SH}" ]
    then
@@ -1564,56 +1301,23 @@ _do_build_craftorder()
       . "${MULLE_CRAFT_LIBEXEC_DIR}/mulle-craft-style.sh" || exit 1
    fi
 
-   r_craft_shared_donefile "${sdk}" "${platform}" "${configuration}"
-   shared_donefile="${RVAL}"
-
-   r_craft_donefile "${sdk}" "${platform}" "${configuration}"
-   donefile="${RVAL}"
-
-   local have_a_donefile
-
-   have_a_donefile="NO"
-   if [ -f "${donefile}" ]
-   then
-      log_fluff "A donefile \"${donefile#${MULLE_USER_PWD}/}\" is present"
-      have_a_donefile='YES'
-      if [ "${MULLE_FLAG_LOG_SETTINGS}" = 'YES' ]
-      then
-         log_trace2 "donefile: `cat "${donefile}"`"
-      fi
-   else
-      r_mkdir_parent_if_missing "${donefile}"
-   fi
-
-   if [ -f "${shared_donefile}" ]
-   then
-      log_verbose "A shared donefile \"${shared_donefile#${MULLE_USER_PWD}/}\" is present"
-      have_a_donefile='YES'
-      if [ "${MULLE_FLAG_LOG_SETTINGS}" = 'YES' ]
-      then
-         log_trace2 "shared donefile: `cat "${shared_donefile}"`"
-      fi
-   else
-      log_fluff "There is no shared donefile \"${shared_donefile#${MULLE_USER_PWD}/}\""
-   fi
-
-   local remaining
-
-   if [ "${have_a_donefile}" = 'YES' ]
+   if __craft_have_donefiles "${sdk}" "${platform}" "${configuration}"
    then
       if ! r_remaining_craftorder_lines "${craftorder}" \
-                                        "${donefile}" \
-                                        "${shared_donefile}"
+                                        "${_donefile}" \
+                                        "${_shared_donefile}"
       then
          log_fluff "Everything in the craftorder has been crafted already"
          return
       fi
       remaining="${RVAL}"
    else
-      log_fluff "No donefiles \"${donefile#${MULLE_USER_PWD}/}\" or \"${shared_donefile#${MULLE_USER_PWD}/}\" \
+      log_fluff "No donefiles \"${_donefile#${MULLE_USER_PWD}/}\" or \"${_shared_donefile#${MULLE_USER_PWD}/}\" \
 are present, so build everything"
       remaining="${craftorder}"
    fi
+
+   local donefile="${_donefile}"
 
    #
    # remember what we built last so mulle-craft log can make a good guess
@@ -1633,10 +1337,10 @@ are present, so build everything"
    local line
    local parallel
 
-   set -o noglob; IFS=$'\n'
+   shell_disable_glob; IFS=$'\n'
    for line in ${remaining}
    do
-      set +o noglob; IFS="${DEFAULT_IFS}"
+      shell_enable_glob; IFS="${DEFAULT_IFS}"
 
       local project
       local marks
@@ -1672,7 +1376,7 @@ ${C_INFO}Frameworks can not be built with multi-phase currently."
       if [ ! -z "${parallel}" ]
       then
          if ! handle_parallel_builds "${parallel}" \
-                                     "${donefile}" \
+                                     "${_donefile}" \
                                      "${sdk}" \
                                      "${platform}" \
                                      "${configuration}" \
@@ -1717,7 +1421,7 @@ ${C_RESET_BOLD}   mulle-sde log $RVAL"
          return $rval
       fi
    done
-   set +o noglob; IFS="${DEFAULT_IFS}"
+   shell_enable_glob; IFS="${DEFAULT_IFS}"
 
    # left over parallel
    if [ ! -z "${parallel}" ]
@@ -1804,7 +1508,7 @@ do_build_craftorder()
    local platform
    local sdk
 
-   set -f; IFS=':'
+   shell_disable_glob; IFS=':'
    for platform in ${PLATFORMS}
    do
       assert_sane_name "${platform}" " as platform name"
@@ -1819,7 +1523,7 @@ do_build_craftorder()
 
          for configuration in ${CONFIGURATIONS}
          do
-            set +f; IFS="${DEFAULT_IFS}"
+            shell_enable_glob; IFS="${DEFAULT_IFS}"
             assert_sane_name "${configuration}" " as configuration name"
 
             local filtered
@@ -1842,11 +1546,11 @@ do_build_craftorder()
             then
                return 1
             fi
-            set -f; IFS=':'
+            shell_disable_glob; IFS=':'
          done
       done
    done
-   set +f; IFS="${DEFAULT_IFS}"
+   shell_enable_glob; IFS="${DEFAULT_IFS}"
 
    dependency_end_update 'complete' || exit 1
 }
@@ -1937,6 +1641,11 @@ do_build_mainproject()
    #
    mkdir_if_missing "${kitchendir}"
 
+   remove_file_if_present "${kitchendir}/.status"
+
+   redirect_exekutor "${kitchendir}/.project" printf "%s\n" "${name}" \
+   || ail "Could not write into ${kitchendir}"
+
    # use KITCHEN_DIR not kitchendir
    redirect_exekutor "${KITCHEN_DIR}/.mulle-craft-last" printf "# remember sdk;platform;configuration used for build
 %s\n" "${sdk};${platform};${configuration}"
@@ -1949,6 +1658,7 @@ do_build_mainproject()
 
    r_concat "${OPTIONS_MULLE_MAKE_PROJECT}" "--build-dir '${kitchendir}'"
    OPTIONS_MULLE_MAKE_PROJECT="${RVAL}"
+
    r_concat "${OPTIONS_MULLE_MAKE_PROJECT}" "--log-dir '${logdir}'"
    OPTIONS_MULLE_MAKE_PROJECT="${RVAL}"
 
@@ -1994,6 +1704,7 @@ do_build_mainproject()
       OPTIONS_MULLE_MAKE_PROJECT="${RVAL}"
    fi
 
+   # MEMO: do this properly with escaping of '
    local auxargs
    local i
 
@@ -2008,12 +1719,20 @@ do_build_mainproject()
    done
 
 
+   local rval
+
    # never install the project, use mulle-make for that
-   if ! eval_exekutor "'${MULLE_MAKE}'" \
-                           "${MULLE_TECHNICAL_FLAGS}" \
-                        "build" \
-                           "${OPTIONS_MULLE_MAKE_PROJECT}" \
-                           "${auxargs}"
+   eval_exekutor "'${MULLE_MAKE}'" \
+                        "${MULLE_TECHNICAL_FLAGS}" \
+                     "build" \
+                        "${OPTIONS_MULLE_MAKE_PROJECT}" \
+                        "${auxargs}"
+   rval=$?
+
+   redirect_exekutor "${kitchendir}/.status" printf "%s\n" "${rval}" \
+   || fail "Could not write into ${kitchendir}"
+
+   if [ $rval -ne 0 ]
    then
       log_fluff "Project build failed"
       return 1
@@ -2058,9 +1777,11 @@ craft_build_common()
    local OPTION_PHASES="Headers Compile Link"
    local OPTION_PARALLEL='YES'
    local OPTION_PARALLEL_MAKE='YES'
+   local OPTION_PARALLEL_PHASE='YES' # NO sometimes usefule for debugging
    local OPTION_MULLE_TEST='NO'
    local OPTION_LIBRARY_STYLE
    local OPTION_VERSION=DEFAULT
+   local OPTION_CALLBACK
 
    while [ $# -ne 0 ]
    do
@@ -2117,6 +1838,22 @@ craft_build_common()
             OPTION_BUILD_DEPENDENCY='NO'
          ;;
 
+
+         --callback)
+            [ $# -eq 1 ] && build_execute_usage "Missing argument to \"$1\""
+            shift
+
+            OPTION_CALLBACK="$1"
+         ;;
+
+         --phases)
+            [ $# -eq 1 ] && build_execute_usage "Missing argument to \"$1\""
+            shift
+
+            OPTION_PHASES="$1"
+            OPTION_PHASES="${OPTION_PHASES//[;:,]/ }"
+         ;;
+
          --parallel)
             OPTION_PARALLEL='YES'
             OPTION_PARALLEL_MAKE='YES'
@@ -2141,6 +1878,10 @@ craft_build_common()
 
          --no-parallel-link|--serial-link)
             OPTION_PARALLEL_LINK='NO'
+         ;;
+
+         --no-parallel-phase|--serial-phase)
+            OPTION_PARALLEL_PHASE='NO'
          ;;
 
          --protect)
@@ -2249,7 +1990,7 @@ craft_build_common()
    DISPENSE_STYLE="${DISPENSE_STYLE:-none}"
    CONFIGURATIONS="${CONFIGURATIONS:-Debug}"
    SDKS="${SDKS:-Default}"
-   PLATFORMS="${PLATFORMS:-${MULLE_UNAME}}"
+   PLATFORMS="${PLATFORMS:-Default}"
 
    local lastenv
    local currentenv
@@ -2331,7 +2072,12 @@ ${currentenv}"
    #
    [ "${OPTION_USE_PROJECT}" = 'YES' ] || internal_fail "hein ?"
 
-   do_build_mainproject "$@"
+   # don't build if only headers are built for example
+   case "${OPTION_PHASES}" in
+      *Link*)
+         do_build_mainproject "$@"
+      ;;
+   esac
 }
 
 
