@@ -153,27 +153,58 @@ output_names_with_status()
          . "${MULLE_CRAFT_LIBEXEC_DIR}/mulle-craft-style.sh"
       fi
 
-      _evaluate_craft_variables "${name}" \
-                                "${sdk}" \
-                                "${platform}" \
-                                "${configuration}" \
-                                "relax" \
-                                "${kitchendir}" \
-                                "NO"
-
-      if [ "${MULLE_FLAG_LOG_SETTINGS}" = 'YES' ]
+      if [ "${is_main}" = "YES" ]
       then
-         log_trace2 "_kitchendir:    ${_kitchendir}"
-         log_trace2 "_configuration: ${_configuration}"
+         r_craft_mainproject_kitchendir "${sdk}" \
+                                        "${platform}" \
+                                        "${configuration}" \
+                                        "${kitchendir}"
+         _kitchendir="${RVAL}"
+         _configuration="${configuration}"
+      else
+         _evaluate_craft_variables "${name}" \
+                                   "${sdk}" \
+                                   "${platform}" \
+                                   "${configuration}" \
+                                   "relax" \
+                                   "${kitchendir}" \
+                                   "NO"
       fi
 
       phase="`egrep -v '^#' "${_kitchendir}/.phase" 2> /dev/null`"
       project="`egrep -v '^#' "${_kitchendir}/.project" 2> /dev/null`"
       rval="`egrep -v '^#' "${_kitchendir}/.status" 2> /dev/null`"
 
+      if [ "${MULLE_FLAG_LOG_SETTINGS}" = 'YES' ]
+      then
+         log_trace2 "_kitchendir    : ${_kitchendir}"
+         log_trace2 "_configuration : ${_configuration}"
+         log_trace2 "phase          : ${phase}"
+         log_trace2 "project        : ${project}"
+         log_trace2 "rval           : ${rval}"
+      fi
+
+      # make it so it lists completed phases, which is less confusing IMO
       if [ ! -z "${phase}" ]
       then
-         phase="${phase}-phase"
+         case "${phase}" in
+            'Header'|'Headers')
+               if [ $rval -eq 0 ]
+               then
+                  phase="Multiphase (Header)"
+               else
+                  phase="Multiphase ()"
+               fi
+            ;;
+
+            Compile)
+               phase="Multiphase (Header, Compile)"
+            ;;
+
+            Link)
+               phase="Multiphase (Header, Compile, Link)"
+            ;;
+         esac
       fi
 
       if find_line "${built_names}" "${name}"

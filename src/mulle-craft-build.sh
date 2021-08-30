@@ -312,7 +312,7 @@ build_project()
    logdir="${RVAL}"
 
    case "${phase}" in
-      'Singlephase'|'Headers')
+      'Singlephase'|'Headers'|'Header')
          rmdir_safer "${logdir}"
       ;;
    esac
@@ -334,7 +334,7 @@ build_project()
       'Singlephase')
       ;;
 
-      'Headers'|'Compile'|'Link')
+      'Header'|'Headers'|'Compile'|'Link')
          r_concat "${args}" "--phase ${phase}"
          args="${RVAL}"
       ;;
@@ -682,12 +682,12 @@ build_dependency_with_dispense()
          dependency_begin_update "${style}" || return 1
       ;;
 
-      Headers)
+      'Header'|'Headers')
          r_concat "${options}" --only-headers
          options="${RVAL}"
       ;;
 
-      Link)
+      'Link')
          r_concat "${options}" --no-headers
          options="${RVAL}"
       ;;
@@ -1068,7 +1068,7 @@ handle_parallel_builds()
       PARALLEL="${phase}"
 
       case "${phase}" in
-         Headers)
+         'Header'|'Headers')
             dependency_begin_update "${style}" || return 1
             cmd='install'
          ;;
@@ -1082,7 +1082,7 @@ handle_parallel_builds()
          ;;
 
          *)
-            fail "Unknown phase \"${phase}\", need one of: Headers,Compile,Link"
+            fail "Unknown phase \"${phase}\", need one of: Header,Compile,Link"
          ;;
       esac
 
@@ -1228,7 +1228,6 @@ reduced to
 ${remaining_after_shared}
 ----
 "
-
          fi
          remaining="${remaining_after_shared}"
       else
@@ -1459,7 +1458,6 @@ do_build_craftorder()
    [ -z "${PLATFORMS}" ]       && internal_fail "PLATFORMS is empty"
    [ -z "${DISPENSE_STYLE}" ]  && internal_fail "DISPENSE_STYLE is empty"
 
-
    #
    # "NONE" creates no dependency folder
    #
@@ -1556,7 +1554,6 @@ do_build_craftorder()
 }
 
 
-
 do_build_mainproject()
 {
    log_entry "do_build_mainproject" "$@"
@@ -1614,17 +1611,11 @@ do_build_mainproject()
    # find proper build and log directory (always relax)
    #
    local kitchendir
-   local stylesubdir
 
-   kitchendir="${KITCHEN_DIR}"
-
-   r_get_sdk_platform_configuration_style_string "${sdk}" \
-                                                 "${platform}" \
-                                                 "${configuration}" \
-                                                 "relax"
-   stylesubdir="${RVAL}"
-
-   r_filepath_concat "${kitchendir}" "${stylesubdir}"
+   r_craft_mainproject_kitchendir "${sdk}" \
+                                  "${platform}" \
+                                  "${configuration}" \
+                                  "${KITCHEN_DIR}"
    kitchendir="${RVAL}"
 
    local logdir

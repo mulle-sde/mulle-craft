@@ -628,6 +628,26 @@ _evaluate_craft_variables()
 }
 
 
+r_craft_mainproject_kitchendir()
+{
+   local sdk="$1"
+   local platform="$2"
+   local configuration="$3"
+   shift 3
+   local kitchendir="$1"
+
+   local stylesubdir
+
+   r_get_sdk_platform_configuration_style_string "${sdk}" \
+                                                 "${platform}" \
+                                                 "${configuration}" \
+                                                 "relax"
+   stylesubdir="${RVAL}"
+
+   r_filepath_concat "${kitchendir}" "${stylesubdir}"
+}
+
+
 craft_craftorder_donefiles_main()
 {
    log_entry "craft_craftorder_donefiles_main" "$@"

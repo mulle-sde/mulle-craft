@@ -4,6 +4,7 @@
 build/
 dependency/
 kitchen/
+research/
 *.old
 *.bak
 tmp.*
