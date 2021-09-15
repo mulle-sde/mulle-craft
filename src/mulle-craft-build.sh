@@ -1231,22 +1231,36 @@ ${remaining_after_shared}
          fi
          remaining="${remaining_after_shared}"
       else
-         log_warning "Craftorder unchanged after applying the shared donefile"
+         log_verbose "Craftorder unchanged after applying the shared donefile"
       fi
    fi
 
    if [ ! -z "${OPTION_SINGLE_DEPENDENCY}" ]
    then
       local escaped
+      local remaining_after_single
 
       r_escaped_grep_pattern "${OPTION_SINGLE_DEPENDENCY}"
-      remaining="`egrep "^[^;]*${RVAL};|\}/${RVAL};" <<< "${remaining}" `"
-      log_debug "Filtered by name: ${remaining}"
-      if [ -z "${remaining}" ]
+      remaining_after_single="`egrep "^[^;]*${RVAL};|\}/${RVAL};" <<< "${remaining}" `"
+      log_debug "Filtered by name: ${remaining_after_single}"
+      if [ -z "${remaining_after_single}" ]
       then
          fail "\"${OPTION_SINGLE_DEPENDENCY}\" is unknown in the craftorder"
       fi
-      RVAL="${remaining}"
+
+      if [ "${MULLE_FLAG_LOG_SETTINGS}" = 'YES' ]
+      then
+         log_trace2 "Remaining
+----
+${remaining}
+----
+reduced to
+----
+${remaining_after_single}
+----
+"
+      fi      
+      RVAL="${remaining_after_single}"
       return 0
    fi
 
@@ -1256,12 +1270,30 @@ ${remaining_after_shared}
       then
          remove_file_if_present "${donefile}"
       else
-         remaining="`rexekutor fgrep -x -v -f "${donefile}" <<< "${remaining}"`"
-         if [ -z "${remaining}" ]
+         local remaining_after_donefile
+
+         remaining_after_donefile="`rexekutor fgrep -x -v -f "${donefile}" <<< "${remaining}"`"
+         if [ "${remaining_after_donefile}" != "${remaining}" ]
          then
-            RVAL=""
-            return 1
+            if [ "${MULLE_FLAG_LOG_SETTINGS}" = 'YES' ]
+            then
+               log_trace2 "Remaining
+----
+${remaining}
+----
+reduced to
+----
+${remaining_after_donefile}
+----
+"
+            else
+               log_fluff "Craftorder unchanged after applying the donefile"
+            fi
          fi
+
+         RVAL="${remaining_after_donefile}"
+         [ ! -z "${RVAL}" ] 
+         return $?
       fi
    fi
 
@@ -1285,11 +1317,6 @@ _do_build_craftorder()
 
    shift 7
 
-   if [ "${MULLE_FLAG_LOG_SETTINGS}" = 'YES' ]
-   then
-      log_trace2 "craftorder: ${craftorder}"
-   fi
-
    local remaining
    local _donefile
    local _shared_donefile  # filled by __craft_have_donefiles sideeffect
@@ -1300,7 +1327,19 @@ _do_build_craftorder()
       . "${MULLE_CRAFT_LIBEXEC_DIR}/mulle-craft-style.sh" || exit 1
    fi
 
-   if __craft_have_donefiles "${sdk}" "${platform}" "${configuration}"
+   local rval 
+
+   __craft_have_donefiles "${sdk}" "${platform}" "${configuration}"
+   rval=$?
+
+   if [ "${MULLE_FLAG_LOG_SETTINGS}" = 'YES' ]
+   then
+      log_trace2 "craftorder      : ${craftorder}"
+      log_trace2 "donefile        : ${_donefile}"
+      log_trace2 "shared_donefile : ${_shared_donefile}"
+   fi
+
+   if [ $rval -eq 0 ]
    then
       if ! r_remaining_craftorder_lines "${craftorder}" \
                                         "${_donefile}" \
@@ -1366,7 +1405,7 @@ ${C_INFO}Frameworks can not be built with multi-phase currently."
 
                r_add_line "${parallel}" "${line}"
                parallel="${RVAL}"
-               log_fluff "Collected ${line} for parallel build"
+               log_fluff "Collected \"${line}\" for parallel build"
                continue
             ;;
          esac

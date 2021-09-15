@@ -66,7 +66,33 @@ EOF
   exit 1
 }
 
+craft_craftorder_donefile_usage()
+{
+   [ "$#" -ne 0 ] && log_error "$*"
 
+    cat <<EOF >&2
+Usage:
+   ${MULLE_USAGE_NAME} donefile [options] [command]
+
+   Show the contents and location of the "donefiles". These files remember
+   the dependencies, that have been built completely. There may exist
+   several donefile for each sdk-platform-configuration triple.
+
+Options:
+   --configuration <c>  : configuration to craft  (Debug)
+   --no-cat             : don't show contents of donefiles
+   --no-local           : don't show local donefile
+   --no-shared          : don't show shared donefile
+   --platform <p>       : the platform to craft for (${MULLE_UNAME})
+   --sdk <sdk>          : the SDK to craft with (Default)
+
+Commands:
+   cat                  : show contents
+   list                 : list local donefiles (default)
+
+EOF
+  exit 1
+}
 r_get_sdk_platform_style_string()
 {
    log_entry "r_get_sdk_platform_style_string" "$@"
@@ -276,6 +302,18 @@ r_craft_shared_donefile()
    RVAL="${ADDICTION_DIR}/etc/craftorder-${sdk}--${platform}--${configuration}"
 }
 
+craft_list_shared_donefiles()
+{
+   if [ -d "${ADDICTION_DIR}/etc" ]
+   then
+   (
+      cd "${ADDICTION_DIR}/etc"
+      shell_enable_nullglob
+      ls -1 craftorder-*--*--*
+   )
+   fi
+}
+
 
 r_craft_donefile()
 {
@@ -284,6 +322,19 @@ r_craft_donefile()
    local configuration="$3"
 
    RVAL="${DEPENDENCY_DIR}/etc/craftorder-${sdk}--${platform}--${configuration}"
+}
+
+
+craft_list_donefiles()
+{
+   if [ -d "${DEPENDENCY_DIR}/etc" ]
+   then
+   (
+      cd "${DEPENDENCY_DIR}/etc"
+      shell_enable_nullglob
+      ls -1 craftorder-*--*--*
+   )
+   fi
 }
 
 
@@ -652,43 +703,61 @@ craft_craftorder_donefiles_main()
 {
    log_entry "craft_craftorder_donefiles_main" "$@"
 
-   local OPTION_PLATFORM="Default"
+   local OPTION_PLATFORM='Default'
    local OPTION_SDK='Default'
    local OPTION_CONFIGURATION='Debug'
+   local OPTION_LOCAL='YES'
+   local OPTION_SHARED='YES'
 
    while [ $# -ne 0 ]
    do
       case "$1" in
          -h*|--help|help)
-            craft_craftorder_search_usage
+            craft_craftorder_donefile_usage
+         ;;
+
+         --local)
+            OPTION_LOCAL='YES'
+         ;;
+
+         --no-local)
+            OPTION_LOCAL='NO'
+         ;;
+
+         --shared)
+            OPTION_SHARED='YES'
+         ;;
+
+         --no-shared)
+            OPTION_SHARED='NO'
          ;;
 
          #
          # quadruple of sdk/platform/configuration/style
          #
          --configuration)
-            [ $# -eq 1 ] && craft_craftorder_style_usage "Missing argument to \"$1\""
+            [ $# -eq 1 ] && craft_craftorder_donefile_usage "Missing argument to \"$1\""
             shift
 
             OPTION_CONFIGURATION="$1"
          ;;
 
          --platform)
-            [ $# -eq 1 ] && craft_craftorder_style_usage "Missing argument to \"$1\""
+            [ $# -eq 1 ] && craft_craftorder_donefile_usage "Missing argument to \"$1\""
             shift
 
             OPTION_PLATFORM="$1"
          ;;
 
          --sdk)
-            [ $# -eq 1 ] && craft_craftorder_style_usage "Missing argument to \"$1\""
+            [ $# -eq 1 ] && craft_craftorder_donefile_usage "Missing argument to \"$1\""
             shift
 
             OPTION_SDK="$1"
          ;;
 
          -*)
-            craft_craftorder_search_usage "Unknown option \"$1\""
+            craft_craftorder_donefile_usage "Unknown option \"$1\""
          ;;
 
          *)
@@ -699,11 +768,96 @@ craft_craftorder_donefiles_main()
       shift
    done
 
-   r_craft_donefile "${OPTION_SDK}" "${OPTION_PLATFORM}" "${OPTION_CONFIGURATION}"
-   log_info "Donefile: ${C_RESET_BOLD}${RVAL#${MULLE_USER_PWD}/}"
+   local cmd="$1"
 
-   r_craft_shared_donefile "${OPTION_SDK}" "${OPTION_PLATFORM}" "${OPTION_CONFIGURATION}"
-   log_info "Shared donefile: ${C_RESET_BOLD}${RVAL#${MULLE_USER_PWD}/}"
+   [ $# -ne 0 ] && shift
+
+   cmd="${cmd:-list}"
+
+   local donefile
+   local shared_donefile
+
+   case "${cmd}" in
+      'cat'|'echo')
+         OPTION_PLATFORM="${OPTION_PLATFORM:-Default}"
+         OPTION_SDK="${OPTION_SDK:-Default}"
+         OPTION_CONFIGURATION="${OPTION_CONFIGURATION:-Debug}"
+
+         r_craft_donefile "${OPTION_SDK}" "${OPTION_PLATFORM}" "${OPTION_CONFIGURATION}"
+         donefile="${RVAL}"
+
+         r_craft_shared_donefile "${OPTION_SDK}" "${OPTION_PLATFORM}" "${OPTION_CONFIGURATION}"
+         shared_donefile="${RVAL}"
+      ;;
+
+
+      'list')
+         if [ "${OPTION_LOCAL}" = 'YES' ]
+         then
+            log_info "Donefiles"
+            craft_list_donefiles "${OPTION_SDK}" "${OPTION_PLATFORM}" "${OPTION_CONFIGURATION}"
+         fi
+
+         if [ "${OPTION_SHARED}" = 'YES' ]
+         then
+            log_info "Shared donefiles"
+            craft_list_shared_donefiles "${OPTION_SDK}" "${OPTION_PLATFORM}" "${OPTION_CONFIGURATION}"
+         fi
+         return $?
+      ;;
+
+      *)
+         craft_craftorder_donefile_usage "Unknown command \"${cmd}\""
+      ;;
+   esac
+
+   case "${cmd}" in
+      'echo')
+         if [ "${OPTION_LOCAL}" = 'YES' ]
+         then
+            log_info "Donefile"
+            echo "${donefile}"
+         fi
+
+         if [ "${OPTION_SHARED}" = 'YES' ]
+         then
+            log_info "Shared donefile"
+            echo "${shared_donefile}"
+         fi
+         return $?
+      ;;
+   esac
+
+   local have_output
+
+   if [ "${OPTION_LOCAL}" = 'YES' ]
+   then
+      if [ -f "${donefile}" ]
+      then
+         log_info "Donefile (${donefile#${MULLE_USER_PWD}/})"
+         rexekutor cat "${donefile}"
+         have_output='YES'
+      else
+         log_info "There is no donefile yet (${donefile#${MULLE_USER_PWD}/})"
+      fi
+   fi
+
+   if [ "${OPTION_SHARED}" = 'YES' ]
+   then
+
+      if [ -f "${shared_donefile}" ]
+      then
+         if [ "${have_output}" = 'YES' ]
+         then
+            echo
+         fi
+
+         log_info "Shared donefile ({shared_donefile#${MULLE_USER_PWD}/})"
+         rexekutor cat "${shared_donefile}"
+      else
+         log_info "There is no shared donefile (${shared_donefile#${MULLE_USER_PWD}/})"
+      fi
+   fi
 }
 
 
