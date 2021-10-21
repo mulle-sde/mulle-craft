@@ -1,0 +1,72 @@
+#! /usr/bin/env bash
+
+[ "${TRACE}" = 'YES' ] && set -x && : "$0" "$@"
+
+
+run_mulle_craft()
+{
+   log_fluff "####################################"
+   log_fluff ${MULLE_CRAFT} ${MULLE_CRAFT_FLAGS} "$@"
+   log_fluff "####################################"
+
+   exekutor "${MULLE_CRAFT}" ${MULLE_CRAFT_FLAGS} "$@"
+}
+
+
+run_test()
+{
+   local directory="$1" ; shift
+
+   DEPENDENCY_DIR="${directory}/dependency" \
+   BUILD_DIR="${directory}/build" \
+   MULLE_SQUELCH_ENVIRONMENT_WARNING='YES'\
+      run_mulle_craft "$@"
+
+   if [ $? -ne 0 ]
+   then
+      exit 1
+   fi
+}
+
+
+main()
+{
+   MULLE_CRAFT_FLAGS="$@"
+
+   _options_mini_main "$@" && set -x
+
+   local directory
+
+   r_make_tmp_directory
+   directory="${RVAL:-/tmp/test}"
+
+   local result 
+
+   result="`run_test "${directory}" -s --craftorder-file empty.craftorder craftorder`" || exit 1
+   if [ "${result}" != "inited
+complete" ]
+   then
+      fail "Unexpected output: ${result}"
+   fi
+
+   log_verbose "----- #1 PASSED -----"
+
+   rmdir_safer "${directory}"
+}
+
+
+
+init()
+{
+   MULLE_BASHFUNCTIONS_LIBEXEC_DIR="`mulle-bashfunctions-env libexec-dir`" || exit 1
+
+   . "${MULLE_BASHFUNCTIONS_LIBEXEC_DIR}/mulle-bashfunctions.sh" || exit 1
+
+   MULLE_CRAFT="${MULLE_CRAFT:-${PWD}/../../mulle-craft}"
+}
+
+
+
+init "$@"
+main "$@"
+
