@@ -76,7 +76,7 @@ r_get_names_from_file()
       IFS=";" read project marks <<< "${line}"
 
       case ",${marks}," in
-         *,no-memo,*)
+         *,no-mainproject,*)
             # ignore subprojects
          ;;
 
@@ -139,6 +139,14 @@ output_names_with_status()
    local project
    local state
    local rval
+
+   local terse
+
+   case ",${mode}," in
+      *,terse,*)
+         terse='YES'
+      ;;
+   esac
 
    shell_disable_glob; IFS=$'\n'
    for name in ${all_names}
@@ -224,13 +232,19 @@ output_names_with_status()
          printf "   %b" "${fail_prefix}${name}${fail_suffix}"
          if [ -z "${project}" ]
          then
-            state=""
+            state="-"
             rval=""
          else
             state="FAIL"
          fi
       fi
-      printf ";%s;%s;%s\n" "${state}" "${phase:-Singlephase}" "${rval}"
+
+      if [ "${terse}" = 'YES' ]
+      then
+         printf ";%s;%s;%s\n" "${state}" "${phase:-Singlephase}" "${rval}"
+      else
+         printf ";%s\n" "${state}"
+      fi
    done
    shell_enable_glob; IFS="${DEFAULT_IFS}"
 }
@@ -240,18 +254,7 @@ craft_status_output()
 {
    log_entry "craft_status_output" "$@"
 
-   column_cmd="cat"
-
-   column="`command -v column`"
-   if [ ! -z "${column}" ]
-   then
-      column_cmd="'${column}' '-t' '-s;'"
-      output_names_with_status "$@" \
-      | eval ${column_cmd}
-   else
-      log_warning "column command not installed, unformatted output (but with colors)"
-      output_names_with_status "$@"
-   fi
+   output_names_with_status "$@" | rexecute_column_table_or_cat ';'
 }
 
 
@@ -309,6 +312,7 @@ status_output_with_donefile()
 
    local donefile="$1"
    local kitchendir="$2"
+   local mode="$3"
 
    local _configuration
    local _sdk
@@ -326,7 +330,8 @@ Configuration:${C_MAGENTA}${C_BOLD}${_configuration}${C_INFO}"
    done_names="${RVAL}"
 
    craft_status_output "${_sdk}" "${_platform}" "${_configuration}" \
-                       "${all_names}" "${done_names}" "${kitchendir}"
+                       "${all_names}" "${done_names}" "${kitchendir}" \
+                       "${mode}"
 }
 
 
@@ -335,6 +340,7 @@ status_main()
    log_entry "status_main" "$@"
 
    local OPTION_COLOR="YES"
+   local mode
 
    while :
    do
@@ -352,6 +358,11 @@ status_main()
             OPTION_COLOR="NO"
          ;;
 
+         --output-terse)
+            r_comma_concat "${mode}" "terse"
+            mode="${RVAL}"
+         ;;
+
          -*)
             status_usage "Unknown option \"$1\""
          ;;
@@ -364,7 +375,8 @@ status_main()
       shift
    done
 
-   [ -z "${CRAFTORDER_KITCHEN_DIR}" ] && internal_fail "CRAFTORDER_KITCHEN_DIR is empty"
+   [ -z "${CRAFTORDER_KITCHEN_DIR}" ] \
+   && internal_fail "CRAFTORDER_KITCHEN_DIR is empty"
 
    if [ -z "${CRAFTORDER_FILE}" ]
    then
@@ -389,7 +401,6 @@ status_main()
 
    log_debug "names: ${all_names}"
 
-
    if [ ! -d "${CRAFTORDER_KITCHEN_DIR}" ]
    then
       log_info "Nothing crafted yet"
@@ -397,7 +408,6 @@ status_main()
    fi
 
    local addiction_donefiles
-   local dependency_donefiles
    local dependency_donefiles
 
    # retarded bash shell can't nullglob variables
@@ -427,10 +437,19 @@ status_main()
    if [ ! -z "${addiction_donefiles}" ]
    then
       log_info "Craft status of ${C_RESET_BOLD}${ADDICTION_DIR#${MULLE_USER_PWD}/}"
-      for donefile in ${addiction_donefiles}
-      do
-         status_output_with_donefile "${donefile}" "${CRAFTORDER_KITCHEN_DIR}"
-      done
+
+      # we can only figure out if the state is complete
+      state="`egrep -v '^#' "${ADDICTION_DIR}/.state" `"
+
+      case "${state}" in
+         complete)
+            printf "   ${C_GREEN}%s${C_RESET}   OK\n" "${ADDICTION_DIR#${MULLE_USER_PWD}/}"
+         ;;
+
+         *)
+            printf "   ${C_RED}%s${C_RESET}   FAIL\n" "${ADDICTION_DIR#${MULLE_USER_PWD}/}"
+         ;;
+      esac
    fi
 
    if [ ! -z "${dependency_donefiles}" ]
@@ -438,7 +457,8 @@ status_main()
       log_info "Craft status of ${C_RESET_BOLD}${DEPENDENCY_DIR#${MULLE_USER_PWD}/}"
       for donefile in ${dependency_donefiles}
       do
-         status_output_with_donefile "${donefile}" "${CRAFTORDER_KITCHEN_DIR}"
+         status_output_with_donefile "${donefile}" \
+                                     "${CRAFTORDER_KITCHEN_DIR}"
       done
    fi
 
@@ -458,7 +478,8 @@ status_main()
 
       craft_status_output "${_sdk}" "${_platform}" "${_configuration}" \
                           "${PROJECT_NAME}" "${PROJECT_NAME}" \
-                          "${KITCHEN_DIR}" "YES"
+                          "${KITCHEN_DIR}" "${mode}" \
+
    fi
 }
 

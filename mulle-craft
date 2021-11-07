@@ -132,9 +132,9 @@ EOF
    cat <<EOF
 
 Commands:
-   craftorder           : craft projects using a craftorder file
-   craftinfo-seatchpath : show current craftinfo searchpath
    clean                : clean output
+   craftorder           : craft projects using a craftorder file
+   craftinfo-searchpath : show current craftinfo searchpath
    list                 : list remaining builds in craftorder file
    log                  : inspect kitchen logs
    project              : craft main project without craftorder (default)

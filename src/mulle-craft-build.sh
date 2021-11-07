@@ -1597,7 +1597,6 @@ do_build_mainproject()
 {
    log_entry "do_build_mainproject" "$@"
 
-   local craftinfodir
    local name
 
    name="${PROJECT_NAME}"
@@ -1618,6 +1617,8 @@ do_build_mainproject()
    platform="${platform:-${MULLE_UNAME}}"
    configuration="${configuration:-Debug}"
 
+   local craftinfodir
+
    r_determine_craftinfo_dir "${name}" \
                              "${PWD}" \
                              "mainproject" \
@@ -1627,6 +1628,14 @@ do_build_mainproject()
                              "${platform}" \
                              "${configuration}" \
                              "auto"
+   case $? in
+      0|2)
+      ;;
+
+      *)
+         exit 1
+      ;;
+   esac
 
    craftinfodir="${RVAL}"
 
@@ -1677,7 +1686,8 @@ do_build_mainproject()
    || ail "Could not write into ${kitchendir}"
 
    # use KITCHEN_DIR not kitchendir
-   redirect_exekutor "${KITCHEN_DIR}/.mulle-craft-last" printf "# remember sdk;platform;configuration used for build
+   redirect_exekutor "${KITCHEN_DIR}/.mulle-craft-last" \
+      printf "# remember sdk;platform;configuration used for build
 %s\n" "${sdk};${platform};${configuration}"
 
    if [ ! -z "${PROJECT_LANGUAGE}" ]
@@ -1795,8 +1805,8 @@ craft_build_common()
    local OPTION_LENIENT='NO'
    local OPTION_BUILD_DEPENDENCY="DEFAULT"
    local OPTIONS_MULLE_MAKE_PROJECT=
-   local OPTION_PLATFORM_CRAFTINFO='YES'
-   local OPTION_LOCAL_CRAFTINFO='YES'
+   local OPTION_PLATFORM_CRAFTINFO="${MULLE_CRAFT_PLATFORM_CRAFTINFO:-YES}"
+   local OPTION_LOCAL_CRAFTINFO="${MULLE_CRAFT_LOCAL_CRAFTINFO:-YES}"
    local OPTION_REBUILD_BUILDORDER='NO'
    local OPTION_PROTECT_DEPENDENCY='YES'
    local OPTION_ALLOW_SCRIPT="${MULLE_CRAFT_USE_SCRIPT:-DEFAULT}"
@@ -2045,7 +2055,7 @@ craft_build_common()
    fi
 
    filenameenv="${KITCHEN_DIR}/.mulle-craft"
-   currentenv="${MULLE_UNAME};${MULLE_HOSTNAME};${LOGNAME:-`id -u 2>/dev/null`}"
+   currentenv="${MULLE_UNAME};${MULLE_HOSTNAME};${MULLE_USERNAME}"
 
    lastenv="`egrep -s -v '^#' "${filenameenv}"`"
    if [ "${lastenv}" != "${currentenv}" ]

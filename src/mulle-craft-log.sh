@@ -394,7 +394,7 @@ craft_log_command()
          logfiles=
          if rexekutor compgen -G "${directory}" > /dev/null 2>&1
          then
-            logfiles="${directory}/${configuration}/.log/${OPTION_TOOL}.log"
+            logfiles="${directory}/${configuration}/.log/*.${OPTION_TOOL}.log"
          fi
 
          if [ ! -z "${logfiles}" ]

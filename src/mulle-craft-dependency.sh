@@ -161,6 +161,99 @@ _dependency_install_tarballs()
 }
 
 
+#
+# possible states:
+#
+# clean
+#  initing
+# inited
+#  updating
+# ready
+#
+dependency_get_state()
+{
+   [ -z "${DEPENDENCY_DIR}" ] && internal_fail "DEPENDENCY_DIR not set"
+
+   if ! rexekutor egrep -v '^#' "${DEPENDENCY_DIR}/.state" 2> /dev/null
+   then
+      echo "clean"
+   fi
+}
+
+#
+# Optimally:
+#    clean -> initing -> inited -> ready -> complete
+#
+dependency_set_state()
+{
+   local state="$1"
+
+   log_verbose "Dependency folder marked as ${state}"
+
+   redirect_exekutor "${DEPENDENCY_DIR}/.state" \
+      printf "%s\n" "${state}"
+
+   local script 
+
+   # run some callbacks on specified states
+   case "${state}" in 
+      inited|complete)
+         if [ -z "${MULLE_CRAFT_ETC_DIR}" ]
+         then
+            eval `"${MULLE_ENV:-mulle-env}" --search-as-is mulle-tool-env craft`
+         fi         
+
+         #
+         # Memo: there can be breakage on a mulle-sde upgrade, if in share a .darwin
+         #       pops up, which wasn't already there. Solution, don't do this!
+         #
+         script="${MULLE_CRAFT_ETC_DIR}/callback-${state}.${MULLE_UNAME}"
+         if [ ! -f "${script}" ]
+         then
+            script="${MULLE_CRAFT_SHARE_DIR}/callback-${state}.${MULLE_UNAME}"
+            if [ ! -f "${script}" ]
+            then
+               script="${MULLE_CRAFT_ETC_DIR}/callback-${state}"
+               if [ ! -f "${script}" ]
+               then
+                  script="${MULLE_CRAFT_SHARE_DIR}/callback-${state}"
+                  if [ ! -f "${script}" ]
+                  then
+                     script=""
+                  fi
+               fi
+            fi
+         fi
+
+         if [ ! -z "${script}" ]
+         then
+            if [ ! -x "${script}" ]
+            then
+               fail "Script \"${script#${MULLE_USER_PWD}/}\" is not executable"
+            fi
+            log_info "Executing \"${script#${MULLE_USER_PWD}/}\""
+
+            DEPENDENCY_DIR="${DEPENDENCY_DIR}"
+               exekutor "${script}" "${state}" || exit 1
+         fi
+      ;;
+   esac
+}
+
+
+dependency_get_timestamp()
+{
+   log_entry "dependency_get_timestamp" "$@"
+
+   [ -z "${DEPENDENCY_DIR}" ] && internal_fail "DEPENDENCY_DIR not set"
+
+   if [ -f "${DEPENDENCY_DIR}/.state" ]
+   then
+      modification_timestamp "${DEPENDENCY_DIR}/.state"
+   fi
+}
+
+
 dependency_init()
 {
    log_entry "dependency_init" "$@"
@@ -172,13 +265,11 @@ dependency_init()
 
    mkdir_if_missing "${DEPENDENCY_DIR}"
 
-   redirect_exekutor "${DEPENDENCY_DIR}/.state" \
-      echo "initing"
+   dependency_set_state "initing"
 
    _dependency_install_tarballs "${style}"
 
-   redirect_exekutor "${DEPENDENCY_DIR}/.state" \
-      echo "inited"
+   dependency_set_state "inited"
 }
 
 
@@ -213,38 +304,6 @@ dependency_protect()
    exekutor chmod -R a-w "${DEPENDENCY_DIR}" || fail "could not chmod \"${DEPENDENCY_DIR}\""
 }
 
-
-#
-# possible states:
-#
-# clean
-#  initing
-# inited
-#  updating
-# ready
-#
-dependency_get_state()
-{
-   [ -z "${DEPENDENCY_DIR}" ] && internal_fail "DEPENDENCY_DIR not set"
-
-   if ! cat "${DEPENDENCY_DIR}/.state" 2> /dev/null
-   then
-      echo "clean"
-   fi
-}
-
-
-dependency_get_timestamp()
-{
-   log_entry "dependency_get_timestamp" "$@"
-
-   [ -z "${DEPENDENCY_DIR}" ] && internal_fail "DEPENDENCY_DIR not set"
-
-   if [ -f "${DEPENDENCY_DIR}/.state" ]
-   then
-      modification_timestamp "${DEPENDENCY_DIR}/.state"
-   fi
-}
 
 
 dependency_clean()
@@ -313,12 +372,14 @@ dependency_begin_update()
       dependency_unprotect
    fi
 
-   redirect_exekutor "${DEPENDENCY_DIR}/.state" \
-      echo "updating"
+   dependency_set_state "updating"
 }
 
 
+#
 # dont call this if your build failed, even if lenient
+# "complete" is the final state
+#
 dependency_end_update()
 {
    log_entry "dependency_end_update" "$@"
@@ -329,18 +390,20 @@ dependency_end_update()
 
    log_fluff "Dependency update ended with ${state}"
 
-   if [ "${state}" = "complete" -a  "${OPTION_PROTECT_DEPENDENCY}" = 'YES' ]
+   if [ "${state}" = "complete" ]
    then
-      exekutor chmod ug+wX "${DEPENDENCY_DIR}"
-      exekutor chmod ug+w  "${DEPENDENCY_DIR}/.state"
-   fi
+      if [ "${OPTION_PROTECT_DEPENDENCY}" = 'YES' ]
+      then
+         exekutor chmod ug+wX "${DEPENDENCY_DIR}"
+         exekutor chmod ug+w  "${DEPENDENCY_DIR}/.state"
+      fi
 
-   log_verbose "Dependency folder marked as ${state}"
-   redirect_exekutor "${DEPENDENCY_DIR}/.state" printf "%s\n" "${state}"
+      dependency_set_state "${state}"
 
-   if [ "${state}" = "complete" -a "${OPTION_PROTECT_DEPENDENCY}" = 'YES' ]
-   then
-      dependency_protect
+      if [ "${OPTION_PROTECT_DEPENDENCY}" = 'YES' ]
+      then
+         dependency_protect
+      fi
    fi
 }
 

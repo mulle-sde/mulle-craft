@@ -90,18 +90,30 @@ r_concat_craftinfo_searchpath()
    local platform="$3"
    local allowplatform="$4"
 
-   if [ "${allowplatform}" != 'NO' ]   # empty is OK
+   if [ "${platform}" = 'Default' ]
    then
-      if [ "${platform}" = 'Default' ]
-      then
-         platform="${MULLE_UNAME}"
-      fi
-
-      r_colon_concat "${searchpath}" \
-                     "${directory}/definition.${platform}"
-      searchpath="${RVAL}"
+      platform="${MULLE_UNAME}"
    fi
-   r_colon_concat "${searchpath}" "${directory}/definition"
+
+   local names
+
+   names="${MULLE_CRAFT_DEFINITION_NAMES:-definition}"
+
+   local name 
+
+   IFS=':'
+   for name in ${names}
+   do
+      IFS="${DEFAULT_IFS}"
+      if [ "${allowplatform}" != 'NO' ]   # empty is OK
+      then
+         r_colon_concat "${searchpath}" "${directory}/${name}.${platform}"
+         searchpath="${RVAL}"
+      fi
+      r_colon_concat "${searchpath}" "${directory}/${name}"
+   done
+
+   IFS="${DEFAULT_IFS}"
 }
 
 
@@ -428,8 +440,8 @@ craft_craftinfo_search_main()
    log_entry "craft_craftinfo_search_main" "$@"
 
    local OPTION_PROJECT_DIR
-   local OPTION_PLATFORM_CRAFTINFO='YES'
-   local OPTION_LOCAL_CRAFTINFO='YES'
+   local OPTION_PLATFORM_CRAFTINFO="${MULLE_CRAFT_PLATFORM_CRAFTINFO:-YES}"
+   local OPTION_LOCAL_CRAFTINFO="${MULLE_CRAFT_LOCAL_CRAFTINFO:-YES}"
    local OPTION_PLATFORM='Default'
    local OPTION_SDK='Default'
    local OPTION_CONFIGURATION='Release'
