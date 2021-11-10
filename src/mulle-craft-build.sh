@@ -1738,6 +1738,7 @@ do_build_mainproject()
 
    r_get_mulle_sdk_path "${sdk}" "${platform}" "${style}"
    sdk_path="${RVAL}"
+   
    if [ ! -z "${sdk_path}" ]
    then
       r_concat "${OPTIONS_MULLE_MAKE_PROJECT}" "-DMULLE_SDK_PATH='${sdk_path}'"

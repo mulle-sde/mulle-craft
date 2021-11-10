@@ -611,6 +611,8 @@ r_get_mulle_sdk_path()
    r_colon_concat "${dependency_dir}" "${addiction_dir}"
    r_colon_concat "${RVAL}" "${MULLE_SDK_PATH}"
 
+   # this will be passed as MULLE_SDK_PATH
+   
    log_debug "sdk_path: ${RVAL}"
 }
 
