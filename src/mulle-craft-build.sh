@@ -1824,6 +1824,13 @@ craft_build_common()
    local OPTION_VERSION=DEFAULT
    local OPTION_CALLBACK
 
+   # header install phase currently not installing for some reason
+   case "${MULLE_UNAME}" in 
+      windows)
+         OPTION_PARALLEL="NO"
+      ;;
+   esac
+
    while [ $# -ne 0 ]
    do
       case "$1" in

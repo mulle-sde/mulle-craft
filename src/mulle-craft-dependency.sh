@@ -284,8 +284,16 @@ dependency_unprotect()
       return
    fi
 
-   log_fluff "Unprotecting ${DEPENDENCY_DIR#${MULLE_USER_PWD}/}"
-   exekutor chmod -R ug+w "${DEPENDENCY_DIR}" || fail "could not chmod \"${DEPENDENCY_DIR}\""
+   case "${MULLE_UNAME}" in
+      windows|mingw)
+          log_fluff "Skipping unprotect on ${MULLE_UNAME}"
+      ;;
+
+      *)
+         log_fluff "Unprotecting ${DEPENDENCY_DIR#${MULLE_USER_PWD}/}"
+         exekutor chmod -R ug+w "${DEPENDENCY_DIR}" || fail "could not chmod \"${DEPENDENCY_DIR}\""
+      ;;
+   esac
 }
 
 
@@ -300,8 +308,17 @@ dependency_protect()
       return
    fi
 
-   log_fluff "Protecting ${DEPENDENCY_DIR#${MULLE_USER_PWD}/}"
-   exekutor chmod -R a-w "${DEPENDENCY_DIR}" || fail "could not chmod \"${DEPENDENCY_DIR}\""
+   case "${MULLE_UNAME}" in
+      windows|mingw)
+          log_fluff "Skipping protect on ${MULLE_UNAME}"
+      ;;
+
+      *)
+         log_fluff "Protecting ${DEPENDENCY_DIR#${MULLE_USER_PWD}/}"
+         exekutor chmod -R a-w "${DEPENDENCY_DIR}" || fail "could not chmod \"${DEPENDENCY_DIR}\""
+      ;;
+   esac
+
 }
 
 
@@ -394,8 +411,16 @@ dependency_end_update()
    then
       if [ "${OPTION_PROTECT_DEPENDENCY}" = 'YES' ]
       then
-         exekutor chmod ug+wX "${DEPENDENCY_DIR}"
-         exekutor chmod ug+w  "${DEPENDENCY_DIR}/.state"
+         case "${MULLE_UNAME}" in  
+            windows|mingw)
+                log_fluff "Skipping protect on ${MULLE_UNAME}"
+            ;;
+
+            *)
+               exekutor chmod ug+wX "${DEPENDENCY_DIR}"
+               exekutor chmod ug+w  "${DEPENDENCY_DIR}/.state"
+            ;;
+         esac
       fi
 
       dependency_set_state "${state}"
