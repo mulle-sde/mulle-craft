@@ -1826,7 +1826,7 @@ craft_build_common()
 
    # header install phase currently not installing for some reason
    case "${MULLE_UNAME}" in 
-      windows)
+      windows|mingw*)
          OPTION_PARALLEL="NO"
       ;;
    esac
