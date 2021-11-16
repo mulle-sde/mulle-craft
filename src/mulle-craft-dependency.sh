@@ -429,6 +429,8 @@ dependency_end_update()
       then
          dependency_protect
       fi
+   else
+      dependency_set_state "${state}"
    fi
 }
 
