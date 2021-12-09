@@ -252,6 +252,13 @@ main()
             INFO_DIR="$1"
          ;;
 
+         --aux-definition-dir)
+            [ $# -eq 1 ] && usage "Missing argument to \"$1\""
+            shift
+
+            AUX_INFO_DIR="$1"
+         ;;
+
          -f|--force)
             MULLE_FLAG_MAGNUM_FORCE='YES'
          ;;
@@ -493,6 +500,12 @@ main()
 ###
 ### INIT
 ###
+_fatal()
+{
+   echo "$0 fatal error: $*" >&2
+   exit 1
+}
+
 _init()
 {
    #
@@ -507,12 +520,9 @@ _init()
 
    MULLE_BASHFUNCTIONS_LIBEXEC_DIR="`mulle-bashfunctions-env libexec-dir 2> /dev/null`"
    [ -z "${MULLE_BASHFUNCTIONS_LIBEXEC_DIR}" ] && \
-      echo "mulle-bashfunctions-env not installed" >&2 && \
-      exit 1
+            _fatal "mulle-bashfunctions-env not installed"
 
-   . "${MULLE_BASHFUNCTIONS_LIBEXEC_DIR}/mulle-bashfunctions.sh" "minimal" || exit 1
-   . "${MULLE_BASHFUNCTIONS_LIBEXEC_DIR}/mulle-path.sh" || exit 1
-   . "${MULLE_BASHFUNCTIONS_LIBEXEC_DIR}/mulle-file.sh" || exit 1
+   . "${MULLE_BASHFUNCTIONS_LIBEXEC_DIR}/mulle-bashfunctions-all.sh" || exit 1
 
    if [ -z "${MULLE_CRAFT_LIBEXEC_DIR}" ]
    then

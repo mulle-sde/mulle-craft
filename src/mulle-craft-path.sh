@@ -81,23 +81,20 @@ EOF
 }
 
 
-r_concat_craftinfo_searchpath()
+r_concat_info_searchpath()
 {
-   log_entry "r_concat_craftinfo_searchpath" "$@"
+   log_entry "r_concat_info_searchpath" "$@"
 
    local searchpath="$1"
    local directory="$2"
    local platform="$3"
    local allowplatform="$4"
+   local names="${5:-definition}"
 
    if [ "${platform}" = 'Default' ]
    then
       platform="${MULLE_UNAME}"
    fi
-
-   local names
-
-   names="${MULLE_CRAFT_DEFINITION_NAMES:-definition}"
 
    local name 
 
@@ -147,18 +144,20 @@ r_determine_craftinfo_searchpath()
                depsubdir="${RVAL}"
 
                directory="${depsubdir}/share/mulle-craft/${name}"
-               r_concat_craftinfo_searchpath "${searchpath}" \
-                                             "${directory}" \
-                                             "${platform}" \
-                                             "${allowplatform}"
+               r_concat_info_searchpath "${searchpath}" \
+                                        "${directory}" \
+                                        "${platform}" \
+                                        "${allowplatform}" \
+                                        "${MULLE_CRAFT_DEFINITION_NAMES}"
                searchpath="${RVAL}"
             fi
 
             directory="${dependencydir}/share/mulle-craft/${name}"
-            r_concat_craftinfo_searchpath "${searchpath}" \
-                                          "${directory}" \
-                                          "${platform}" \
-                                          "${allowplatform}"
+            r_concat_info_searchpath "${searchpath}" \
+                                     "${directory}" \
+                                     "${platform}" \
+                                     "${allowplatform}" \
+                                     "${MULLE_CRAFT_DEFINITION_NAMES}"
             searchpath="${RVAL}"
          fi
       ;;
@@ -172,24 +171,7 @@ r_determine_craftinfo_searchpath()
       ;;
    esac
 
-   if [ -z "${projectdir}" -o "${allowlocal}" = 'NO' ]
-   then
-      RVAL="${searchpath}"
-      return
-   fi
-
-   directory="${projectdir}/.mulle/etc/craft"
-   r_concat_craftinfo_searchpath "${searchpath}" \
-                                 "${directory}" \
-                                 "${platform}" \
-                                 "${allowplatform}"
-   searchpath="${RVAL}"
-
-   directory="${projectdir}/.mulle/share/craft"
-   r_concat_craftinfo_searchpath "${searchpath}" \
-                                 "${directory}" \
-                                 "${platform}" \
-                                 "${allowplatform}"
+   RVAL="${searchpath}"
 }
 
 
@@ -217,22 +199,15 @@ r_determine_craftinfo_dir()
    # hmm, how does this work for multiple crafts. It can't I guess
    #      so only use for mainproject
    #
-   if [ ! -z "${INFO_DIR}" -a "${projecttype}" = "mainproject" ]
+   if [ ! -z "${AUX_INFO_DIR}" -a "${projecttype}" = "mainproject" ]
    then
       log_fluff "Using definition defined by commandline (or environment INFO_DIR)"
-      RVAL="${INFO_DIR}"
+      RVAL="${AUX_INFO_DIR}"
       return
    fi
 
-   if [ -z "${MULLE_CRAFT_SEARCHPATH_SH}" ]
-   then
-      . "${MULLE_CRAFT_LIBEXEC_DIR}/mulle-craft-searchpath.sh" || exit 1
-   fi
-   if [ -z "${MULLE_CRAFT_STYLE_SH}" ]
-   then
-      # shellcheck source=src/mulle-craft-style.sh
-      . "${MULLE_CRAFT_LIBEXEC_DIR}/mulle-craft-style.sh" || exit 1
-   fi
+   include_mulle_tool_library "craft" "searchpath"
+   include_mulle_tool_library "craft" "style"
 
    local subdir
 
@@ -283,6 +258,117 @@ r_determine_craftinfo_dir()
    shell_enable_glob; IFS="${DEFAULT_IFS}"
 
    log_fluff "No craftinfo \"${name}\" found"
+
+   RVAL=""
+   return 2
+}
+
+
+r_determine_definition_searchpath()
+{
+   log_entry "r_determine_definition_searchpath" "$@"
+
+   [ $# -eq 6 ] || internal_fail "api error"
+
+   local name="${1:-unknown}"
+   local projectdir="${2:-${PWD}}"
+   local projecttype="${3:-mainproject}"
+   local allowplatform="${4:-YES}"
+   local allowlocal="${5:-YES}"
+   local platform="${6:-Default}"
+
+   if [ -z "${projectdir}" -o "${allowlocal}" = 'NO' ]
+   then
+      RVAL=""
+      return
+   fi
+
+   local searchpath
+
+   directory="${projectdir}/.mulle/etc/craft"
+   r_concat_info_searchpath "${searchpath}" \
+                            "${directory}" \
+                            "${platform}" \
+                            "${allowplatform}"
+   searchpath="${RVAL}"
+
+   directory="${projectdir}/.mulle/share/craft"
+   r_concat_info_searchpath "${searchpath}" \
+                            "${directory}" \
+                            "${platform}" \
+                            "${allowplatform}"
+}
+
+
+
+
+r_determine_definition_dir()
+{
+   log_entry "r_determine_definition_dir" "$@"
+
+   #
+   # upper case for the sake of sameness for ppl setting MULLE_CRAFT_CRAFTINFO_PATH
+   # in the environment ?=??
+   #
+   [ $# -eq 9 ] || internal_fail "api error"
+
+   local name="${1:-unknown}"
+   local projectdir="${2:-${PWD}}"
+   local projecttype="${3:-mainproject}"
+   local allowplatform="${4:-YES}"
+   local allowlocal="${5:-YES}"
+   local sdk="${6:-Default}"
+   local platform="${7:-Default}"
+   local configuration="${8:-Release}"
+   local style="${9:-none}"
+
+   #
+   # hmm, how does this work for multiple crafts. It can't I guess
+   #      so only use for mainproject
+   #
+   if [ ! -z "${INFO_DIR}" -a "${projecttype}" = "mainproject" ]
+   then
+      log_fluff "Using definition defined by commandline (or environment INFO_DIR)"
+      RVAL="${INFO_DIR}"
+      return
+   fi
+
+   include_mulle_tool_library "craft" "searchpath"
+   include_mulle_tool_library "craft" "style"
+
+   r_basename "${name}"
+   name="${RVAL}"
+
+   [ -z "${name}" ] && internal_fail "name is empty"
+
+   local searchpath
+
+   r_determine_definition_searchpath "${name}" \
+                                     "${projectdir}" \
+                                     "${projecttype}" \
+                                     "${allowplatform}" \
+                                     "${allowlocal}" \
+                                     "${platform}"
+   searchpath="${RVAL}"
+
+   log_fluff "Definition search order: ${searchpath}"
+
+   local definitiondir
+
+   shell_disable_glob ; IFS=':'
+   for definitiondir in ${searchpath}
+   do
+      shell_enable_glob; IFS="${DEFAULT_IFS}"
+      if [ ! -z "${definitiondir}" ] && [ -d "${definitiondir}" ]
+      then
+         log_fluff "Definition directory \"${definitiondir}\" found"
+         RVAL="${definitiondir}"
+         return 0
+      fi
+   done
+   shell_enable_glob; IFS="${DEFAULT_IFS}"
+
+   log_fluff "No definition for \"${name}\" found"
 
    RVAL=""
    return 2

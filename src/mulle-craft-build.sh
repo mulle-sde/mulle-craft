@@ -249,6 +249,27 @@ build_project()
       ;;
    esac
 
+   local definitiondir
+
+   r_determine_definition_dir "${name}" \
+                              "${project}" \
+                              "dependency" \
+                              "${OPTION_PLATFORM_CRAFTINFO}" \
+                              "${OPTION_LOCAL_CRAFTINFO}" \
+                              "${sdk}" \
+                              "${platform}" \
+                              "${configuration}" \
+                              "${style}"
+   case $? in
+      0|2)
+      ;;
+
+      *)
+         exit 1
+      ;;
+   esac
+   definitiondir="${RVAL}"
+
    local craftinfodir
 
    r_determine_craftinfo_dir "${name}" \
@@ -344,58 +365,66 @@ build_project()
    # this is supposed to be a global override
    # it's probably superflous. You can tune options on a per-project
    # basis with marks and environment variables
-   #
-   if [ ! -z "${MULLE_CRAFT_LIBRARY_STYLE}" ]
-   then
-      case "${MULLE_CRAFT_LIBRARY_STYLE}" in
-         standalone)
-            r_concat "${args}" "--library-style standalone"
-            args="${RVAL}"
-         ;;
+#   #
+#   if [ ! -z "${MULLE_CRAFT_LIBRARY_STYLE}" ]
+#   then
+#      case "${MULLE_CRAFT_LIBRARY_STYLE}" in
+#         standalone)
+#            r_concat "${args}" "--library-style standalone"
+#            args="${RVAL}"
+#         ;;
+#
+#         dynamic|shared)
+#            r_concat "${args}" "--library-style shared"
+#            args="${RVAL}"
+#         ;;
+#
+#         static)
+#            r_concat "${args}" "--library-style static"
+#            args="${RVAL}"
+#         ;;
+#
+#         *)
+#            fail "Unknown library style \"${MULLE_CRAFT_LIBRARY_STYLE}\" \
+#(use dynamic/static/standalone)"
+#         ;;
+#      esac
+#   else
+   case ",${marks}," in
+      *',only-standalone,'*)
+         r_concat "${args}" "--library-style standalone"
+         args="${RVAL}"
+      ;;
 
-         dynamic|shared)
-            r_concat "${args}" "--library-style shared"
-            args="${RVAL}"
-         ;;
+      *',no-static-link,'*)
+         r_concat "${args}" "--library-style dynamic"
+         args="${RVAL}"
+         case "*,${marks},*" in
+            *',no-all-load,'*)
+            ;;
 
-         static)
-            r_concat "${args}" "--library-style static"
-            args="${RVAL}"
-         ;;
-
-         *)
-            fail "Unknown library style \"${MULLE_CRAFT_LIBRARY_STYLE}\" \
-(use dynamic/static/standalone)"
-         ;;
-      esac
-   else
-      case ",${marks}," in
-         *',only-standalone,'*)
-            r_concat "${args}" "--library-style standalone"
-            args="${RVAL}"
-         ;;
-
-         *',no-static-link,'*)
-            r_concat "${args}" "--library-style dynamic"
-            args="${RVAL}"
-            case "*,${marks},*" in
-               *',no-all-load,'*)
-               ;;
-
-               *)
-                  log_verbose "Project \"${project}\" is marked \
+            *)
+               log_verbose "Project \"${project}\" is marked \
 as \"no-static-link\" \ and \"all-load\".
 This can lead to problems on darwin, but may solve problems on linux..."
-               ;;
-            esac
-         ;;
+            ;;
+         esac
+      ;;
 
-         *',no-dynamic-link,'*)
-            r_concat "${args}" "--library-style static"
+      *',no-dynamic-link,'*)
+         r_concat "${args}" "--library-style static"
+         args="${RVAL}"
+      ;;
+
+      *)
+         if [ ! -z "${OPTION_PREFERRED_LIBRARY_STYLE}" ]
+         then
+            r_concat "${args}" "--library-style ${OPTION_PREFERRED_LIBRARY_STYLE}"
             args="${RVAL}"
-         ;;
-      esac
-   fi
+         fi
+      ;;
+   esac
+#   fi
 
    if [ ! -z "${logdir}" ]
    then
@@ -407,12 +436,17 @@ This can lead to problems on darwin, but may solve problems on linux..."
       r_concat "${args}" "--build-dir '${kitchendir}'"
       args="${RVAL}"
    fi
-   if [ ! -z "${craftinfodir}" ]
+   if [ ! -z "${definitiondir}" ]
    then
-      r_concat "${args}" "--definition-dir '${craftinfodir}'"
+      r_concat "${args}" "--definition-dir '${definitiondir}'"
       args="${RVAL}"
    else
-      r_concat "${args}" "--definition-dir 'NONE'"
+      r_concat "${args}" "--definition-dir 'NONE'" # not sure why
+      args="${RVAL}"
+   fi
+   if [ ! -z "${craftinfodir}" ]
+   then
+      r_concat "${args}" "--aux-definition-dir '${craftinfodir}'"
       args="${RVAL}"
    fi
    if [ ! -z "${configuration}" ]
@@ -538,6 +572,14 @@ set to ${C_RESET_BOLD}${mulle_options_env_value}${C_VERBOSE}"
       log_trace2 "mulle_flags_env_value: ${mulle_flags_env_value}"
    fi
 
+   local old
+
+   old="${MULLE_FLAG_LOG_EXEKUTOR}"
+   if [ "${MULLE_FLAG_LOG_VERBOSE}" = 'YES' ]
+   then
+      MULLE_FLAG_LOG_EXEKUTOR="YES"
+   fi
+
    eval_exekutor "${environment}" \
                      "'${MULLE_MAKE}'" \
                         "${flags}" \
@@ -548,6 +590,8 @@ set to ${C_RESET_BOLD}${mulle_options_env_value}${C_VERBOSE}"
                        "${project}" \
                        "${destination}"
    rval=$?
+
+   MULLE_FLAG_LOG_EXEKUTOR="${old}"
 
    if [ ${rval} -ne 0 ]
    then
@@ -644,6 +688,9 @@ build_dependency_with_dispense()
    build_project "${cmd}" "${tmpdependencydir}" "$@"
    rval=$?
 
+   log_debug "build finished with $rval"
+
+
    if [ "${cmd}" != 'install' -o $rval -ne 0 ]
    then
       if [ $rval -ne 0 ]
@@ -702,6 +749,8 @@ build_dependency_with_dispense()
                   "${tmpdependencydir}" \
                   "${dependency_dir}"
    rval=$?
+
+   log_debug "dispense finished with $rval"
 
    rmdir_safer "${tmpdependencydir}"
 
@@ -1617,17 +1666,17 @@ do_build_mainproject()
    platform="${platform:-${MULLE_UNAME}}"
    configuration="${configuration:-Debug}"
 
-   local craftinfodir
+   local definitiondir
 
-   r_determine_craftinfo_dir "${name}" \
-                             "${PWD}" \
-                             "mainproject" \
-                             "${OPTION_PLATFORM_CRAFTINFO}" \
-                             "${OPTION_LOCAL_CRAFTINFO}" \
-                             "${sdk}" \
-                             "${platform}" \
-                             "${configuration}" \
-                             "auto"
+   r_determine_definition_dir "${name}" \
+                              "${PWD}" \
+                              "mainproject" \
+                              "${OPTION_PLATFORM_CRAFTINFO}" \
+                              "${OPTION_LOCAL_CRAFTINFO}" \
+                              "${sdk}" \
+                              "${platform}" \
+                              "${configuration}" \
+                              "auto"
    case $? in
       0|2)
       ;;
@@ -1636,24 +1685,40 @@ do_build_mainproject()
          exit 1
       ;;
    esac
+   definitiondir="${RVAL}"
 
-   craftinfodir="${RVAL}"
+#   local craftinfodir
+#
+#   r_determine_craftinfo_dir "${name}" \
+#                             "${PWD}" \
+#                             "mainproject" \
+#                             "${OPTION_PLATFORM_CRAFTINFO}" \
+#                             "${OPTION_LOCAL_CRAFTINFO}" \
+#                             "${sdk}" \
+#                             "${platform}" \
+#                             "${configuration}" \
+#                             "auto"
+#   case $? in
+#      0|2)
+#      ;;
+#
+#      *)
+#         exit 1
+#      ;;
+#   esac
+#   craftinfodir="${RVAL}"
 
    # always set --info-dir
-   if [ ! -z "${craftinfodir}" ]
+   if [ ! -z "${definitiondir}" ]
    then
-      r_concat "${OPTIONS_MULLE_MAKE_PROJECT}" "--definition-dir '${craftinfodir}'"
+      r_concat "${OPTIONS_MULLE_MAKE_PROJECT}" "--definition-dir '${definitiondir}'"
       OPTIONS_MULLE_MAKE_PROJECT="${RVAL}"
    else
       r_concat "${OPTIONS_MULLE_MAKE_PROJECT}" "--definition-dir 'NONE'"
       OPTIONS_MULLE_MAKE_PROJECT="${RVAL}"
    fi
 
-   if [ -z "${MULLE_CRAFT_STYLE_SH}" ]
-   then
-      # shellcheck source=src/mulle-craft-style.sh
-      . "${MULLE_CRAFT_LIBEXEC_DIR}/mulle-craft-style.sh" || exit 1
-   fi
+   include_mulle_tool_library "craft" "style"
 
    #
    # find proper build and log directory (always relax)
@@ -1759,6 +1824,13 @@ do_build_mainproject()
       fi
    done
 
+   local old
+
+   old="${MULLE_FLAG_LOG_EXEKUTOR}"
+   if [ "${MULLE_FLAG_LOG_VERBOSE}" = 'YES' ]
+   then
+      MULLE_FLAG_LOG_EXEKUTOR="YES"
+   fi
 
    local rval
 
@@ -1769,6 +1841,8 @@ do_build_mainproject()
                         "${OPTIONS_MULLE_MAKE_PROJECT}" \
                         "${auxargs}"
    rval=$?
+
+   MULLE_FLAG_LOG_EXEKUTOR="${old}"
 
    redirect_exekutor "${kitchendir}/.status" printf "%s\n" "${rval}" \
    || fail "Could not write into ${kitchendir}"
@@ -1811,6 +1885,7 @@ craft_build_common()
    local OPTION_REBUILD_BUILDORDER='NO'
    local OPTION_PROTECT_DEPENDENCY='YES'
    local OPTION_ALLOW_SCRIPT="${MULLE_CRAFT_USE_SCRIPT:-DEFAULT}"
+   local OPTION_KEEP_DEPENDENCY_STATE='YES'
    local OPTION_SINGLE_DEPENDENCY
    local OPTION_LIST_REMAINING='NO'
    local OPTION_CLEAN_TMP='YES'
@@ -1820,7 +1895,7 @@ craft_build_common()
    local OPTION_PARALLEL_MAKE='YES'
    local OPTION_PARALLEL_PHASE='YES' # NO sometimes usefule for debugging
    local OPTION_MULLE_TEST='NO'
-   local OPTION_LIBRARY_STYLE
+   local OPTION_PREFERRED_LIBRARY_STYLE
    local OPTION_VERSION=DEFAULT
    local OPTION_CALLBACK
 
@@ -1886,6 +1961,9 @@ craft_build_common()
             OPTION_BUILD_DEPENDENCY='NO'
          ;;
 
+         --no-keep-dependency-state)
+            OPTION_KEEP_DEPENDENCY_STATE='NO'
+         ;;
 
          --callback)
             [ $# -eq 1 ] && build_execute_usage "Missing argument to \"$1\""
@@ -1969,11 +2047,11 @@ craft_build_common()
             CONFIGURATIONS="$1"
          ;;
 
-         --library-style)
+         --preferred-library-style|--library-style)
             [ $# -eq 1 ] && build_execute_usage "Missing argument to \"$1\""
             shift
 
-            OPTION_LIBRARY_STYLE="$1"
+            OPTION_PREFERRED_LIBRARY_STYLE="$1"
          ;;
 
          --debug)

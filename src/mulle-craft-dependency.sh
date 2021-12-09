@@ -190,8 +190,12 @@ dependency_set_state()
 
    log_verbose "Dependency folder marked as ${state}"
 
-   redirect_exekutor "${DEPENDENCY_DIR}/.state" \
-      printf "%s\n" "${state}"
+   # for "install" this is superflous and unwanted
+   if [ "${OPTION_KEEP_DEPENDENCY_STATE}" = 'YES' ]
+   then
+      redirect_exekutor "${DEPENDENCY_DIR}/.state" \
+         printf "%s\n" "${state}"
+   fi
 
    local script 
 
@@ -417,8 +421,12 @@ dependency_end_update()
             ;;
 
             *)
-               exekutor chmod ug+wX "${DEPENDENCY_DIR}"
-               exekutor chmod ug+w  "${DEPENDENCY_DIR}/.state"
+               # temporarily unprotect to save state
+               if [ "${OPTION_KEEP_DEPENDENCY_STATE}" = 'YES' ]
+               then
+                  exekutor chmod ug+wX "${DEPENDENCY_DIR}"
+                  exekutor chmod ug+w "${DEPENDENCY_DIR}/.state"
+               fi
             ;;
          esac
       fi
