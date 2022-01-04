@@ -32,7 +32,7 @@
 MULLE_CRAFT_PATH_SH="included"
 
 
-craft_craftinfo_searchpath_usage()
+craft::path::craftinfo_searchpath_usage()
 {
    [ "$#" -ne 0 ] && log_error "$*"
 
@@ -57,7 +57,7 @@ EOF
 
 
 
-craft_craftinfo_search_usage()
+craft::path::craftinfo_search_usage()
 {
    [ "$#" -ne 0 ] && log_error "$*"
 
@@ -81,9 +81,9 @@ EOF
 }
 
 
-r_concat_info_searchpath()
+craft::path::r_concat_info_searchpath()
 {
-   log_entry "r_concat_info_searchpath" "$@"
+   log_entry "craft::path::r_concat_info_searchpath" "$@"
 
    local searchpath="$1"
    local directory="$2"
@@ -114,9 +114,9 @@ r_concat_info_searchpath()
 }
 
 
-r_determine_craftinfo_searchpath()
+craft::path::r_determine_craftinfo_searchpath()
 {
-   log_entry "r_determine_craftinfo_searchpath" "$@"
+   log_entry "craft::path::r_determine_craftinfo_searchpath" "$@"
 
    [ $# -eq 9 ] || internal_fail "api error"
 
@@ -144,7 +144,7 @@ r_determine_craftinfo_searchpath()
                depsubdir="${RVAL}"
 
                directory="${depsubdir}/share/mulle-craft/${name}"
-               r_concat_info_searchpath "${searchpath}" \
+               craft::path::r_concat_info_searchpath "${searchpath}" \
                                         "${directory}" \
                                         "${platform}" \
                                         "${allowplatform}" \
@@ -153,7 +153,7 @@ r_determine_craftinfo_searchpath()
             fi
 
             directory="${dependencydir}/share/mulle-craft/${name}"
-            r_concat_info_searchpath "${searchpath}" \
+            craft::path::r_concat_info_searchpath "${searchpath}" \
                                      "${directory}" \
                                      "${platform}" \
                                      "${allowplatform}" \
@@ -175,9 +175,9 @@ r_determine_craftinfo_searchpath()
 }
 
 
-r_determine_craftinfo_dir()
+craft::path::r_determine_craftinfo_dir()
 {
-   log_entry "r_determine_craftinfo_dir" "$@"
+   log_entry "craft::path::r_determine_craftinfo_dir" "$@"
 
    #
    # upper case for the sake of sameness for ppl setting MULLE_CRAFT_CRAFTINFO_PATH
@@ -206,12 +206,12 @@ r_determine_craftinfo_dir()
       return
    fi
 
-   include_mulle_tool_library "craft" "searchpath"
-   include_mulle_tool_library "craft" "style"
+   include "craft::searchpath"
+   include "craft::style"
 
    local subdir
 
-   r_get_sdk_platform_configuration_style_string "${sdk}" \
+   craft::style::r_get_sdk_platform_configuration_string "${sdk}" \
                                                  "${platform}" \
                                                  "${configuration}" \
                                                  "${style}"
@@ -230,7 +230,7 @@ r_determine_craftinfo_dir()
       r_expanded_string "${MULLE_CRAFT_CRAFTINFO_PATH}"
       searchpath="${RVAL}"
    else
-     r_determine_craftinfo_searchpath "${name}" \
+     craft::path::r_determine_craftinfo_searchpath "${name}" \
                                       "${projectdir}" \
                                       "${projecttype}" \
                                       "${allowplatform}" \
@@ -264,9 +264,9 @@ r_determine_craftinfo_dir()
 }
 
 
-r_determine_definition_searchpath()
+craft::path::r_determine_definition_searchpath()
 {
-   log_entry "r_determine_definition_searchpath" "$@"
+   log_entry "craft::path::r_determine_definition_searchpath" "$@"
 
    [ $# -eq 6 ] || internal_fail "api error"
 
@@ -286,25 +286,23 @@ r_determine_definition_searchpath()
    local searchpath
 
    directory="${projectdir}/.mulle/etc/craft"
-   r_concat_info_searchpath "${searchpath}" \
+   craft::path::r_concat_info_searchpath "${searchpath}" \
                             "${directory}" \
                             "${platform}" \
                             "${allowplatform}"
    searchpath="${RVAL}"
 
    directory="${projectdir}/.mulle/share/craft"
-   r_concat_info_searchpath "${searchpath}" \
+   craft::path::r_concat_info_searchpath "${searchpath}" \
                             "${directory}" \
                             "${platform}" \
                             "${allowplatform}"
 }
 
 
-
-
-r_determine_definition_dir()
+craft::path::r_determine_definition_dir()
 {
-   log_entry "r_determine_definition_dir" "$@"
+   log_entry "craft::path::r_determine_definition_dir" "$@"
 
    #
    # upper case for the sake of sameness for ppl setting MULLE_CRAFT_CRAFTINFO_PATH
@@ -333,8 +331,8 @@ r_determine_definition_dir()
       return
    fi
 
-   include_mulle_tool_library "craft" "searchpath"
-   include_mulle_tool_library "craft" "style"
+   include "craft::searchpath"
+   include "craft::style"
 
    r_basename "${name}"
    name="${RVAL}"
@@ -343,7 +341,7 @@ r_determine_definition_dir()
 
    local searchpath
 
-   r_determine_definition_searchpath "${name}" \
+   craft::path::r_determine_definition_searchpath "${name}" \
                                      "${projectdir}" \
                                      "${projecttype}" \
                                      "${allowplatform}" \
@@ -376,9 +374,9 @@ r_determine_definition_dir()
 
 
 
-craft_craftinfo_searchpath_main()
+craft::path::craftinfo_searchpath_main()
 {
-   log_entry "craft_craftinfo_searchpath_main" "$@"
+   log_entry "craft::path::craftinfo_searchpath_main" "$@"
 
    local OPTION_PROJECT_DIR="${PWD}"
    local OPTION_PROJECT_TYPE="mainproject"
@@ -394,7 +392,7 @@ craft_craftinfo_searchpath_main()
    do
       case "$1" in
          -h*|--help|help)
-            craft_craftinfo_searchpath_usage
+            craft::path::craftinfo_searchpath_usage
          ;;
 
          --release)
@@ -423,14 +421,14 @@ craft_craftinfo_searchpath_main()
          ;;
 
          --name)
-            [ $# -eq 1 ] && craft_craftinfo_searchpath_usage "Missing argument to \"$1\""
+            [ $# -eq 1 ] && craft::path::craftinfo_searchpath_usage "Missing argument to \"$1\""
             shift
 
             OPTION_NAME="$1"
          ;;
 
          --project-dir)
-            [ $# -eq 1 ] && craft_craftinfo_searchpath_usage "Missing argument to \"$1\""
+            [ $# -eq 1 ] && craft::path::craftinfo_searchpath_usage "Missing argument to \"$1\""
             shift
 
             OPTION_PROJECT_DIR="$1"
@@ -438,7 +436,7 @@ craft_craftinfo_searchpath_main()
 
 
          --project-type)
-            [ $# -eq 1 ] && craft_craftinfo_searchpath_usage "Missing argument to \"$1\""
+            [ $# -eq 1 ] && craft::path::craftinfo_searchpath_usage "Missing argument to \"$1\""
             shift
 
             OPTION_PROJECT_TYPE="$1"
@@ -448,35 +446,35 @@ craft_craftinfo_searchpath_main()
          # quadruple of sdk/platform/configuration/style
          #
          --configuration)
-            [ $# -eq 1 ] && craft_craftinfo_searchpath_usage "Missing argument to \"$1\""
+            [ $# -eq 1 ] && craft::path::craftinfo_searchpath_usage "Missing argument to \"$1\""
             shift
 
             OPTION_CONFIGURATION="$1"
          ;;
 
          --platform)
-            [ $# -eq 1 ] && craft_craftinfo_searchpath_usage "Missing argument to \"$1\""
+            [ $# -eq 1 ] && craft::path::craftinfo_searchpath_usage "Missing argument to \"$1\""
             shift
 
             OPTION_PLATFORM="$1"
          ;;
 
          --sdk)
-            [ $# -eq 1 ] && craft_craftinfo_searchpath_usage "Missing argument to \"$1\""
+            [ $# -eq 1 ] && craft::path::craftinfo_searchpath_usage "Missing argument to \"$1\""
             shift
 
             OPTION_SDK="$1"
          ;;
 
          --style)
-            [ $# -eq 1 ] && craft_craftinfo_searchpath_usage "Missing argument to \"$1\""
+            [ $# -eq 1 ] && craft::path::craftinfo_searchpath_usage "Missing argument to \"$1\""
             shift
 
             OPTION_STYLE="$1"
          ;;
 
          -*)
-            craft_craftinfo_searchpath_usage "Unknown option \"$1\""
+            craft::path::craftinfo_searchpath_usage "Unknown option \"$1\""
          ;;
 
          *)
@@ -491,7 +489,7 @@ craft_craftinfo_searchpath_main()
    OPTION_PROJECT_DIR="${OPTION_PROJECT_DIR:-${PWD}}"
    OPTION_NAME="${OPTION_NAME:-`basename -- "${OPTION_PROJECT_DIR}"`}"
 
-   [ $# -ne 0 ] && craft_craftinfo_searchpath_usage "Superflous parameters \"$*\""
+   [ $# -ne 0 ] && craft::path::craftinfo_searchpath_usage "Superflous parameters \"$*\""
 
    log_info "${OPTION_SDK}-${OPTION_PLATFORM}/${OPTION_CONFIGURATION}"
 
@@ -501,13 +499,13 @@ craft_craftinfo_searchpath_main()
       . "${MULLE_CRAFT_LIBEXEC_DIR}/mulle-craft-style.sh" || exit 1
    fi
 
-   r_get_sdk_platform_configuration_style_string "${OPTION_SDK}" \
+   craft::style::r_get_sdk_platform_configuration_string "${OPTION_SDK}" \
                                                  "${OPTION_PLATFORM}" \
                                                  "${OPTION_CONFIGURATION}" \
                                                  "${OPTION_STYLE}"
    subdir="${RVAL}"
 
-   r_determine_craftinfo_searchpath "${OPTION_NAME}" \
+   craft::path::r_determine_craftinfo_searchpath "${OPTION_NAME}" \
                                     "${OPTION_PROJECT_DIR}" \
                                     "${OPTION_PROJECT_TYPE}" \
                                     "${OPTION_ALLOW_PLATFORM}" \
@@ -521,9 +519,9 @@ craft_craftinfo_searchpath_main()
 
 
 
-craft_craftinfo_search_main()
+craft::path::craftinfo_search_main()
 {
-   log_entry "craft_craftinfo_search_main" "$@"
+   log_entry "craft::path::craftinfo_search_main" "$@"
 
    local OPTION_PROJECT_DIR
    local OPTION_PLATFORM_CRAFTINFO="${MULLE_CRAFT_PLATFORM_CRAFTINFO:-YES}"
@@ -537,11 +535,11 @@ craft_craftinfo_search_main()
    do
       case "$1" in
          -h*|--help|help)
-            craft_craftinfo_search_usage
+            craft::path::craftinfo_search_usage
          ;;
 
          -d|--project-dir)
-            [ $# -eq 1 ] && craft_craftinfo_search_usage "Missing argument to \"$1\""
+            [ $# -eq 1 ] && craft::path::craftinfo_search_usage "Missing argument to \"$1\""
             shift
 
             OPTION_PROJECT_DIR="$1"  # could be global env
@@ -559,35 +557,35 @@ craft_craftinfo_search_main()
          # quadruple of sdk/platform/configuration/style
          #
          --configuration)
-            [ $# -eq 1 ] && craft_craftinfo_searchpath_usage "Missing argument to \"$1\""
+            [ $# -eq 1 ] && craft::path::craftinfo_searchpath_usage "Missing argument to \"$1\""
             shift
 
             OPTION_CONFIGURATION="$1"
          ;;
 
          --platform)
-            [ $# -eq 1 ] && craft_craftinfo_searchpath_usage "Missing argument to \"$1\""
+            [ $# -eq 1 ] && craft::path::craftinfo_searchpath_usage "Missing argument to \"$1\""
             shift
 
             OPTION_PLATFORM="$1"
          ;;
 
          --sdk)
-            [ $# -eq 1 ] && craft_craftinfo_searchpath_usage "Missing argument to \"$1\""
+            [ $# -eq 1 ] && craft::path::craftinfo_searchpath_usage "Missing argument to \"$1\""
             shift
 
             OPTION_SDK="$1"
          ;;
 
          --style)
-            [ $# -eq 1 ] && craft_craftinfo_searchpath_usage "Missing argument to \"$1\""
+            [ $# -eq 1 ] && craft::path::craftinfo_searchpath_usage "Missing argument to \"$1\""
             shift
 
             OPTION_STYLE="$1"
          ;;
 
          -*)
-            craft_craftinfo_search_usage "Unknown option \"$1\""
+            craft::path::craftinfo_search_usage "Unknown option \"$1\""
          ;;
 
          *)
@@ -611,7 +609,7 @@ craft_craftinfo_search_main()
          name="${RVAL}"
       fi
 
-	   r_determine_craftinfo_dir "${name}" \
+	   craft::path::r_determine_craftinfo_dir "${name}" \
                                 "${OPTION_PROJECT_DIR}" \
                                 "mainproject" \
                                 "${OPTION_PLATFORM_CRAFTINFO}" \
@@ -627,7 +625,7 @@ craft_craftinfo_search_main()
 			fail "Specify --project-dir <dir> for dependency \"$1\""
 		fi
 
-	   r_determine_craftinfo_dir "$1" \
+	   craft::path::r_determine_craftinfo_dir "$1" \
                                 "${OPTION_PROJECT_DIR}" \
                                 "dependency" \
                                 "${OPTION_PLATFORM_CRAFTINFO}" \

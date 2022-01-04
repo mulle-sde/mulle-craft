@@ -32,7 +32,7 @@
 MULLE_CRAFT_LOG_SH="included"
 
 
-craft_log_usage()
+craft::log::usage()
 {
    [ "$#" -ne 0 ] && log_error "$*"
 
@@ -69,7 +69,7 @@ EOF
 }
 
 
-craft_log_list_usage()
+craft::log::list_usage()
 {
    [ "$#" -ne 0 ] && log_error "$*"
 
@@ -88,9 +88,9 @@ EOF
 }
 
 
-project_log_dirs()
+craft::log::project_log_dirs()
 {
-   log_entry "project_log_dirs" "$@"
+   log_entry "craft::log::project_log_dirs" "$@"
 
    if [ ! -d "${KITCHEN_DIR}" ]
    then
@@ -111,9 +111,9 @@ project_log_dirs()
 }
 
 
-craftorder_log_dirs()
+craft::log::craftorder_log_dirs()
 {
-   log_entry "craftorder_log_dirs" "$@"
+   log_entry "craft::log::craftorder_log_dirs" "$@"
 
    if [ ! -d "${CRAFTORDER_KITCHEN_DIR}" ]
    then
@@ -124,9 +124,9 @@ craftorder_log_dirs()
 }
 
 
-list_tool_logs()
+craft::log::list_tool_logs()
 {
-   log_entry "list_tool_logs" "$@"
+   log_entry "craft::log::list_tool_logs" "$@"
 
    local mode="$1"
    local logdir="$2"
@@ -174,9 +174,9 @@ list_tool_logs()
 }
 
 
-craft_log_list()
+craft::log::list()
 {
-   log_entry "craft_log_list" "$@"
+   log_entry "craft::log::list" "$@"
 
    local directory
    local configuration
@@ -217,7 +217,7 @@ craft_log_list()
       shift
    done
 
-   directories="`project_log_dirs`"
+   directories="`craft::log::project_log_dirs`"
    log_debug "Project log-directories: ${directories}"
 
    if [ ! -z "${directories}" ]
@@ -232,12 +232,12 @@ craft_log_list()
          r_dirname "${directory#${KITCHEN_DIR}/}"
          configuration="${RVAL}"
 
-         list_tool_logs "${OPTION_OUTPUT}" "${directory}" "" "${configuration}"
+         craft::log::list_tool_logs "${OPTION_OUTPUT}" "${directory}" "" "${configuration}"
       done
       IFS="${DEFAULT_IFS}" ; shell_enable_glob
    fi
 
-   directories="`craftorder_log_dirs`"
+   directories="`craft::log::craftorder_log_dirs`"
    log_debug "Craftorder log-directories: ${directories}"
 
    if [ ! -z "${directories}" ]
@@ -256,16 +256,16 @@ craft_log_list()
          configuration_name="${RVAL}"
          configuration="${configuration_name%%/*}"
          name="${configuration_name#*/}"
-         list_tool_logs "${OPTION_OUTPUT}" "${directory}" "${name}" "${configuration}"
+         craft::log::list_tool_logs "${OPTION_OUTPUT}" "${directory}" "${name}" "${configuration}"
       done
       IFS="${DEFAULT_IFS}" ; shell_enable_glob
    fi
 }
 
 
-craft_log_command()
+craft::log::command()
 {
-   log_entry "craft_log_command" "$@"
+   log_entry "craft::log::command" "$@"
 
    local name="$1"; shift
 
@@ -273,11 +273,11 @@ craft_log_command()
    do
       case "$1" in
          -h*|--help|help)
-            craft_log_usage
+            craft::log::usage
          ;;
 
          -*)
-            craft_log_usage "Unknown option \"$1\""
+            craft::log::usage "Unknown option \"$1\""
          ;;
 
          *)
@@ -304,7 +304,7 @@ craft_log_command()
    local lastplatform
    local lastconfiguration
 
-   if [ ! -z "${name}" ]
+   if [ -z "${name}" ]
    then
       #
       # try to figure out what the last run used for sdk/platform/config
@@ -330,6 +330,7 @@ craft_log_command()
    platform="${platform:-${MULLE_UNAME}}"
    configuration="${configuration:-Release}"
 
+
    if [ ! -z "${name}" ]
    then
       [ -z "${MULLE_CRAFT_STYLE_SH}" ] && \
@@ -341,13 +342,13 @@ craft_log_command()
       local _evaledproject
       local _name
 
-      _evaluate_craft_variables "${name}" \
-                                "${sdk}" \
-                                "${platform}" \
-                                "${configuration}" \
-                                "${style}" \
-                                "${CRAFTORDER_KITCHEN_DIR#${PWD}/}" \
-                                "NO"
+      craft::style::_evaluate_variables "${name}" \
+                                        "${sdk}" \
+                                        "${platform}" \
+                                        "${configuration}" \
+                                        "${style}" \
+                                        "${CRAFTORDER_KITCHEN_DIR#${PWD}/}" \
+                                        "NO"
 
       directory="${_kitchendir}"
 
@@ -394,7 +395,9 @@ craft_log_command()
          logfiles=
          if rexekutor compgen -G "${directory}" > /dev/null 2>&1
          then
+            shell_enable_nullglob
             logfiles="${directory}/${configuration}/.log/*.${OPTION_TOOL}.log"
+            shell_disable_nullglob
          fi
 
          if [ ! -z "${logfiles}" ]
@@ -415,15 +418,14 @@ craft_log_command()
 }
 
 
-
 #
 # mulle-craft isn't rules so much by command line arguments
 # but uses mostly ENVIRONMENT variables
 # These are usually provided with mulle-sde
 #
-craft_log_main()
+craft::log::main()
 {
-   log_entry "craft_log_main" "$@"
+   log_entry "craft::log::main" "$@"
 
    local OPTION_CONFIGURATION="*"
    local OPTION_TOOL="*"
@@ -433,7 +435,7 @@ craft_log_main()
    do
       case "$1" in
          -h*|--help|help)
-            craft_log_usage
+            craft::log::usage
          ;;
 
          -e|--executable)
@@ -458,7 +460,7 @@ craft_log_main()
          ;;
 
          -*)
-            craft_log_usage "Unknown option \"$1\""
+            craft::log::usage "Unknown option \"$1\""
          ;;
 
          *)
@@ -477,11 +479,11 @@ craft_log_main()
    case "$1" in
       list)
          shift
-         craft_log_list "$@"
+         craft::log::list "$@"
       ;;
 
       *)
-         craft_log_command "$@"
+         craft::log::command "$@"
       ;;
    esac
 }

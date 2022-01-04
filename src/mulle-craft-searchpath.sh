@@ -32,7 +32,7 @@
 MULLE_CRAFT_SEARCHPATH_SH="included"
 
 
-craft_searchpath_usage()
+craft::searchpath::usage()
 {
    [ "$#" -ne 0 ] && log_error "$*"
 
@@ -68,9 +68,9 @@ EOF
 
 
 
-craft_searchpath_main()
+craft::searchpath::main()
 {
-   log_entry "craft_searchpath_main" "$@"
+   log_entry "craft::searchpath::main" "$@"
 
    local OPTION_IF_EXISTS='NO'
    local OPTION_PREFIX_ONLY='NO'
@@ -90,7 +90,7 @@ craft_searchpath_main()
    do
       case "$1" in
          -h*|--help|help)
-            craft_searchpath_usage
+            craft::searchpath::usage
          ;;
 
          --prefix-only)
@@ -115,35 +115,35 @@ craft_searchpath_main()
          ;;
 
          --configurations|--configuration)
-            [ $# -eq 1 ] && craft_searchpath_usage "Missing argument to \"$1\""
+            [ $# -eq 1 ] && craft::searchpath::usage "Missing argument to \"$1\""
             shift
 
             configurations="$1"
          ;;
 
          --platforms)
-            [ $# -eq 1 ] && craft_searchpath_usage "Missing argument to \"$1\""
+            [ $# -eq 1 ] && craft::searchpath::usage "Missing argument to \"$1\""
             shift
 
             platforms="$1"
          ;;
 
          --style)
-            [ $# -eq 1 ] && craft_searchpath_usage "Missing argument to \"$1\""
+            [ $# -eq 1 ] && craft::searchpath::usage "Missing argument to \"$1\""
             shift
 
             style="$1"
          ;;
 
          --sdks)
-            [ $# -eq 1 ] && craft_searchpath_usage "Missing argument to \"$1\""
+            [ $# -eq 1 ] && craft::searchpath::usage "Missing argument to \"$1\""
             shift
 
             sdks="$1"
          ;;
 
          -*)
-            craft_searchpath_usage "Unknown option \"$1\""
+            craft::searchpath::usage "Unknown option \"$1\""
          ;;
 
          *)
@@ -211,7 +211,7 @@ craft_searchpath_main()
          do
             shell_enable_glob; IFS="${DEFAULT_IFS}"
 
-            r_get_sdk_platform_configuration_style_string "${sdk}" \
+            craft::style::r_get_sdk_platform_configuration_string "${sdk}" \
                                                           "${platform}" \
                                                           "${configuration}" \
                                                           "${style}"

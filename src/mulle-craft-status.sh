@@ -33,7 +33,7 @@
 MULLE_CRAFT_STATUS_SH="included"
 
 
-status_usage()
+craft::status::usage()
 {
    [ "$#" -ne 0 ] && log_error "$*"
 
@@ -54,7 +54,7 @@ EOF
 }
 
 
-r_get_names_from_file()
+craft::status::r_get_names_from_file()
 {
    local donefile="$1"
 
@@ -94,9 +94,9 @@ r_get_names_from_file()
 }
 
 
-output_names_with_status()
+craft::status::output_names_with_status()
 {
-   log_entry "output_names_with_status" "$@"
+   log_entry "craft::status::output_names_with_status" "$@"
 
    local sdk="$1"
    local platform="$2"
@@ -163,14 +163,14 @@ output_names_with_status()
 
       if [ "${is_main}" = "YES" ]
       then
-         r_craft_mainproject_kitchendir "${sdk}" \
+         craft::style::r_mainproject_kitchendir "${sdk}" \
                                         "${platform}" \
                                         "${configuration}" \
                                         "${kitchendir}"
          _kitchendir="${RVAL}"
          _configuration="${configuration}"
       else
-         _evaluate_craft_variables "${name}" \
+         craft::style::_evaluate_variables "${name}" \
                                    "${sdk}" \
                                    "${platform}" \
                                    "${configuration}" \
@@ -250,20 +250,20 @@ output_names_with_status()
 }
 
 
-craft_status_output()
+craft::status::output()
 {
-   log_entry "craft_status_output" "$@"
+   log_entry "craft::status::output" "$@"
 
-   output_names_with_status "$@" | rexecute_column_table_or_cat ';'
+   craft::status::output_names_with_status "$@" | rexecute_column_table_or_cat ';'
 }
 
 
 #   local _configuration
 #   local _sdk
 #   local _platform
-__craft_status_parse_triple()
+craft::status::__parse_triple()
 {
-   log_entry "__craft_status_parse_triple" "$@"
+   log_entry "craft::status::__parse_triple" "$@"
 
    local name="$1"
 
@@ -292,23 +292,23 @@ __craft_status_parse_triple()
 #   local _configuration
 #   local _sdk
 #   local _platform
-__craft_status_parse_donefile()
+craft::status::__parse_donefile()
 {
-   log_entry "__craft_status_parse_donefile" "$@"
+   log_entry "craft::status::__parse_donefile" "$@"
 
    local donefile="$1"
 
    r_extensionless_basename "${donefile}"
    name="${RVAL}"
 
-   __craft_status_parse_triple "${name}"
+   craft::status::__parse_triple "${name}"
 }
 
 
 
-status_output_with_donefile()
+craft::status::output_with_donefile()
 {
-   log_entry "status_output_with_donefile" "$@"
+   log_entry "craft::status::output_with_donefile" "$@"
 
    local donefile="$1"
    local kitchendir="$2"
@@ -318,7 +318,7 @@ status_output_with_donefile()
    local _sdk
    local _platform
 
-   __craft_status_parse_donefile "${donefile}"
+   craft::status::__parse_donefile "${donefile}"
 
    log_info " SDK:${C_MAGENTA}${C_BOLD}${_sdk}${C_INFO} \
 Platform:${C_MAGENTA}${C_BOLD}${_platform}${C_INFO} \
@@ -326,18 +326,18 @@ Configuration:${C_MAGENTA}${C_BOLD}${_configuration}${C_INFO}"
 
    local done_names
 
-   r_get_names_from_file "${donefile}"
+   craft::status::r_get_names_from_file "${donefile}"
    done_names="${RVAL}"
 
-   craft_status_output "${_sdk}" "${_platform}" "${_configuration}" \
+   craft::status::output "${_sdk}" "${_platform}" "${_configuration}" \
                        "${all_names}" "${done_names}" "${kitchendir}" \
                        "${mode}"
 }
 
 
-status_main()
+craft::status::main()
 {
-   log_entry "status_main" "$@"
+   log_entry "craft::status::main" "$@"
 
    local OPTION_COLOR="YES"
    local mode
@@ -346,7 +346,7 @@ status_main()
    do
       case "$1" in
          -h*|--help|help)
-            status_usage
+            craft::status::usage
          ;;
 
          --no-memo-makeflags)
@@ -364,7 +364,7 @@ status_main()
          ;;
 
          -*)
-            status_usage "Unknown option \"$1\""
+            craft::status::usage "Unknown option \"$1\""
          ;;
 
          *)
@@ -396,7 +396,7 @@ status_main()
 
    local all_names
 
-   r_get_names_from_file "${CRAFTORDER_FILE}"
+   craft::status::r_get_names_from_file "${CRAFTORDER_FILE}"
    all_names="${RVAL}"
 
    log_debug "names: ${all_names}"
@@ -457,7 +457,7 @@ status_main()
       log_info "Craft status of ${C_RESET_BOLD}${DEPENDENCY_DIR#${MULLE_USER_PWD}/}"
       for donefile in ${dependency_donefiles}
       do
-         status_output_with_donefile "${donefile}" \
+         craft::status::output_with_donefile "${donefile}" \
                                      "${CRAFTORDER_KITCHEN_DIR}"
       done
    fi
@@ -474,9 +474,9 @@ status_main()
       local _sdk
       local _platform
 
-      __craft_status_parse_triple "${triple//;/--}"
+      craft::status::__parse_triple "${triple//;/--}"
 
-      craft_status_output "${_sdk}" "${_platform}" "${_configuration}" \
+      craft::status::output "${_sdk}" "${_platform}" "${_configuration}" \
                           "${PROJECT_NAME}" "${PROJECT_NAME}" \
                           "${KITCHEN_DIR}" "${mode}" \
 

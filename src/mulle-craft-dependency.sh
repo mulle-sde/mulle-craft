@@ -32,7 +32,7 @@
 MULLE_CRAFT_DEPENDENCY_SH="included"
 
 
-craft_install_tarball()
+craft::dependency::install_tarball()
 {
    local tarball="$1"
    local dst_dir="$2"
@@ -44,7 +44,7 @@ craft_install_tarball()
 }
 
 
-craft_install_directory()
+craft::dependency::install_directory()
 {
    local src_dir="$1"
    local dst_dir="$2"
@@ -65,8 +65,8 @@ craft_install_directory()
 # bin share lib  folders and so on. The dependency folder is
 # write protected by default.
 #
-# You add stuff to ./dependency by calling `dependency_begin_update`
-# and when you are done you call  `dependency_end_update`. During that
+# You add stuff to ./dependency by calling `craft::dependency::begin_update`
+# and when you are done you call  `craft::dependency::end_update`. During that
 # time ./dependency is not write protected.
 #
 # The dependency folder can be preloaded with tarball content and directory
@@ -74,9 +74,9 @@ craft_install_directory()
 # (it contains a : separated list of tarball paths)
 #
 #
-_dependency_install_tarballs()
+craft::dependency::_install_tarballs()
 {
-   log_entry "_dependency_install_tarballs" "$@"
+   log_entry "craft::dependency::_install_tarballs" "$@"
 
    local style="$1"
 
@@ -123,7 +123,7 @@ _dependency_install_tarballs()
    (
       local directory
 
-      r_get_sdk_platform_configuration_style_string "Default" \
+      craft::style::r_get_sdk_platform_configuration_string "Default" \
                                                     "${MULLE_UNAME}" \
                                                     "Release" \
                                                     "${style}"
@@ -152,9 +152,9 @@ _dependency_install_tarballs()
 
          if [ -f "${tarball}" ]
          then
-            craft_install_tarball "${tarball}" "${dst_dir}"
+            craft::dependency::install_tarball "${tarball}" "${dst_dir}"
          else
-            craft_install_directory "${tarball}" "${dst_dir}"
+            craft::dependency::install_directory "${tarball}" "${dst_dir}"
          fi
       done
    ) || exit 1
@@ -170,7 +170,7 @@ _dependency_install_tarballs()
 #  updating
 # ready
 #
-dependency_get_state()
+craft::dependency::get_state()
 {
    [ -z "${DEPENDENCY_DIR}" ] && internal_fail "DEPENDENCY_DIR not set"
 
@@ -184,7 +184,7 @@ dependency_get_state()
 # Optimally:
 #    clean -> initing -> inited -> ready -> complete
 #
-dependency_set_state()
+craft::dependency::set_state()
 {
    local state="$1"
 
@@ -245,9 +245,9 @@ dependency_set_state()
 }
 
 
-dependency_get_timestamp()
+craft::dependency::get_timestamp()
 {
-   log_entry "dependency_get_timestamp" "$@"
+   log_entry "craft::dependency::get_timestamp" "$@"
 
    [ -z "${DEPENDENCY_DIR}" ] && internal_fail "DEPENDENCY_DIR not set"
 
@@ -258,9 +258,9 @@ dependency_get_timestamp()
 }
 
 
-dependency_init()
+craft::dependency::init()
 {
-   log_entry "dependency_init" "$@"
+   log_entry "craft::dependency::init" "$@"
 
    local style="$1"
 
@@ -269,17 +269,17 @@ dependency_init()
 
    mkdir_if_missing "${DEPENDENCY_DIR}"
 
-   dependency_set_state "initing"
+   craft::dependency::set_state "initing"
 
-   _dependency_install_tarballs "${style}"
+   craft::dependency::_install_tarballs "${style}"
 
-   dependency_set_state "inited"
+   craft::dependency::set_state "inited"
 }
 
 
-dependency_unprotect()
+craft::dependency::unprotect()
 {
-   log_entry "dependency_unprotect" "$@"
+   log_entry "craft::dependency::unprotect" "$@"
 
    [ -z "${DEPENDENCY_DIR}" ] && internal_fail "DEPENDENCY_DIR not set"
 
@@ -301,9 +301,9 @@ dependency_unprotect()
 }
 
 
-dependency_protect()
+craft::dependency::protect()
 {
-   log_entry "dependency_protect" "$@"
+   log_entry "craft::dependency::protect" "$@"
 
    [ -z "${DEPENDENCY_DIR}" ] && internal_fail "DEPENDENCY_DIR not set"
 
@@ -327,15 +327,15 @@ dependency_protect()
 
 
 
-dependency_clean()
+craft::dependency::clean()
 {
-   log_entry "dependency_clean" "$@"
+   log_entry "craft::dependency::clean" "$@"
 
    [ -z "${DEPENDENCY_DIR}" ] && internal_fail "DEPENDENCY_DIR not set"
 
    if [ "${OPTION_PROTECT_DEPENDENCY}" = 'YES' ]
    then
-      dependency_unprotect
+      craft::dependency::unprotect
       rmdir_safer "${DEPENDENCY_DIR}"
    fi
 }
@@ -344,9 +344,9 @@ dependency_clean()
 #
 # style is pushed through for tarball install
 #
-dependency_begin_update()
+craft::dependency::begin_update()
 {
-   log_entry "dependency_begin_update" "$@"
+   log_entry "craft::dependency::begin_update" "$@"
 
    local style="$1"
    local warnonrentry="${2:-nowarn}"
@@ -355,10 +355,10 @@ dependency_begin_update()
 
    local state
 
-   state="`dependency_get_state`"
+   state="`craft::dependency::get_state`"
    case "${state}" in
       clean)
-         dependency_init "${style}"
+         craft::dependency::init "${style}"
       ;;
 
       initing|initting) # previous misspell
@@ -390,10 +390,10 @@ dependency_begin_update()
 
    if [ "${OPTION_PROTECT_DEPENDENCY}" = 'YES' ]
    then
-      dependency_unprotect
+      craft::dependency::unprotect
    fi
 
-   dependency_set_state "updating"
+   craft::dependency::set_state "updating"
 }
 
 
@@ -401,9 +401,9 @@ dependency_begin_update()
 # dont call this if your build failed, even if lenient
 # "complete" is the final state
 #
-dependency_end_update()
+craft::dependency::end_update()
 {
-   log_entry "dependency_end_update" "$@"
+   log_entry "craft::dependency::end_update" "$@"
 
    local state="${1:-ready}"
 
@@ -431,14 +431,14 @@ dependency_end_update()
          esac
       fi
 
-      dependency_set_state "${state}"
+      craft::dependency::set_state "${state}"
 
       if [ "${OPTION_PROTECT_DEPENDENCY}" = 'YES' ]
       then
-         dependency_protect
+         craft::dependency::protect
       fi
    else
-      dependency_set_state "${state}"
+      craft::dependency::set_state "${state}"
    fi
 }
 
@@ -448,9 +448,9 @@ dependency_end_update()
 # folder in assume order of relevance
 #
 
-r_dependency_existing_dirs_path()
+craft::dependency::r_existing_dirs_path()
 {
-   log_entry "r_dependency_existing_dirs_path" "$@"
+   log_entry "craft::dependency::r_existing_dirs_path" "$@"
 
    local subdirectories="$1"
 
@@ -474,9 +474,9 @@ r_dependency_existing_dirs_path()
 }
 
 
-r_dependency_dir_locations()
+craft::dependency::r_dir_locations()
 {
-   log_entry "r_dependency_dir_locations" "$@"
+   log_entry "craft::dependency::r_dir_locations" "$@"
 
    local name="$1"; shift
    local sdk="$1"
@@ -494,7 +494,7 @@ r_dependency_dir_locations()
 
    local subdir
 
-   r_get_sdk_platform_configuration_style_string "$@"
+   craft::style::r_get_sdk_platform_configuration_string "$@"
    subdir="${RVAL}"
 
    r_filepath_concat "${RVAL}" "${name}"
@@ -510,59 +510,59 @@ r_dependency_dir_locations()
 }
 
 
-r_dependency_include_path()
+craft::dependency::r_include_path()
 {
-   log_entry "r_dependency_include_path" "$@"
+   log_entry "craft::dependency::r_include_path" "$@"
 
 #   local sdk="$1"
 #   local platform="$2"
 #   local configuration="$3"
 
-   r_dependency_dir_locations "include" "$@"
-   r_dependency_existing_dirs_path "${RVAL}"
+   craft::dependency::r_dir_locations "include" "$@"
+   craft::dependency::r_existing_dirs_path "${RVAL}"
 }
 
 
-r_dependency_lib_path()
+craft::dependency::r_lib_path()
 {
-   log_entry "r_dependency_lib_path" "$@"
+   log_entry "craft::dependency::r_lib_path" "$@"
 
 #   local sdk="$1"
 #   local platform="$2"
 #   local configuration="$3"
 
-   r_dependency_dir_locations "lib" "$@"
-   r_dependency_existing_dirs_path "${RVAL}"
+   craft::dependency::r_dir_locations "lib" "$@"
+   craft::dependency::r_existing_dirs_path "${RVAL}"
 }
 
 
-r_dependency_frameworks_path()
+craft::dependency::r_frameworks_path()
 {
-   log_entry "r_dependency_frameworks_path" "$@"
+   log_entry "craft::dependency::r_frameworks_path" "$@"
 
 #   local sdk="$1"
 #   local platform="$2"
 #   local configuration="$3"
 
-   r_dependency_dir_locations "Frameworks" "$@"
-   r_dependency_existing_dirs_path "${RVAL}"
+   craft::dependency::r_dir_locations "Frameworks" "$@"
+   craft::dependency::r_existing_dirs_path "${RVAL}"
 }
 
 
-r_dependency_share_path()
+craft::dependency::r_share_path()
 {
-   log_entry "dependency_share_path" "$@"
+   log_entry "craft::dependency::r_share_path" "$@"
 
 #   local sdk="$1"
 #   local platform="$2"
 #   local configuration="$3"
 
-   r_dependency_dir_locations "share" "$@"
-   r_dependency_existing_dirs_path "${RVAL}"
+   craft::dependency::r_dir_locations "share" "$@"
+   craft::dependency::r_existing_dirs_path "${RVAL}"
 }
 
 
-quickstatus_main()
+craft::dependency::quickstatus_main()
 {
    local  state
 
@@ -587,7 +587,7 @@ quickstatus_main()
       shift
    done
 
-   state="`dependency_get_state`"
+   state="`craft::dependency::get_state`"
 
    log_info "${C_MAGENTA}${C_BOLD}${state}"
    if [ "${OPTION_PRINT}" = 'YES' ]

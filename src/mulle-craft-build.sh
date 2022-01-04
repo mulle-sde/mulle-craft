@@ -32,7 +32,7 @@
 MULLE_CRAFT_BUILD_SH="included"
 
 
-build_execute_usage()
+craft::build::usage()
 {
    [ "$#" -ne 0 ] && log_error "$*"
 
@@ -81,7 +81,7 @@ EOF
 
 
 
-assert_sane_name()
+craft::build::assert_sane_name()
 {
    local name="$1"; shift
 
@@ -106,7 +106,7 @@ assert_sane_name()
 #   _libpath
 #   _binpath
 #
-__set_various_paths()
+craft::build::__set_various_paths()
 {
    local sdk="$1"
    local platform="$2"
@@ -117,7 +117,7 @@ __set_various_paths()
 
    local sdk_platform
 
-   r_get_sdk_platform_style_string "${sdk}" "${platform}" "${style}"
+   craft::style::r_get_sdk_platform_string "${sdk}" "${platform}" "${style}"
    sdk_platform="${RVAL}"
 
    if [ -d "${DEPENDENCY_DIR}/bin" ]
@@ -206,9 +206,9 @@ __set_various_paths()
 }
 
 
-build_project()
+craft::build::build_project()
 {
-   log_entry "build_project" "$@"
+   log_entry "craft::build::build_project" "$@"
 
    local cmd="$1"
    local destination="$2"
@@ -251,7 +251,7 @@ build_project()
 
    local definitiondir
 
-   r_determine_definition_dir "${name}" \
+   craft::path::r_determine_definition_dir "${name}" \
                               "${project}" \
                               "dependency" \
                               "${OPTION_PLATFORM_CRAFTINFO}" \
@@ -272,7 +272,7 @@ build_project()
 
    local craftinfodir
 
-   r_determine_craftinfo_dir "${name}" \
+   craft::path::r_determine_craftinfo_dir "${name}" \
                              "${project}" \
                              "dependency" \
                              "${OPTION_PLATFORM_CRAFTINFO}" \
@@ -301,13 +301,13 @@ build_project()
 
    if [ ! -z "${DEPENDENCY_DIR}" ]
    then
-      r_dependency_include_path  "${sdk}" \
+      craft::dependency::r_include_path  "${sdk}" \
                                  "${platform}" \
                                  "${configuration}" \
                                  "${style}"
       _includepath="${RVAL}"
 
-      r_dependency_lib_path "${sdk}" \
+      craft::dependency::r_lib_path "${sdk}" \
                             "${platform}" \
                             "${configuration}" \
                             "${style}"
@@ -315,7 +315,7 @@ build_project()
 
       case "${MULLE_UNAME}" in
          darwin)
-            r_dependency_frameworks_path "${sdk}" \
+            craft::dependency::r_frameworks_path "${sdk}" \
                                          "${platform}" \
                                          "${configuration}" \
                                          "${style}"
@@ -324,7 +324,7 @@ build_project()
       esac
    fi
 
-   __set_various_paths "${sdk}" "${platform}" "${configuration}" "${style}"
+   craft::build::__set_various_paths "${sdk}" "${platform}" "${configuration}" "${style}"
 
    # remove old logs
    local logdir
@@ -509,7 +509,7 @@ This can lead to problems on darwin, but may solve problems on linux..."
 
    local sdk_path
 
-   r_get_mulle_sdk_path "${sdk}" "${platform}" "auto"
+   craft::style::r_get_mulle_sdk_path "${sdk}" "${platform}" "auto"
    sdk_path="${RVAL}"
 
    if [ ! -z "${sdk_path}" ]
@@ -610,9 +610,9 @@ set to ${C_RESET_BOLD}${mulle_options_env_value}${C_VERBOSE}"
 }
 
 
-build_dependency_directly()
+craft::build::build_dependency_directly()
 {
-   log_entry "build_dependency_directly" "$@"
+   log_entry "craft::build::build_dependency_directly" "$@"
 
    local cmd="$1"; shift
    local dependency_dir="$1"; shift
@@ -629,12 +629,12 @@ build_dependency_directly()
 
    if [ -z "${PARALLEL}" ]
    then
-      dependency_begin_update "${style}" || return 1
+      craft::dependency::begin_update "${style}" || return 1
    fi
 
    local rval
 
-   build_project "${cmd}" "${dependency_dir}" "$@"
+   craft::build::build_project "${cmd}" "${dependency_dir}" "$@"
    rval=$?
 
    if [ $rval -ne 0 ]
@@ -651,7 +651,7 @@ build_dependency_directly()
    then
       if [ $rval != 1 ]
       then
-         dependency_end_update || return 1
+         craft::dependency::end_update || return 1
       fi
    fi
 
@@ -660,9 +660,9 @@ build_dependency_directly()
 }
 
 
-build_dependency_with_dispense()
+craft::build::build_dependency_with_dispense()
 {
-   log_entry "build_dependency_with_dispense" "$@"
+   log_entry "craft::build::build_dependency_with_dispense" "$@"
 
    local cmd="$1"; shift
    local dependency_dir="$1"; shift
@@ -685,7 +685,7 @@ build_dependency_with_dispense()
 
    mkdir_if_missing "${tmpdependencydir}"
 
-   build_project "${cmd}" "${tmpdependencydir}" "$@"
+   craft::build::build_project "${cmd}" "${tmpdependencydir}" "$@"
    rval=$?
 
    log_debug "build finished with $rval"
@@ -726,7 +726,7 @@ build_dependency_with_dispense()
 
    case "${PARALLEL}" in
       "")
-         dependency_begin_update "${style}" || return 1
+         craft::dependency::begin_update "${style}" || return 1
       ;;
 
       'Header'|'Headers')
@@ -758,7 +758,7 @@ build_dependency_with_dispense()
    then
       if [ $rval != 1 ]
       then
-         dependency_end_update || return 1
+         craft::dependency::end_update || return 1
       fi
    fi
 
@@ -770,9 +770,9 @@ build_dependency_with_dispense()
 # non-dependencies are build with their own KITCHEN_DIR
 # not in the shared one.
 #
-build_craftorder_node()
+craft::build::build_craftorder_node()
 {
-   log_entry "build_craftorder_node" "$@"
+   log_entry "craft::build::build_craftorder_node" "$@"
 
    local cmd="$1"; shift
 
@@ -833,7 +833,7 @@ user wish)"
    #
    local dependency_dir
 
-   r_get_sdk_platform_configuration_style_string "${sdk}" \
+   craft::style::r_get_sdk_platform_configuration_string "${sdk}" \
                                                  "${platform}" \
                                                  "${configuration}"  \
                                                  "${style}"
@@ -846,20 +846,20 @@ user wish)"
    case ",${marks}," in
       *',no-inplace,'*)
          log_verbose "Build ${C_MAGENTA}${C_BOLD}${name}${C_VERBOSE} with dispense"
-         build_dependency_with_dispense "${cmd}" "${dependency_dir}" "$@"
+         craft::build::build_dependency_with_dispense "${cmd}" "${dependency_dir}" "$@"
          return $?
       ;;
    esac
 
    log_verbose "Build ${C_MAGENTA}${C_BOLD}${name}${C_VERBOSE}"
-   build_dependency_directly "${cmd}" "${dependency_dir}" "$@"
+   craft::build::build_dependency_directly "${cmd}" "${dependency_dir}" "$@"
    return $?
 }
 
 
-handle_build()
+craft::build::handle()
 {
-   log_entry "handle_build" "$@"
+   log_entry "craft::build::handle" "$@"
 
    local cmd="$1"; shift
 
@@ -888,7 +888,7 @@ handle_build()
    # get remapped _configuration
    # get actual _kitchendir
    #
-   _evaluate_craft_variables "${project}" \
+   craft::style::_evaluate_variables "${project}" \
                              "${sdk}" \
                              "${platform}" \
                              "${configuration}" \
@@ -910,7 +910,7 @@ handle_build()
 
    local rval
 
-   build_craftorder_node "${cmd}" \
+   craft::build::build_craftorder_node "${cmd}" \
                          "${_evaledproject}" \
                          "${_name}" \
                          "${marks}" \
@@ -932,9 +932,9 @@ handle_build()
 }
 
 
-handle_build_rval()
+craft::build::handle_rval()
 {
-   log_entry "handle_build_rval" "$@"
+   log_entry "craft::build::handle_rval" "$@"
 
    local rval="$1"
    local marks="$2"
@@ -998,9 +998,9 @@ the enabled leniency option"
 }
 
 
-handle_build_step()
+craft::build::handle_step()
 {
-   log_entry "handle_build_step" "$@"
+   log_entry "craft::build::handle_step" "$@"
 
    local cmd="$1"; shift
    local project="$1"; shift
@@ -1017,7 +1017,7 @@ handle_build_step()
 
    local rval
 
-   handle_build "${cmd}" \
+   craft::build::handle "${cmd}" \
                 "${project}" \
                 "${marks}" \
                 "${sdk}" \
@@ -1036,7 +1036,7 @@ handle_build_step()
       phasedonefile="${donefile}"
    fi
 
-   if ! handle_build_rval "${rval}" \
+   if ! craft::build::handle_rval "${rval}" \
                           "${marks}" \
                           "${phasedonefile}" \
                           "${line}" \
@@ -1047,9 +1047,9 @@ handle_build_step()
 }
 
 
-handle_parallel_builds()
+craft::build::handle_parallel()
 {
-   log_entry "handle_parallel_builds" "$@"
+   log_entry "craft::build::handle_parallel" "$@"
 
    local parallel="$1"; shift
    local donefile="$1"; shift
@@ -1118,7 +1118,7 @@ handle_parallel_builds()
 
       case "${phase}" in
          'Header'|'Headers')
-            dependency_begin_update "${style}" || return 1
+            craft::dependency::begin_update "${style}" || return 1
             cmd='install'
          ;;
 
@@ -1159,7 +1159,7 @@ handle_parallel_builds()
          if [ "${phase}" != 'Link' -o "${parallel_link}" = 'YES' ] && [ "${OPTION_PARALLEL_PHASE}" = 'YES' ]
          then
             (
-               handle_build_step "${cmd}" \
+               craft::build::handle_step "${cmd}" \
                                  "${project}" \
                                  "${marks}" \
                                  "${sdk}" \
@@ -1174,7 +1174,7 @@ handle_parallel_builds()
                                  "$@"
             ) &
          else
-            handle_build_step "${cmd}" \
+            craft::build::handle_step "${cmd}" \
                               "${project}" \
                               "${marks}" \
                               "${sdk}" \
@@ -1232,7 +1232,7 @@ handle_parallel_builds()
 
       case "${phase}" in
          Link)
-            dependency_end_update || return 1
+            craft::dependency::end_update || return 1
          ;;
       esac
    done
@@ -1244,9 +1244,9 @@ handle_parallel_builds()
 }
 
 
-r_remaining_craftorder_lines()
+craft::build::r_remaining_craftorder_lines()
 {
-   log_entry "r_remaining_craftorder_lines" "$@"
+   log_entry "craft::build::r_remaining_craftorder_lines" "$@"
 
    local craftorder="$1"
    local donefile="$2"
@@ -1352,9 +1352,9 @@ ${remaining_after_donefile}
 
 
 
-_do_build_craftorder()
+craft::build::_do_craftorder()
 {
-   log_entry "_do_build_craftorder" "$@"
+   log_entry "craft::build::_do_craftorder" "$@"
 
    local craftorder="$1"
    local kitchendir="$2"
@@ -1368,7 +1368,7 @@ _do_build_craftorder()
 
    local remaining
    local _donefile
-   local _shared_donefile  # filled by __craft_have_donefiles sideeffect
+   local _shared_donefile  # filled by craft::style::__have_donefiles sideeffect
 
    if [ -z "${MULLE_CRAFT_STYLE_SH}" ]
    then
@@ -1378,7 +1378,7 @@ _do_build_craftorder()
 
    local rval 
 
-   __craft_have_donefiles "${sdk}" "${platform}" "${configuration}"
+   craft::style::__have_donefiles "${sdk}" "${platform}" "${configuration}"
    rval=$?
 
    if [ "${MULLE_FLAG_LOG_SETTINGS}" = 'YES' ]
@@ -1390,7 +1390,7 @@ _do_build_craftorder()
 
    if [ $rval -eq 0 ]
    then
-      if ! r_remaining_craftorder_lines "${craftorder}" \
+      if ! craft::build::r_remaining_craftorder_lines "${craftorder}" \
                                         "${_donefile}" \
                                         "${_shared_donefile}"
       then
@@ -1462,7 +1462,7 @@ ${C_INFO}Frameworks can not be built with multi-phase currently."
 
       if [ ! -z "${parallel}" ]
       then
-         if ! handle_parallel_builds "${parallel}" \
+         if ! craft::build::handle_parallel "${parallel}" \
                                      "${_donefile}" \
                                      "${sdk}" \
                                      "${platform}" \
@@ -1479,7 +1479,7 @@ ${C_INFO}Frameworks can not be built with multi-phase currently."
          # fall thru for single build now
       fi
 
-      handle_build "install" \
+      craft::build::handle "install" \
                    "${project}" \
                    "${marks}" \
                    "${sdk}" \
@@ -1491,13 +1491,13 @@ ${C_INFO}Frameworks can not be built with multi-phase currently."
                    "$@"
       rval=$?
 
-      if ! handle_build_rval "$rval" \
+      if ! craft::build::handle_rval "$rval" \
                              "${marks}" \
                              "${donefile}" \
                              "${line}" \
                              "${project}"
       then
-         r_name_from_project "${project}"
+         craft::style::r_name_from_project "${project}"
          log_info "View logs with
 ${C_RESET_BOLD}   mulle-sde log $RVAL"
          return 1
@@ -1513,7 +1513,7 @@ ${C_RESET_BOLD}   mulle-sde log $RVAL"
    # left over parallel
    if [ ! -z "${parallel}" ]
    then
-      if ! handle_parallel_builds "${parallel}" \
+      if ! craft::build::handle_parallel "${parallel}" \
                                   "${donefile}" \
                                   "${sdk}" \
                                   "${platform}" \
@@ -1529,9 +1529,9 @@ ${C_RESET_BOLD}   mulle-sde log $RVAL"
 }
 
 
-do_build_craftorder()
+craft::build::do_craftorder()
 {
-   log_entry "do_build_craftorder" "$@"
+   log_entry "craft::build::do_craftorder" "$@"
 
    local craftorderfile="$1"; shift
    local kitchendir="$1"; shift
@@ -1551,7 +1551,7 @@ do_build_craftorder()
    #
    if [ "${craftorderfile}" = "NONE" ]
    then
-      dependency_end_update 'complete' || exit 1
+      craft::dependency::end_update 'complete' || exit 1
       log_verbose "The craftorder file is NONE, nothing to build"
       return
    fi
@@ -1568,11 +1568,11 @@ do_build_craftorder()
    # That allows tarballs to be installed. Also now the existence of the
    # dependency folders, means something
    #
-   dependency_begin_update  "${style}"  || exit 1
+   craft::dependency::begin_update  "${style}"  || exit 1
 
    if [ -z "${craftorder}" ]
    then
-      dependency_end_update 'complete' || exit 1
+      craft::dependency::end_update 'complete' || exit 1
       log_verbose "The craftorder file is empty, nothing to build \
 (${craftorderfile#${MULLE_USER_PWD}/})"
       return
@@ -1597,31 +1597,31 @@ do_build_craftorder()
    shell_disable_glob; IFS=':'
    for platform in ${PLATFORMS}
    do
-      assert_sane_name "${platform}" " as platform name"
+      craft::build::assert_sane_name "${platform}" " as platform name"
       for sdk in ${SDKS}
       do
          local match_version
 
-         assert_sane_name "${sdk}" " as sdk name"
+         craft::build::assert_sane_name "${sdk}" " as sdk name"
 
-         r_determine_platform_sdk_version "${platform}" "${sdk}" "${version}"
+         craft::qualifier::r_determine_platform_sdk_version "${platform}" "${sdk}" "${version}"
          match_version="${RVAL}"
 
          for configuration in ${CONFIGURATIONS}
          do
             shell_enable_glob; IFS="${DEFAULT_IFS}"
-            assert_sane_name "${configuration}" " as configuration name"
+            craft::build::assert_sane_name "${configuration}" " as configuration name"
 
             local filtered
 
-            r_filtered_craftorder "${craftorder}" \
+            craft::qualifier::r_filtered_craftorder "${craftorder}" \
                                   "${sdk}" \
                                   "${platform}" \
                                   "${configuration}" \
                                   "${match_version}"
             filtered="${RVAL}"
 
-            if ! _do_build_craftorder "${filtered}" \
+            if ! craft::build::_do_craftorder "${filtered}" \
                                       "${kitchendir}" \
                                       "${match_version}" \
                                       "${sdk}" \
@@ -1638,13 +1638,13 @@ do_build_craftorder()
    done
    shell_enable_glob; IFS="${DEFAULT_IFS}"
 
-   dependency_end_update 'complete' || exit 1
+   craft::dependency::end_update 'complete' || exit 1
 }
 
 
-do_build_mainproject()
+craft::build::do_mainproject()
 {
-   log_entry "do_build_mainproject" "$@"
+   log_entry "craft::build::do_mainproject" "$@"
 
    local name
 
@@ -1668,7 +1668,7 @@ do_build_mainproject()
 
    local definitiondir
 
-   r_determine_definition_dir "${name}" \
+   craft::path::r_determine_definition_dir "${name}" \
                               "${PWD}" \
                               "mainproject" \
                               "${OPTION_PLATFORM_CRAFTINFO}" \
@@ -1689,7 +1689,7 @@ do_build_mainproject()
 
 #   local craftinfodir
 #
-#   r_determine_craftinfo_dir "${name}" \
+#   craft::path::r_determine_craftinfo_dir "${name}" \
 #                             "${PWD}" \
 #                             "mainproject" \
 #                             "${OPTION_PLATFORM_CRAFTINFO}" \
@@ -1718,14 +1718,14 @@ do_build_mainproject()
       OPTIONS_MULLE_MAKE_PROJECT="${RVAL}"
    fi
 
-   include_mulle_tool_library "craft" "style"
+   include "craft::style"
 
    #
    # find proper build and log directory (always relax)
    #
    local kitchendir
 
-   r_craft_mainproject_kitchendir "${sdk}" \
+   craft::style::r_mainproject_kitchendir "${sdk}" \
                                   "${platform}" \
                                   "${configuration}" \
                                   "${KITCHEN_DIR}"
@@ -1801,7 +1801,7 @@ do_build_mainproject()
 
    local sdk_path
 
-   r_get_mulle_sdk_path "${sdk}" "${platform}" "${style}"
+   craft::style::r_get_mulle_sdk_path "${sdk}" "${platform}" "${style}"
    sdk_path="${RVAL}"
    
    if [ ! -z "${sdk_path}" ]
@@ -1873,9 +1873,9 @@ do_build_mainproject()
 # but uses mostly ENVIRONMENT variables
 # These are usually provided with mulle-sde.
 #
-craft_build_common()
+craft::build::common()
 {
-   log_entry "craft_build_common" "$@"
+   log_entry "craft::build::common" "$@"
 
    local OPTION_LENIENT='NO'
    local OPTION_BUILD_DEPENDENCY="DEFAULT"
@@ -1910,7 +1910,7 @@ craft_build_common()
    do
       case "$1" in
          -h*|--help|help)
-            build_execute_usage
+            craft::build::usage
          ;;
 
          -l|--lenient)
@@ -1934,7 +1934,7 @@ craft_build_common()
          ;;
 
          --no-memo-makeflags)
-            [ $# -eq 1 ] && build_execute_usage "Missing argument to \"$1\""
+            [ $# -eq 1 ] && craft::build::usage "Missing argument to \"$1\""
             shift
 
             OPTION_NO_MEMO_MAKEFLAGS="$1"  # could be global env
@@ -1966,14 +1966,14 @@ craft_build_common()
          ;;
 
          --callback)
-            [ $# -eq 1 ] && build_execute_usage "Missing argument to \"$1\""
+            [ $# -eq 1 ] && craft::build::usage "Missing argument to \"$1\""
             shift
 
             OPTION_CALLBACK="$1"
          ;;
 
          --phases)
-            [ $# -eq 1 ] && build_execute_usage "Missing argument to \"$1\""
+            [ $# -eq 1 ] && craft::build::usage "Missing argument to \"$1\""
             shift
 
             OPTION_PHASES="$1"
@@ -2031,7 +2031,7 @@ craft_build_common()
          ;;
 
          --single-dependency)
-            [ $# -eq 1 ] && build_execute_usage "Missing argument to \"$1\""
+            [ $# -eq 1 ] && craft::build::usage "Missing argument to \"$1\""
             shift
 
 				OPTION_SINGLE_DEPENDENCY="$1"
@@ -2041,14 +2041,14 @@ craft_build_common()
          # config / sdk
          #
          --configuration|--configurations)
-            [ $# -eq 1 ] && build_execute_usage "Missing argument to \"$1\""
+            [ $# -eq 1 ] && craft::build::usage "Missing argument to \"$1\""
             shift
 
             CONFIGURATIONS="$1"
          ;;
 
          --preferred-library-style|--library-style)
-            [ $# -eq 1 ] && build_execute_usage "Missing argument to \"$1\""
+            [ $# -eq 1 ] && craft::build::usage "Missing argument to \"$1\""
             shift
 
             OPTION_PREFERRED_LIBRARY_STYLE="$1"
@@ -2067,28 +2067,28 @@ craft_build_common()
          ;;
 
          --sdk|--sdks)
-            [ $# -eq 1 ] && build_execute_usage "Missing argument to \"$1\""
+            [ $# -eq 1 ] && craft::build::usage "Missing argument to \"$1\""
             shift
 
             SDKS="$1"
          ;;
 
          --platform|--platforms)
-            [ $# -eq 1 ] && build_execute_usage "Missing argument to \"$1\""
+            [ $# -eq 1 ] && craft::build::usage "Missing argument to \"$1\""
             shift
 
             PLATFORMS="$1"
          ;;
 
          --style|--dispense-style|--dependency-style)
-            [ $# -eq 1 ] && build_execute_usage "Missing argument to \"$1\""
+            [ $# -eq 1 ] && craft::build::usage "Missing argument to \"$1\""
             shift
 
             DISPENSE_STYLE="$1"
          ;;
 
          --version)
-            [ $# -eq 1 ] && build_execute_usage "Missing argument to \"$1\""
+            [ $# -eq 1 ] && craft::build::usage "Missing argument to \"$1\""
             shift
 
             OPTION_VERSION="$1"
@@ -2186,7 +2186,7 @@ ${currentenv}"
       [ -z "${MULLE_CRAFT_DEPENDENCY_SH}" ] && \
          . "${MULLE_CRAFT_LIBEXEC_DIR}/mulle-craft-dependency.sh"
 
-      do_build_craftorder "${CRAFTORDER_FILE}" \
+      craft::build::do_craftorder "${CRAFTORDER_FILE}" \
                           "${CRAFTORDER_KITCHEN_DIR}" \
                           "${OPTION_VERSION}" \
                           "$@"
@@ -2201,15 +2201,15 @@ ${currentenv}"
    # don't build if only headers are built for example
    case "${OPTION_PHASES}" in
       *Link*)
-         do_build_mainproject "$@"
+         craft::build::do_mainproject "$@"
       ;;
    esac
 }
 
 
-build_project_main()
+craft::build::project_main()
 {
-   log_entry "build_project_main" "$@"
+   log_entry "craft::build::project_main" "$@"
 
    USAGE_BUILD_STYLE="project"
    USAGE_INFO="Build the project only.
@@ -2222,13 +2222,13 @@ build_project_main()
    OPTION_USE_CRAFTORDER='NO'
    OPTION_MUST_HAVE_BUILDORDER='NO'
 
-   craft_build_common "$@"
+   craft::build::common "$@"
 }
 
 
-build_craftorder_main()
+craft::build::craftorder_main()
 {
-   log_entry "build_craftorder_main" "$@"
+   log_entry "craft::build::craftorder_main" "$@"
 
    USAGE_BUILD_STYLE="craftorder"
    USAGE_INFO="Build projects according to a given craftorder file.
@@ -2257,13 +2257,13 @@ Example:
    OPTION_USE_CRAFTORDER='YES'
    OPTION_MUST_HAVE_BUILDORDER='YES'
 
-   craft_build_common "$@"
+   craft::build::common "$@"
 }
 
 
-list_craftorder_main()
+craft::build::list_craftorder_main()
 {
-   log_entry "list_craftorder_main" "$@"
+   log_entry "craft::build::list_craftorder_main" "$@"
 
    USAGE_BUILD_STYLE="list"
    USAGE_INFO="List remaining items in craftorder to be crafted.
@@ -2276,13 +2276,13 @@ list_craftorder_main()
    OPTION_USE_CRAFTORDER='YES'
    OPTION_MUST_HAVE_BUILDORDER='YES'
 
-   craft_build_common --list-remaining "$@"
+   craft::build::common --list-remaining "$@"
 }
 
 
-build_single_dependency_main()
+craft::build::single_dependency_main()
 {
-   log_entry "build_single_dependency_main" "$@"
+   log_entry "craft::build::single_dependency_main" "$@"
 
    local name="$1"; shift
 
@@ -2297,6 +2297,6 @@ build_single_dependency_main()
    OPTION_USE_CRAFTORDER='YES'
    OPTION_MUST_HAVE_BUILDORDER='YES'
 
-   craft_build_common --single-dependency "${name}" "$@"
+   craft::build::common --single-dependency "${name}" "$@"
 }
 

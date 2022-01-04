@@ -32,7 +32,7 @@
 MULLE_CRAFT_STYLE_SH="included"
 
 
-craft_craftorder_style_usage()
+craft::style::usage()
 {
    [ "$#" -ne 0 ] && log_error "$*"
 
@@ -66,7 +66,7 @@ EOF
   exit 1
 }
 
-craft_craftorder_donefile_usage()
+craft::style::donefile_usage()
 {
    [ "$#" -ne 0 ] && log_error "$*"
 
@@ -93,9 +93,11 @@ Commands:
 EOF
   exit 1
 }
-r_get_sdk_platform_style_string()
+
+
+craft::style::r_get_sdk_platform_string()
 {
-   log_entry "r_get_sdk_platform_style_string" "$@"
+   log_entry "craft::style::r_get_sdk_platform_string" "$@"
 
    local sdk="$1"
    local platform="$2"
@@ -175,16 +177,16 @@ r_get_sdk_platform_style_string()
 #
 # TODO: make style a formatter, so ppl can chose arbitrarily
 #
-r_get_sdk_platform_configuration_style_string()
+craft::style::r_get_sdk_platform_configuration_string()
 {
-   log_entry "r_get_sdk_platform_configuration_style_string" "$@"
+   log_entry "craft::style::r_get_sdk_platform_configuration_string" "$@"
 
    local sdk="$1"
    local platform="$2"
    local configuration="$3"
    local style="$4"
 
-   r_get_sdk_platform_style_string "${sdk}" "${platform}" "${style}"
+   craft::style::r_get_sdk_platform_string "${sdk}" "${platform}" "${style}"
    case "${style}" in
       i-tight)
          r_filepath_concat "${configuration}-${RVAL}"
@@ -219,9 +221,9 @@ r_get_sdk_platform_configuration_style_string()
 }
 
 
-craft_craftorder_style_main()
+craft::style::main()
 {
-   log_entry "craft_craftorder_style_main" "$@"
+   log_entry "craft::style::main" "$@"
 
    local OPTION_LOCAL_CRAFTINFO='YES'
    local OPTION_PLATFORM="${MULLE_UNAME}"
@@ -240,35 +242,35 @@ craft_craftorder_style_main()
          # quadruple of sdk/platform/configuration/style
          #
          --configuration)
-            [ $# -eq 1 ] && craft_craftorder_style_usage "Missing argument to \"$1\""
+            [ $# -eq 1 ] && craft::style::usage "Missing argument to \"$1\""
             shift
 
             OPTION_CONFIGURATION="$1"
          ;;
 
          --platform)
-            [ $# -eq 1 ] && craft_craftorder_style_usage "Missing argument to \"$1\""
+            [ $# -eq 1 ] && craft::style::usage "Missing argument to \"$1\""
             shift
 
             OPTION_PLATFORM="$1"
          ;;
 
          --sdk)
-            [ $# -eq 1 ] && craft_craftorder_style_usage "Missing argument to \"$1\""
+            [ $# -eq 1 ] && craft::style::usage "Missing argument to \"$1\""
             shift
 
             OPTION_SDK="$1"
          ;;
 
          --style)
-            [ $# -eq 1 ] && craft_craftorder_style_usage "Missing argument to \"$1\""
+            [ $# -eq 1 ] && craft::style::usage "Missing argument to \"$1\""
             shift
 
             OPTION_STYLE="$1"
          ;;
 
          -*)
-            craft_craftorder_search_usage "Unknown option \"$1\""
+            craft::style::usage "Unknown option \"$1\""
          ;;
 
          *)
@@ -279,10 +281,10 @@ craft_craftorder_style_main()
       shift
    done
 
-   r_get_sdk_platform_configuration_style_string "${OPTION_SDK}" \
-                                                 "${OPTION_PLATFORM}" \
-                                                 "${OPTION_CONFIGURATION}" \
-                                                 "${OPTION_STYLE}" 
+   craft::style::r_get_sdk_platform_configuration_string "${OPTION_SDK}" \
+                                                        "${OPTION_PLATFORM}" \
+                                                        "${OPTION_CONFIGURATION}" \
+                                                        "${OPTION_STYLE}"
    if [ -z "${RVAL}" ]
    then
       log_info "Style output is empty"
@@ -293,7 +295,7 @@ craft_craftorder_style_main()
 
 
 
-r_craft_shared_donefile()
+craft::style::r_shared_donefile()
 {
    local sdk="$1"
    local platform="$2"
@@ -302,7 +304,8 @@ r_craft_shared_donefile()
    RVAL="${ADDICTION_DIR}/etc/craftorder-${sdk}--${platform}--${configuration}"
 }
 
-craft_list_shared_donefiles()
+
+craft::style::list_shared_donefiles()
 {
    if [ -d "${ADDICTION_DIR}/etc" ]
    then
@@ -315,7 +318,7 @@ craft_list_shared_donefiles()
 }
 
 
-r_craft_donefile()
+craft::style::r_donefile()
 {
    local sdk="$1"
    local platform="$2"
@@ -325,7 +328,7 @@ r_craft_donefile()
 }
 
 
-craft_list_donefiles()
+craft::style::list_donefiles()
 {
    if [ -d "${DEPENDENCY_DIR}/etc" ]
    then
@@ -340,9 +343,9 @@ craft_list_donefiles()
 
 #   local _donefile
 #   local _shared_donefile
-__craft_have_donefiles()
+craft::style::__have_donefiles()
 {
-   log_entry "__craft_have_donefiles" "$@"
+   log_entry "craft::style::__have_donefiles" "$@"
 
    local sdk="$1"
    local platform="$2"
@@ -355,10 +358,10 @@ __craft_have_donefiles()
    #
    local have_a_donefile
 
-   r_craft_shared_donefile "${sdk}" "${platform}" "${configuration}"
+   craft::style::r_shared_donefile "${sdk}" "${platform}" "${configuration}"
    _shared_donefile="${RVAL}"
 
-   r_craft_donefile "${sdk}" "${platform}" "${configuration}"
+   craft::style::r_donefile "${sdk}" "${platform}" "${configuration}"
    _donefile="${RVAL}"
 
    local have_a_donefile
@@ -397,9 +400,9 @@ __craft_have_donefiles()
 # local _evaledproject
 # local _name
 #
-r_mapped_configuration()
+craft::style::r_mapped_configuration()
 {
-   log_entry "r_mapped_configuration" "$@"
+   log_entry "craft::style::r_mapped_configuration" "$@"
 
    local name="$1"
    local configuration="$2"
@@ -461,10 +464,9 @@ to \"${identifier}\""
 }
 
 
-
-r_name_from_evaledproject()
+craft::style::r_name_from_evaledproject()
 {
-   log_entry "r_name_from_evaledproject" "$@"
+   log_entry "craft::style::r_name_from_evaledproject" "$@"
 
    local evaledproject="$1"
 
@@ -488,23 +490,23 @@ r_name_from_evaledproject()
 }
 
 
-r_name_from_project()
+craft::style::r_name_from_project()
 {
-   log_entry "r_name_from_project" "$@"
+   log_entry "craft::style::r_name_from_project" "$@"
 
    local project="$1"
 
    r_expanded_string "${project}"
-   r_name_from_evaledproject "${RVAL}"
+   craft::style::r_name_from_evaledproject "${RVAL}"
 }
 
 
 #
 # remove any non-identifiers and file extensions from name
 #
-r_build_directory_name()
+craft::style::r_build_directory_name()
 {
-   log_entry "r_build_directory_name" "$@"
+   log_entry "craft::style::r_build_directory_name" "$@"
 
    r_basename "$1"         # just filename
    RVAL="${RVAL%%.*}"      # remove file extensions
@@ -514,9 +516,9 @@ r_build_directory_name()
 }
 
 
-r_effective_project_kitchendir()
+craft::style::r_effective_project_kitchendir()
 {
-   log_entry "r_effective_project_kitchendir" "$@"
+   log_entry "craft::style::r_effective_project_kitchendir" "$@"
 
    local name="$1"
    local parentkitchendir="$2"
@@ -531,7 +533,7 @@ r_effective_project_kitchendir()
       ;;
 
       *)
-         r_build_directory_name "${name}"
+         craft::style::r_build_directory_name "${name}"
          directory="${RVAL}"
       ;;
    esac
@@ -587,9 +589,9 @@ r_effective_project_kitchendir()
 # TODO: prefix MULLE_ prefix on MULLE_SDK_PATH is a bit weird since
 # all other flags known by mulle-make do not have a MULLE_ prefix
 #
-r_get_mulle_sdk_path()
+craft::style::r_get_mulle_sdk_path()
 {
-   log_entry "r_get_mulle_sdk_path" "$@"
+   log_entry "craft::style::r_get_mulle_sdk_path" "$@"
 
    local sdk="$1"
    local platform="$2"
@@ -597,7 +599,7 @@ r_get_mulle_sdk_path()
 
    local sdk_platform
 
-   r_get_sdk_platform_style_string "${sdk}" "${platform}" "${style}"
+   craft::style::r_get_sdk_platform_string "${sdk}" "${platform}" "${style}"
    sdk_platform="${RVAL}"
 
    local addiction_dir
@@ -628,9 +630,9 @@ r_get_mulle_sdk_path()
 # local _evaledproject
 # local _name
 #
-_evaluate_craft_variables()
+craft::style::_evaluate_variables()
 {
-   log_entry "_evaluate_craft_variables" "$@"
+   log_entry "craft::style::_evaluate_variables" "$@"
 
    local project="$1"
    local sdk="$2"
@@ -653,22 +655,22 @@ _evaluate_craft_variables()
    else
       r_expanded_string "${project}"
       _evaledproject="${RVAL}"
-      r_name_from_evaledproject "${_evaledproject}"
+      craft::style::r_name_from_evaledproject "${_evaledproject}"
       _name="${RVAL}"
 
-      r_mapped_configuration "${_name}" "${configuration}"
+      craft::style::r_mapped_configuration "${_name}" "${configuration}"
       _configuration="${RVAL}"
    fi
 
    #
    # this is the build style which is always "relax"
    #
-   r_get_sdk_platform_configuration_style_string "${sdk}" \
+   craft::style::r_get_sdk_platform_configuration_string "${sdk}" \
                                                  "${platform}" \
                                                  "${_configuration}" \
                                                  "relax"
    r_filepath_concat "${kitchendir}" "${RVAL}"
-   r_effective_project_kitchendir "${_name}" "${RVAL}" "${verify}"
+   craft::style::r_effective_project_kitchendir "${_name}" "${RVAL}" "${verify}"
    _kitchendir="${RVAL}"
 
    if [ "${MULLE_FLAG_LOG_SETTINGS}" = 'YES' ]
@@ -681,7 +683,7 @@ _evaluate_craft_variables()
 }
 
 
-r_craft_mainproject_kitchendir()
+craft::style::r_mainproject_kitchendir()
 {
    local sdk="$1"
    local platform="$2"
@@ -691,7 +693,7 @@ r_craft_mainproject_kitchendir()
 
    local stylesubdir
 
-   r_get_sdk_platform_configuration_style_string "${sdk}" \
+   craft::style::r_get_sdk_platform_configuration_string "${sdk}" \
                                                  "${platform}" \
                                                  "${configuration}" \
                                                  "relax"
@@ -701,9 +703,9 @@ r_craft_mainproject_kitchendir()
 }
 
 
-craft_craftorder_donefiles_main()
+craft::style::donefiles_main()
 {
-   log_entry "craft_craftorder_donefiles_main" "$@"
+   log_entry "craft::style::donefiles_main" "$@"
 
    local OPTION_PLATFORM='Default'
    local OPTION_SDK='Default'
@@ -715,7 +717,7 @@ craft_craftorder_donefiles_main()
    do
       case "$1" in
          -h*|--help|help)
-            craft_craftorder_donefile_usage
+            craft::style::donefile_usage
          ;;
 
          --local)
@@ -738,28 +740,28 @@ craft_craftorder_donefiles_main()
          # quadruple of sdk/platform/configuration/style
          #
          --configuration)
-            [ $# -eq 1 ] && craft_craftorder_donefile_usage "Missing argument to \"$1\""
+            [ $# -eq 1 ] && craft::style::donefile_usage "Missing argument to \"$1\""
             shift
 
             OPTION_CONFIGURATION="$1"
          ;;
 
          --platform)
-            [ $# -eq 1 ] && craft_craftorder_donefile_usage "Missing argument to \"$1\""
+            [ $# -eq 1 ] && craft::style::donefile_usage "Missing argument to \"$1\""
             shift
 
             OPTION_PLATFORM="$1"
          ;;
 
          --sdk)
-            [ $# -eq 1 ] && craft_craftorder_donefile_usage "Missing argument to \"$1\""
+            [ $# -eq 1 ] && craft::style::donefile_usage "Missing argument to \"$1\""
             shift
 
             OPTION_SDK="$1"
          ;;
 
          -*)
-            craft_craftorder_donefile_usage "Unknown option \"$1\""
+            craft::style::donefile_usage "Unknown option \"$1\""
          ;;
 
          *)
@@ -785,10 +787,10 @@ craft_craftorder_donefiles_main()
          OPTION_SDK="${OPTION_SDK:-Default}"
          OPTION_CONFIGURATION="${OPTION_CONFIGURATION:-Debug}"
 
-         r_craft_donefile "${OPTION_SDK}" "${OPTION_PLATFORM}" "${OPTION_CONFIGURATION}"
+         craft::style::r_donefile "${OPTION_SDK}" "${OPTION_PLATFORM}" "${OPTION_CONFIGURATION}"
          donefile="${RVAL}"
 
-         r_craft_shared_donefile "${OPTION_SDK}" "${OPTION_PLATFORM}" "${OPTION_CONFIGURATION}"
+         craft::style::r_shared_donefile "${OPTION_SDK}" "${OPTION_PLATFORM}" "${OPTION_CONFIGURATION}"
          shared_donefile="${RVAL}"
       ;;
 
@@ -797,19 +799,19 @@ craft_craftorder_donefiles_main()
          if [ "${OPTION_LOCAL}" = 'YES' ]
          then
             log_info "Donefiles"
-            craft_list_donefiles "${OPTION_SDK}" "${OPTION_PLATFORM}" "${OPTION_CONFIGURATION}"
+            craft::style::list_donefiles "${OPTION_SDK}" "${OPTION_PLATFORM}" "${OPTION_CONFIGURATION}"
          fi
 
          if [ "${OPTION_SHARED}" = 'YES' ]
          then
             log_info "Shared donefiles"
-            craft_list_shared_donefiles "${OPTION_SDK}" "${OPTION_PLATFORM}" "${OPTION_CONFIGURATION}"
+            craft::style::list_shared_donefiles "${OPTION_SDK}" "${OPTION_PLATFORM}" "${OPTION_CONFIGURATION}"
          fi
          return $?
       ;;
 
       *)
-         craft_craftorder_donefile_usage "Unknown command \"${cmd}\""
+         craft::style::donefile_usage "Unknown command \"${cmd}\""
       ;;
    esac
 

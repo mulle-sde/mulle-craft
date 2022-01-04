@@ -32,7 +32,7 @@
 MULLE_CRAFT_QUALIFIER_SH="included"
 
 
-craft_qualifier_usage()
+craft::qualifier::usage()
 {
    [ "$#" -ne 0 ] && log_error "$*"
 
@@ -62,9 +62,9 @@ EOF
 }
 
 
-r_determine_platform_sdk_version()
+craft::qualifier::r_determine_platform_sdk_version()
 {
-   log_entry "r_determine_platform_sdk_version" "$@"
+   log_entry "craft::qualifier::r_determine_platform_sdk_version" "$@"
 
    local sdk="${1:-Default}"
    local platform="${2:-${MULLE_UNAME}}"
@@ -96,9 +96,9 @@ r_determine_platform_sdk_version()
 #
 # TODO: all marks used here should be of the form craftorder-* ?
 #
-r_craftorder_qualifier()
+craft::qualifier::r_craftorder_qualifier()
 {
-   log_entry "r_craftorder_qualifier" "$@"
+   log_entry "craft::qualifier::r_craftorder_qualifier" "$@"
 
    local sdk="${1:-Default}"
    local platform="${2:-Default}"
@@ -192,7 +192,7 @@ r_craftorder_qualifier()
 }
 
 
-craft_include_nodemarks_if_needed()
+craft::qualifier::include_nodemarks_if_needed()
 {
    if [ -z "${MULLE_SOURCETREE_NODEMARKS_SH}" ]
    then
@@ -205,9 +205,9 @@ craft_include_nodemarks_if_needed()
 }
 
 
-r_filtered_craftorder()
+craft::qualifier::r_filtered_craftorder()
 {
-   log_entry "r_filtered_craftorder" "$@"
+   log_entry "craft::qualifier::r_filtered_craftorder" "$@"
 
    local craftorder="$1"
    local sdk="$2"
@@ -215,14 +215,14 @@ r_filtered_craftorder()
    local configuration="$4"
    local version="$5"
 
-   craft_include_nodemarks_if_needed
+   craft::qualifier::include_nodemarks_if_needed
 
    local qualifier
 
    r_concat "MATCHES build" "MATCHES build-os-${MULLE_UNAME}" $'\n'"AND "
    qualifier="${RVAL}"
 
-   r_craftorder_qualifier "${sdk}" \
+   craft::qualifier::r_craftorder_qualifier "${sdk}" \
                           "${platform}" \
                           "${configuration}" \
                           "${version}"
@@ -242,7 +242,7 @@ r_filtered_craftorder()
 
       marks="${line#*;}"
 
-      if nodemarks_filter_with_qualifier "${marks}" "${qualifier}"
+      if sourcetree::nodemarks::filter_with_qualifier "${marks}" "${qualifier}"
       then
          r_add_line "${result}" "${line}"
          result="${RVAL}"
@@ -255,9 +255,9 @@ r_filtered_craftorder()
 
 
 
-craft_qualifier_main()
+craft::qualifier::main()
 {
-   log_entry "craft_qualifier_main" "$@"
+   log_entry "craft::qualifier::main" "$@"
 
    local OPTION_CONFIGURATION
    local OPTION_PLATFORM
@@ -269,7 +269,7 @@ craft_qualifier_main()
    do
       case "$1" in
          -h*|--help|help)
-            craft_qualifier_usage
+            craft::qualifier::usage
          ;;
 
          --release)
@@ -290,35 +290,35 @@ craft_qualifier_main()
          ;;
 
          --configuration)
-            [ $# -eq 1 ] && craft_qualifier_usage "Missing argument to \"$1\""
+            [ $# -eq 1 ] && craft::qualifier::usage "Missing argument to \"$1\""
             shift
 
             OPTION_CONFIGURATION="$1"
          ;;
 
          --platform)
-            [ $# -eq 1 ] && craft_qualifier_usage "Missing argument to \"$1\""
+            [ $# -eq 1 ] && craft::qualifier::usage "Missing argument to \"$1\""
             shift
 
             OPTION_PLATFORM="$1"
          ;;
 
          --sdk)
-            [ $# -eq 1 ] && craft_qualifier_usage "Missing argument to \"$1\""
+            [ $# -eq 1 ] && craft::qualifier::usage "Missing argument to \"$1\""
             shift
 
             OPTION_SDK="$1"
          ;;
 
          --version)
-            [ $# -eq 1 ] && craft_qualifier_usage "Missing argument to \"$1\""
+            [ $# -eq 1 ] && craft::qualifier::usage "Missing argument to \"$1\""
             shift
 
             OPTION_VERSION="$1"
          ;;
 
          -*)
-            craft_qualifier_usage "Unknown option \"$1\""
+            craft::qualifier::usage "Unknown option \"$1\""
          ;;
 
          *)
@@ -338,18 +338,18 @@ craft_qualifier_main()
 
    local version
 
-   r_determine_platform_sdk_version "${OPTION_SDK}" \
-                                    "${OPTION_PLATFORM}" \
-                                    "${OPTION_VERSION}"
+   craft::qualifier::r_determine_platform_sdk_version "${OPTION_SDK}" \
+                                                      "${OPTION_PLATFORM}" \
+                                                      "${OPTION_VERSION}"
    version="${RVAL}"
 
    local qualifier
    local no_build_qualifier
 
-   r_craftorder_qualifier "${OPTION_SDK}" \
-                          "${OPTION_PLATFORM}" \
-                          "${OPTION_CONFIGURATION}" \
-                          "${version}"
+   craft::qualifier::r_craftorder_qualifier "${OPTION_SDK}" \
+                                            "${OPTION_PLATFORM}" \
+                                            "${OPTION_CONFIGURATION}" \
+                                            "${version}"
    no_build_qualifier="${RVAL}"
 
    r_concat "MATCHES build" "${no_build_qualifier}" $'\n'"AND "
@@ -366,8 +366,8 @@ craft_qualifier_main()
       ;;
 
       match)
-         [ $# -lt 2 ] && craft_qualifier_usage "Missing argument for $1"
-         [ $# -gt 2 ] && shift 2 && craft_qualifier_usage "Superflous arguments \"$*\""
+         [ $# -lt 2 ] && craft::qualifier::usage "Missing argument for $1"
+         [ $# -gt 2 ] && shift 2 && craft::qualifier::usage "Superflous arguments \"$*\""
          shift
 
          local marks
@@ -400,9 +400,9 @@ craft_qualifier_main()
 version-max-${OPTION_PLATFORM:-${MULLE_UNAME}} to work and vice versa"
          fi
 
-         craft_include_nodemarks_if_needed
+         craft::qualifier::include_nodemarks_if_needed
 
-         if nodemarks_filter_with_qualifier "${marks}" "${qualifier}"
+         if sourcetree::nodemarks::filter_with_qualifier "${marks}" "${qualifier}"
          then
             log_info "YES"
             return 0
@@ -422,7 +422,7 @@ version-max-${OPTION_PLATFORM:-${MULLE_UNAME}} to work and vice versa"
       ;;
    esac
 
-   [ $# -eq 0 ] || craft_qualifier_usage "Superflous arguments \"$*\""
+   [ $# -eq 0 ] || craft::qualifier::usage "Superflous arguments \"$*\""
 
    if [ "${OPTION_LF}" = "NO" ]
    then

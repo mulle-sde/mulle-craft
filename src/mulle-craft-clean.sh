@@ -32,7 +32,7 @@
 MULLE_CRAFT_CLEAN_SH="included"
 
 
-craft_clean_usage()
+craft::clean::usage()
 {
    [ "$#" -ne 0 ] && log_error "$1"
 
@@ -62,9 +62,9 @@ EOF
 }
 
 
-remove_directory()
+craft::clean::remove_directory()
 {
-   log_entry "remove_directory" "$@"
+   log_entry "craft::clean::remove_directory" "$@"
 
    if [ -d "$1" ]
    then
@@ -75,15 +75,15 @@ remove_directory()
 }
 
 
-remove_directories()
+craft::clean::remove_directories()
 {
-   log_entry "remove_directories" "$@"
+   log_entry "craft::clean::remove_directories" "$@"
 
    while [ $# -ne 0 ]
    do
       if [ ! -z "$1" ]
       then
-         remove_directory "$1"
+         craft::clean::remove_directory "$1"
       fi
       shift
    done
@@ -95,9 +95,9 @@ remove_directories()
 # but uses mostly ENVIRONMENT variables
 # These are usually provided with mulle-sde
 #
-craft_clean_main()
+craft::clean::main()
 {
-   log_entry "craft_clean_main" "$@"
+   log_entry "craft::clean::main" "$@"
 
    local OPTION_DEPENDENCY="DEFAULT"
    local OPTION_TOUCH='NO'
@@ -106,7 +106,7 @@ craft_clean_main()
    do
       case "$1" in
          -h*|--help|help)
-            craft_clean_usage
+            craft::clean::usage
          ;;
 
          --touch)
@@ -118,7 +118,7 @@ craft_clean_main()
          ;;
 
          -*)
-            craft_clean_usage "Unknown option \"$1\""
+            craft::clean::usage "Unknown option \"$1\""
          ;;
 
          *)
@@ -135,7 +135,7 @@ craft_clean_main()
    then
       log_verbose "Cleaning \"${KITCHEN_DIR}\" directory"
 
-      remove_directory "${KITCHEN_DIR}"
+      craft::clean::remove_directory "${KITCHEN_DIR}"
       return $?
    fi
 
@@ -158,20 +158,20 @@ craft_clean_main()
          "build"|"kitchen")
             log_verbose "Cleaning \"$1\""
 
-            remove_directory "${KITCHEN_DIR}"
+            craft::clean::remove_directory "${KITCHEN_DIR}"
             return
          ;;
 
          "craftorder")
             log_verbose "Cleaning \"${CRAFTORDER_KITCHEN_DIR}\" directory"
 
-            remove_directory "${CRAFTORDER_KITCHEN_DIR}"
+            craft::clean::remove_directory "${CRAFTORDER_KITCHEN_DIR}"
          ;;
 
          "dependency")
             log_verbose "Cleaning \"${DEPENDENCY_DIR}\" directory"
 
-            remove_directory "${DEPENDENCY_DIR}"
+            craft::clean::remove_directory "${DEPENDENCY_DIR}"
          ;;
 
          "project")
@@ -182,7 +182,7 @@ craft_clean_main()
             do
                if [ -d "${i}" ]
                then
-                  remove_directory "${i}"
+                  craft::clean::remove_directory "${i}"
                fi
             done
             shell_disable_nullglob
@@ -228,13 +228,13 @@ craft_clean_main()
 
             local directory
 
-            r_build_directory_name "${cleantarget}"
+            craft::style::r_build_directory_name "${cleantarget}"
             directory="${RVAL}"
 
             if [ "${OPTION_TOUCH}" = 'NO' ]
             then
                shell_enable_nullglob
-               remove_directories "${CRAFTORDER_KITCHEN_DIR}"/*/"${directory}" \
+               craft::clean::remove_directories "${CRAFTORDER_KITCHEN_DIR}"/*/"${directory}" \
                                   "${CRAFTORDER_KITCHEN_DIR}"/*/*/"${directory}"
                shell_disable_nullglob
             fi
@@ -252,7 +252,7 @@ craft_clean_main()
                   fi
 
                   # need to unprotect dependency_dir
-                  dependency_unprotect
+                  craft::dependency::unprotect
 
                      inplace_sed -n -e "/^${escaped};/q;p" "${donefile}"
                      inplace_sed -n -e "/^.*\/${escaped};/q;p" "${donefile}"
@@ -263,7 +263,7 @@ craft_clean_main()
                         remove_file_if_present "${donefile}"
                      fi
 
-                  dependency_protect
+                  craft::dependency::protect
                fi
             done
 
