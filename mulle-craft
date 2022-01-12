@@ -71,6 +71,7 @@ fi
 #
 # Do this first to get aliases
 #
+MULLE_EXECUTABLE="${BASH_SOURCE[0]:-${(%):-%x}}"
 . "${MULLE_BASHFUNCTIONS_LIBEXEC_DIR}/mulle-bashfunctions.sh" || exit 1
 
 ###
@@ -80,7 +81,6 @@ fi
 ###   ###   ###   ###   ###   ###   ###   ###   ###   ###   ###   ###   ###
 ###########################################################################
 
-MULLE_EXECUTABLE="${BASH_SOURCE[0]:-${(%):-%x}}"
 
 
 #
@@ -334,6 +334,7 @@ craft::main()
       ;;
 
       *-dir)
+         MULLE_SQUELCH_ENVIRONMENT_WARNING='YES'
          craft::setup_environment
       ;;
 
