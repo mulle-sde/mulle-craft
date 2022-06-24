@@ -1,4 +1,7 @@
-#! /usr/bin/env bash
+# shellcheck shell=bash
+# shellcheck disable=SC2236
+# shellcheck disable=SC2166
+# shellcheck disable=SC2006
 #
 #   Copyright (c) 2017 Nat! - Mulle kybernetiK
 #   All rights reserved.
@@ -78,7 +81,6 @@ Styles:
 EOF
   exit 1
 }
-
 
 
 craft::build::assert_sane_name()
@@ -215,7 +217,7 @@ craft::build::build_project()
 
    shift 2
 
-   local project="$1";
+   local project="$1"
    local name="$2"
    local marks="$3"
    local kitchendir="$4"
@@ -227,69 +229,70 @@ craft::build::build_project()
 
    shift 9
 
-   [ -z "${cmd}" ]         && internal_fail "cmd is empty"
-   [ -z "${destination}" ] && internal_fail "destination is empty"
+   [ -z "${cmd}" ]         && _internal_fail "cmd is empty"
+   [ -z "${destination}" ] && _internal_fail "destination is empty"
 
-   [ -z "${project}" ]     && internal_fail "project is empty"
-   [ -z "${name}" ]        && internal_fail "name is empty"
-   [ -z "${kitchendir}" ]  && internal_fail "kitchendir is empty"
-   [ -z "${phase}" ]       && internal_fail "phase is empty"
+   [ -z "${project}" ]     && _internal_fail "project is empty"
+   [ -z "${name}" ]        && _internal_fail "name is empty"
+   [ -z "${kitchendir}" ]  && _internal_fail "kitchendir is empty"
+   [ -z "${phase}" ]       && _internal_fail "phase is empty"
 
    #
    # if projects exist with duplicate names, add a random number at end
    # to differentiate
    #
+   local definition_dir
 
-   local flags
+   # INFO_DIR is set as flag in mulle-craft
+   definition_dir="${INFO_DIR}"
+   if [ -z "${definition_dir}" ]
+   then
+      if [ "${OPTION_LOCAL_CRAFTINFO}" = 'YES' ]
+      then
+         craft::craftinfo::r_find_project_item "${name}" \
+                                               "${project}" \
+                                               "${OPTION_PLATFORM_CRAFTINFO}" \
+                                               "${platform}" \
+                                               "definition"
 
-   case ",${marks}," in
-      *,no-memo,*)
-         # usally a subproject
-         flags="${OPTION_NO_MEMO_MAKEFLAGS}"
-      ;;
-   esac
+         case $? in
+            0|2)
+            ;;
 
-   local definitiondir
+            *)
+               exit 1
+            ;;
+         esac
+      fi
 
-   craft::path::r_determine_definition_dir "${name}" \
-                              "${project}" \
-                              "dependency" \
-                              "${OPTION_PLATFORM_CRAFTINFO}" \
-                              "${OPTION_LOCAL_CRAFTINFO}" \
-                              "${sdk}" \
-                              "${platform}" \
-                              "${configuration}" \
-                              "${style}"
-   case $? in
-      0|2)
-      ;;
+      definition_dir="${RVAL}"
+   fi
 
-      *)
-         exit 1
-      ;;
-   esac
-   definitiondir="${RVAL}"
+   local aux_definition_dir
 
-   local craftinfodir
+   # AUX_INFO_DIR is set as flag in mulle-craft
+   aux_definition_dir="${AUX_INFO_DIR}"
+   if [ -z "${aux_definition_dir}" ]
+   then
+      craft::craftinfo::r_find_dependency_item "${name}" \
+                                               "${OPTION_PLATFORM_CRAFTINFO}" \
+                                               "${sdk}" \
+                                               "${platform}" \
+                                               "${configuration}" \
+                                               "${style}"  \
+                                               "definition"
 
-   craft::path::r_determine_craftinfo_dir "${name}" \
-                             "${project}" \
-                             "dependency" \
-                             "${OPTION_PLATFORM_CRAFTINFO}" \
-                             "${OPTION_LOCAL_CRAFTINFO}" \
-                             "${sdk}" \
-                             "${platform}" \
-                             "${configuration}" \
-                             "${style}"
-   case $? in
-      0|2)
-      ;;
+      case $? in
+         0|2)
+         ;;
 
-      *)
-         exit 1
-      ;;
-   esac
-   craftinfodir="${RVAL}"
+         *)
+            exit 1
+         ;;
+      esac
+
+      aux_definition_dir="${RVAL}"
+   fi
 
 
    # subdir for configuration / sdk
@@ -301,10 +304,10 @@ craft::build::build_project()
 
    if [ ! -z "${DEPENDENCY_DIR}" ]
    then
-      craft::dependency::r_include_path  "${sdk}" \
-                                 "${platform}" \
-                                 "${configuration}" \
-                                 "${style}"
+      craft::dependency::r_include_path "${sdk}" \
+                                        "${platform}" \
+                                        "${configuration}" \
+                                        "${style}"
       _includepath="${RVAL}"
 
       craft::dependency::r_lib_path "${sdk}" \
@@ -316,15 +319,18 @@ craft::build::build_project()
       case "${MULLE_UNAME}" in
          darwin)
             craft::dependency::r_frameworks_path "${sdk}" \
-                                         "${platform}" \
-                                         "${configuration}" \
-                                         "${style}"
+                                                 "${platform}" \
+                                                 "${configuration}" \
+                                                 "${style}"
             _frameworkspath="${RVAL}"
          ;;
       esac
    fi
 
-   craft::build::__set_various_paths "${sdk}" "${platform}" "${configuration}" "${style}"
+   craft::build::__set_various_paths "${sdk}" \
+                                     "${platform}" \
+                                     "${configuration}" \
+                                     "${style}"
 
    # remove old logs
    local logdir
@@ -361,35 +367,6 @@ craft::build::build_project()
       ;;
    esac
 
-   #
-   # this is supposed to be a global override
-   # it's probably superflous. You can tune options on a per-project
-   # basis with marks and environment variables
-#   #
-#   if [ ! -z "${MULLE_CRAFT_LIBRARY_STYLE}" ]
-#   then
-#      case "${MULLE_CRAFT_LIBRARY_STYLE}" in
-#         standalone)
-#            r_concat "${args}" "--library-style standalone"
-#            args="${RVAL}"
-#         ;;
-#
-#         dynamic|shared)
-#            r_concat "${args}" "--library-style shared"
-#            args="${RVAL}"
-#         ;;
-#
-#         static)
-#            r_concat "${args}" "--library-style static"
-#            args="${RVAL}"
-#         ;;
-#
-#         *)
-#            fail "Unknown library style \"${MULLE_CRAFT_LIBRARY_STYLE}\" \
-#(use dynamic/static/standalone)"
-#         ;;
-#      esac
-#   else
    case ",${marks}," in
       *',only-standalone,'*)
          r_concat "${args}" "--library-style standalone"
@@ -404,7 +381,7 @@ craft::build::build_project()
             ;;
 
             *)
-               log_verbose "Project \"${project}\" is marked \
+               _log_verbose "Project \"${project}\" is marked \
 as \"no-static-link\" \ and \"all-load\".
 This can lead to problems on darwin, but may solve problems on linux..."
             ;;
@@ -436,17 +413,17 @@ This can lead to problems on darwin, but may solve problems on linux..."
       r_concat "${args}" "--build-dir '${kitchendir}'"
       args="${RVAL}"
    fi
-   if [ ! -z "${definitiondir}" ]
+   if [ ! -z "${definition_dir}" ]
    then
-      r_concat "${args}" "--definition-dir '${definitiondir}'"
+      r_concat "${args}" "--definition-dir '${definition_dir}'"
       args="${RVAL}"
    else
       r_concat "${args}" "--definition-dir 'NONE'" # not sure why
       args="${RVAL}"
    fi
-   if [ ! -z "${craftinfodir}" ]
+   if [ ! -z "${aux_definition_dir}" ]
    then
-      r_concat "${args}" "--aux-definition-dir '${craftinfodir}'"
+      r_concat "${args}" "--aux-definition-dir '${aux_definition_dir}'"
       args="${RVAL}"
    fi
    if [ ! -z "${configuration}" ]
@@ -507,9 +484,10 @@ This can lead to problems on darwin, but may solve problems on linux..."
       args="${RVAL}"
    fi
 
+
    local sdk_path
 
-   craft::style::r_get_mulle_sdk_path "${sdk}" "${platform}" "auto"
+   craft::path::r_get_mulle_sdk_path "${sdk}" "${platform}" "auto"
    sdk_path="${RVAL}"
 
    if [ ! -z "${sdk_path}" ]
@@ -531,7 +509,7 @@ This can lead to problems on darwin, but may solve problems on linux..."
    r_uppercase "${RVAL}"
    mulle_options_env_key="MULLE_CRAFT_${RVAL}_MAKE_OPTIONS"
 
-   if [ ! -z "${ZSH_VERSION}" ]
+   if [ ${ZSH_VERSION+x} ]
    then
       mulle_options_env_value="${(P)RVAL}"
    else
@@ -543,7 +521,7 @@ This can lead to problems on darwin, but may solve problems on linux..."
 
    if [ ! -z "${mulle_options_env_value}" ]
    then
-      log_verbose "Found ${C_RESET_BOLD}${mulle_options_env_key}${C_VERBOSE} \
+      _log_verbose "Found ${C_RESET_BOLD}${mulle_options_env_key}${C_VERBOSE} \
 set to ${C_RESET_BOLD}${mulle_options_env_value}${C_VERBOSE}"
 
       for i in ${mulle_options_env_value}
@@ -561,16 +539,21 @@ set to ${C_RESET_BOLD}${mulle_options_env_value}${C_VERBOSE}"
       auxargs="${RVAL}"
    done
 
+   local flags
 
-   if [ "${MULLE_FLAG_LOG_SETTINGS}" = 'YES' ]
-   then
-      log_trace2 "flags:                 ${flags}"
-      log_trace2 "MULLE_TECHNICAL_FLAGS: ${MULLE_TECHNICAL_FLAGS}"
-      log_trace2 "args:                  ${args}"
-      log_trace2 "auxargs:               ${auxargs}"
-      log_trace2 "mulle_flags_env_key:   ${mulle_flags_env_key}"
-      log_trace2 "mulle_flags_env_value: ${mulle_flags_env_value}"
-   fi
+   case ",${marks}," in
+      *,no-memo,*)
+         # usally a subproject
+         flags="${OPTION_NO_MEMO_MAKEFLAGS}"
+      ;;
+   esac
+
+   log_setting "flags:                 ${flags}"
+   log_setting "MULLE_TECHNICAL_FLAGS: ${MULLE_TECHNICAL_FLAGS}"
+   log_setting "args:                  ${args}"
+   log_setting "auxargs:               ${auxargs}"
+   log_setting "mulle_flags_env_key:   ${mulle_flags_env_key}"
+   log_setting "mulle_flags_env_value: ${mulle_flags_env_value}"
 
    local old
 
@@ -614,8 +597,10 @@ craft::build::build_dependency_directly()
 {
    log_entry "craft::build::build_dependency_directly" "$@"
 
-   local cmd="$1"; shift
-   local dependency_dir="$1"; shift
+   local cmd="$1"
+   local dependency_dir="$2"
+
+   shift 2
 
 #   local project="$1"
 #   local name="$2"
@@ -634,7 +619,9 @@ craft::build::build_dependency_directly()
 
    local rval
 
-   craft::build::build_project "${cmd}" "${dependency_dir}" "$@"
+   craft::build::build_project "${cmd}" \
+                               "${dependency_dir}" \
+                               "$@"
    rval=$?
 
    if [ $rval -ne 0 ]
@@ -664,8 +651,10 @@ craft::build::build_dependency_with_dispense()
 {
    log_entry "craft::build::build_dependency_with_dispense" "$@"
 
-   local cmd="$1"; shift
-   local dependency_dir="$1"; shift
+   local cmd="$1"
+   local dependency_dir="$2"
+
+   shift 2
 
    local project="$1"
    local name="$2"
@@ -677,19 +666,20 @@ craft::build::build_dependency_with_dispense()
    local style="$8"
 
    local rval
-   local tmpdependencydir
+   local tmpdependency_dir
 
    r_filepath_concat "${kitchendir}" ".dependency"
    r_absolutepath "${RVAL}"
-   tmpdependencydir="${RVAL}"
+   tmpdependency_dir="${RVAL}"
 
-   mkdir_if_missing "${tmpdependencydir}"
+   mkdir_if_missing "${tmpdependency_dir}"
 
-   craft::build::build_project "${cmd}" "${tmpdependencydir}" "$@"
+   craft::build::build_project "${cmd}" \
+                               "${tmpdependency_dir}" \
+                               "$@"
    rval=$?
 
    log_debug "build finished with $rval"
-
 
    if [ "${cmd}" != 'install' -o $rval -ne 0 ]
    then
@@ -699,7 +689,7 @@ craft::build::build_dependency_with_dispense()
       else
          log_verbose "Not dispensing because not installing"
       fi
-      rmdir_safer "${tmpdependencydir}"
+      rmdir_safer "${tmpdependency_dir}"
       return $rval
    fi
 
@@ -740,19 +730,47 @@ craft::build::build_dependency_with_dispense()
       ;;
    esac
 
-   log_verbose "Dispensing product"
 
+   local mapper_file
+
+   craft::craftinfo::r_find_dependency_item "${name}" \
+                                            "${OPTION_PLATFORM_CRAFTINFO}" \
+                                            "${sdk}" \
+                                            "${platform}" \
+                                            "${configuration}" \
+                                            "${style}"  \
+                                            "dispense-mapper.sh"
+
+   case $? in
+      0)
+         log_verbose "Found dispense mapper ${C_RESET_BOLD}${mapper_file#${MULLE_USER_PWD}/}"
+         mapper_file="${RVAL}"
+
+         r_concat "${options}" "--mapper-file '${mapper_file}'"
+         options="${RVAL}"
+      ;;
+
+      2)
+      ;;
+
+      *)
+         exit 1
+      ;;
+   esac
+
+
+   log_verbose "Dispensing product ${C_MAGENTA}${C_BOLD}${name}"
    eval_exekutor "${MULLE_DISPENSE:-mulle-dispense}" \
                   "${MULLE_TECHNICAL_FLAGS}" \
                dispense \
                   "${options}" \
-                  "${tmpdependencydir}" \
+                  "${tmpdependency_dir}" \
                   "${dependency_dir}"
    rval=$?
 
    log_debug "dispense finished with $rval"
 
-   rmdir_safer "${tmpdependencydir}"
+   rmdir_safer "${tmpdependency_dir}"
 
    if [ -z "${PARALLEL}" ]
    then
@@ -815,30 +833,25 @@ craft::build::build_craftorder_node()
          ;;
 
          *)
-            log_fluff "Not building dependency \"${project}\" (complying with \
-user wish)"
+            log_fluff "Not building dependency \"${project}\" (complying with user wish)"
             return 4
          ;;
       esac
    fi
 
-   if [ -z "${MULLE_CRAFT_STYLE_SH}" ]
-   then
-      # shellcheck source=src/mulle-craft-style.sh
-      . "${MULLE_CRAFT_LIBEXEC_DIR}/mulle-craft-style.sh" || exit 1
-   fi
 
    #
    # Figure out where to dispense into
    #
    local dependency_dir
 
-   craft::style::r_get_sdk_platform_configuration_string "${sdk}" \
-                                                 "${platform}" \
-                                                 "${configuration}"  \
-                                                 "${style}"
-   r_filepath_concat "${DEPENDENCY_DIR}" "${RVAL}"
+   craft::path::r_dependencydir "${sdk}" \
+                                "${platform}" \
+                                "${configuration}"  \
+                                "${style}"
    dependency_dir="${RVAL}"
+
+
 
    #
    # Depending on marks, either install and dispense or just install
@@ -846,13 +859,17 @@ user wish)"
    case ",${marks}," in
       *',no-inplace,'*)
          log_verbose "Build ${C_MAGENTA}${C_BOLD}${name}${C_VERBOSE} with dispense"
-         craft::build::build_dependency_with_dispense "${cmd}" "${dependency_dir}" "$@"
+         craft::build::build_dependency_with_dispense "${cmd}" \
+                                                      "${dependency_dir}" \
+                                                      "$@"
          return $?
       ;;
    esac
 
    log_verbose "Build ${C_MAGENTA}${C_BOLD}${name}${C_VERBOSE}"
-   craft::build::build_dependency_directly "${cmd}" "${dependency_dir}" "$@"
+   craft::build::build_dependency_directly "${cmd}" \
+                                           "${dependency_dir}" \
+                                           "$@"
    return $?
 }
 
@@ -879,21 +896,17 @@ craft::build::handle()
    local _kitchendir
    local _configuration
 
-   if [ -z "${MULLE_CRAFT_STYLE_SH}" ]
-   then
-      . "${MULLE_CRAFT_LIBEXEC_DIR}/mulle-craft-style.sh"
-   fi
-
    #
    # get remapped _configuration
    # get actual _kitchendir
    #
-   craft::style::_evaluate_variables "${project}" \
-                             "${sdk}" \
-                             "${platform}" \
-                             "${configuration}" \
-                             "${style}" \
-                             "${kitchendir}"
+
+   craft::path::_evaluate_variables "${project}" \
+                                    "${sdk}" \
+                                    "${platform}" \
+                                    "${configuration}" \
+                                    "${style}" \
+                                    "${kitchendir}"
 
    if [ "${OPTION_LIST_REMAINING}" = 'YES' ]
    then
@@ -911,16 +924,16 @@ craft::build::handle()
    local rval
 
    craft::build::build_craftorder_node "${cmd}" \
-                         "${_evaledproject}" \
-                         "${_name}" \
-                         "${marks}" \
-                         "${_kitchendir}" \
-                         "${sdk}" \
-                         "${platform}" \
-                         "${_configuration}" \
-                         "${style}" \
-                         "${phase}" \
-                         "$@"
+                                       "${_evaledproject}" \
+                                       "${_name}" \
+                                       "${marks}" \
+                                       "${_kitchendir}" \
+                                       "${sdk}" \
+                                       "${platform}" \
+                                       "${_configuration}" \
+                                       "${style}" \
+                                       "${phase}" \
+                                       "$@"
    rval=$?
 
    log_debug "${C_RESET_BOLD}Build finished with: ${C_MAGENTA}${C_BOLD}${rval}"
@@ -953,14 +966,14 @@ craft::build::handle_rval()
          *)
             if [ "${MULLE_FLAG_LOG_SETTINGS}" = 'YES' ]
             then
-               log_trace2 "donefile   : ${donefile}"
-               log_trace2 "line       : ${line}"
+               log_setting "donefile   : ${donefile}"
+               log_setting "line       : ${line}"
             fi
 
             if [ ! -z "${donefile}" ]
             then
                redirect_append_exekutor "${donefile}" printf "%s\n" "${line}" \
-               || internal_fail "failed to append to \"${donefile}\""
+               || _internal_fail "failed to append to \"${donefile}\""
             else
                log_debug "Not remembering success as we have no donefile"
             fi
@@ -981,7 +994,7 @@ craft::build::handle_rval()
          log_debug "Build of \"${evaledproject}\" failed, so quit"
          return 1
       fi
-         log_fluff "Ignoring build failure of \"${evaledproject}\" due to \
+         _log_fluff "Ignoring build failure of \"${evaledproject}\" due to \
 the enabled leniency option"
       return 0
    fi
@@ -1051,8 +1064,10 @@ craft::build::handle_parallel()
 {
    log_entry "craft::build::handle_parallel" "$@"
 
-   local parallel="$1"; shift
-   local donefile="$1"; shift
+   local parallel="$1"
+   local donefile="$2"
+
+   shift 2
 
    local sdk="$1"
    local platform="$2"
@@ -1062,13 +1077,13 @@ craft::build::handle_parallel()
 
    shift 5
 
-   [ -z "${parallel}" ]      && internal_fail "v is empty"
-   [ -z "${donefile}" ]      && internal_fail "donefile is empty"
-   [ -z "${configuration}" ] && internal_fail "configuration is empty"
-   [ -z "${platform}" ]      && internal_fail "platform is empty"
-   [ -z "${sdk}" ]           && internal_fail "sdk is empty"
-   [ -z "${style}" ]         && internal_fail "style is empty"
-   [ -z "${kitchendir}" ]    && internal_fail "kitchendir is empty"
+   [ -z "${parallel}" ]      && _internal_fail "v is empty"
+   [ -z "${donefile}" ]      && _internal_fail "donefile is empty"
+   [ -z "${configuration}" ] && _internal_fail "configuration is empty"
+   [ -z "${platform}" ]      && _internal_fail "platform is empty"
+   [ -z "${sdk}" ]           && _internal_fail "sdk is empty"
+   [ -z "${style}" ]         && _internal_fail "style is empty"
+   [ -z "${kitchendir}" ]    && _internal_fail "kitchendir is empty"
 
    local line
    local parallel
@@ -1104,10 +1119,7 @@ craft::build::handle_parallel()
       log_fluff "Parallel linking is not enabled"
    fi
 
-   if [ "${MULLE_FLAG_LOG_SETTINGS}" = 'YES' ]
-   then
-      log_trace2 "parallel : ${parallel}"
-   fi
+   log_setting "parallel : ${parallel}"
 
    shell_disable_glob
    for phase in ${OPTION_PHASES}
@@ -1149,7 +1161,7 @@ craft::build::handle_parallel()
          IFS=";" read -r project marks <<< "${line}"
 
          # need a project and not empty spaces
-         [ -z "${project## }" ] && internal_fail "project is empty"
+         [ -z "${project## }" ] && _internal_fail "project is empty"
 
          #
          # TODO: we are somewhat overoptimistic, that we don't build
@@ -1160,33 +1172,33 @@ craft::build::handle_parallel()
          then
             (
                craft::build::handle_step "${cmd}" \
-                                 "${project}" \
-                                 "${marks}" \
-                                 "${sdk}" \
-                                 "${platform}" \
-                                 "${configuration}" \
-                                 "${style}" \
-                                 "${kitchendir}" \
-                                 "${phase}" \
-                                 "${statusfile}" \
-                                 "${line}" \
-                                 "${donefile}" \
-                                 "$@"
+                                         "${project}" \
+                                         "${marks}" \
+                                         "${sdk}" \
+                                         "${platform}" \
+                                         "${configuration}" \
+                                         "${style}" \
+                                         "${kitchendir}" \
+                                         "${phase}" \
+                                         "${statusfile}" \
+                                         "${line}" \
+                                         "${donefile}" \
+                                         "$@"
             ) &
          else
             craft::build::handle_step "${cmd}" \
-                              "${project}" \
-                              "${marks}" \
-                              "${sdk}" \
-                              "${platform}" \
-                              "${configuration}" \
-                              "${style}" \
-                              "${kitchendir}" \
-                              "${phase}" \
-                              "${statusfile}" \
-                              "${line}" \
-                              "${donefile}" \
-                              "$@"
+                                      "${project}" \
+                                      "${marks}" \
+                                      "${sdk}" \
+                                      "${platform}" \
+                                      "${configuration}" \
+                                      "${style}" \
+                                      "${kitchendir}" \
+                                      "${phase}" \
+                                      "${statusfile}" \
+                                      "${line}" \
+                                      "${donefile}" \
+                                      "$@"
          fi
       done
 
@@ -1201,7 +1213,7 @@ craft::build::handle_parallel()
 
       if [ "${MULLE_FLAG_LOG_SETTINGS}" = 'YES' ]
       then
-         log_trace2 "Return values: `cat "${statusfile}"`"
+         log_setting "Return values: `cat "${statusfile}"`"
       fi
 
       local failures
@@ -1268,7 +1280,7 @@ craft::build::r_remaining_craftorder_lines()
       then
          if [ "${MULLE_FLAG_LOG_SETTINGS}" = 'YES' ]
          then
-            log_trace2 "Remaining
+            _log_setting "Remaining
 ----
 ${remaining}
 ----
@@ -1299,7 +1311,7 @@ ${remaining_after_shared}
 
       if [ "${MULLE_FLAG_LOG_SETTINGS}" = 'YES' ]
       then
-         log_trace2 "Remaining
+         _log_setting "Remaining
 ----
 ${remaining}
 ----
@@ -1326,7 +1338,7 @@ ${remaining_after_single}
          then
             if [ "${MULLE_FLAG_LOG_SETTINGS}" = 'YES' ]
             then
-               log_trace2 "Remaining
+               _log_setting "Remaining
 ----
 ${remaining}
 ----
@@ -1370,37 +1382,31 @@ craft::build::_do_craftorder()
    local _donefile
    local _shared_donefile  # filled by craft::style::__have_donefiles sideeffect
 
-   if [ -z "${MULLE_CRAFT_STYLE_SH}" ]
-   then
-      # shellcheck source=src/mulle-craft-style.sh
-      . "${MULLE_CRAFT_LIBEXEC_DIR}/mulle-craft-style.sh" || exit 1
-   fi
 
    local rval 
 
-   craft::style::__have_donefiles "${sdk}" "${platform}" "${configuration}"
+   include "craft::donefile"
+
+   craft::donefile::__have_donefiles "${sdk}" "${platform}" "${configuration}"
    rval=$?
 
-   if [ "${MULLE_FLAG_LOG_SETTINGS}" = 'YES' ]
-   then
-      log_trace2 "craftorder      : ${craftorder}"
-      log_trace2 "donefile        : ${_donefile}"
-      log_trace2 "shared_donefile : ${_shared_donefile}"
-   fi
+   log_setting "craftorder      : ${craftorder}"
+   log_setting "donefile        : ${_donefile}"
+   log_setting "shared_donefile : ${_shared_donefile}"
 
    if [ $rval -eq 0 ]
    then
       if ! craft::build::r_remaining_craftorder_lines "${craftorder}" \
-                                        "${_donefile}" \
-                                        "${_shared_donefile}"
+                                                      "${_donefile}" \
+                                                      "${_shared_donefile}"
       then
          log_fluff "Everything in the craftorder has been crafted already"
          return
       fi
       remaining="${RVAL}"
    else
-      log_fluff "No donefiles \"${_donefile#${MULLE_USER_PWD}/}\" or \"${_shared_donefile#${MULLE_USER_PWD}/}\" \
-are present, so build everything"
+      _log_fluff "No donefiles \"${_donefile#${MULLE_USER_PWD}/}\" or \
+\"${_shared_donefile#${MULLE_USER_PWD}/}\" are present, so build everything"
       remaining="${craftorder}"
    fi
 
@@ -1418,24 +1424,20 @@ are present, so build everything"
 
    if [ "${MULLE_FLAG_LOG_SETTINGS}" = 'YES' ]
    then
-      log_trace2 "remaining :  ${remaining}"
+      log_setting "remaining :  ${remaining}"
    fi
 
    local line
    local parallel
+   local project
+   local marks
 
-   shell_disable_glob; IFS=$'\n'
-   for line in ${remaining}
-   do
-      shell_enable_glob; IFS="${DEFAULT_IFS}"
-
-      local project
-      local marks
-
+   .foreachline line in ${remaining}
+   .do
       project="${line%%;*}"
       marks="${line#*;}"
 
-      [ -z "${project## }" ] && internal_fail "empty project fail"
+      [ -z "${project## }" ] && _internal_fail "empty project fail"
 
       if [ "${OPTION_PARALLEL}" = 'YES' -a  \
            "${OPTION_LIST_REMAINING}" = 'NO' -a \
@@ -1446,7 +1448,7 @@ are present, so build everything"
             *,no-singlephase,*)
                case ",${marks}," in
                   *,only-framework,*)
-                     log_warning "${project} is marked as no-singlephase and \
+                     _log_warning "${project} is marked as no-singlephase and \
 only-framework.
 ${C_INFO}Frameworks can not be built with multi-phase currently."
                   ;;
@@ -1455,7 +1457,7 @@ ${C_INFO}Frameworks can not be built with multi-phase currently."
                r_add_line "${parallel}" "${line}"
                parallel="${RVAL}"
                log_fluff "Collected \"${line}\" for parallel build"
-               continue
+               .continue
             ;;
          esac
       fi
@@ -1463,13 +1465,13 @@ ${C_INFO}Frameworks can not be built with multi-phase currently."
       if [ ! -z "${parallel}" ]
       then
          if ! craft::build::handle_parallel "${parallel}" \
-                                     "${_donefile}" \
-                                     "${sdk}" \
-                                     "${platform}" \
-                                     "${configuration}" \
-                                     "${style}" \
-                                     "${kitchendir}" \
-                                     "$@"
+                                            "${_donefile}" \
+                                            "${sdk}" \
+                                            "${platform}" \
+                                            "${configuration}" \
+                                            "${style}" \
+                                            "${kitchendir}" \
+                                            "$@"
          then
             return 1
          fi
@@ -1480,25 +1482,26 @@ ${C_INFO}Frameworks can not be built with multi-phase currently."
       fi
 
       craft::build::handle "install" \
-                   "${project}" \
-                   "${marks}" \
-                   "${sdk}" \
-                   "${platform}" \
-                   "${configuration}" \
-                   "${style}" \
-                   "${kitchendir}" \
-                   "Singlephase" \
-                   "$@"
+                           "${project}" \
+                           "${marks}" \
+                           "${sdk}" \
+                           "${platform}" \
+                           "${configuration}" \
+                           "${style}" \
+                           "${kitchendir}" \
+                           "Singlephase" \
+                           "$@"
       rval=$?
 
       if ! craft::build::handle_rval "$rval" \
-                             "${marks}" \
-                             "${donefile}" \
-                             "${line}" \
-                             "${project}"
+                                     "${marks}" \
+                                     "${donefile}" \
+                                     "${line}" \
+                                     "${project}"
       then
-         craft::style::r_name_from_project "${project}"
-         log_info "View logs with
+         craft::path::r_name_from_project "${project}"
+
+         _log_info "View logs with
 ${C_RESET_BOLD}   mulle-sde log $RVAL"
          return 1
       fi
@@ -1507,20 +1510,19 @@ ${C_RESET_BOLD}   mulle-sde log $RVAL"
       then
          return $rval
       fi
-   done
-   shell_enable_glob; IFS="${DEFAULT_IFS}"
+   .done
 
    # left over parallel
    if [ ! -z "${parallel}" ]
    then
       if ! craft::build::handle_parallel "${parallel}" \
-                                  "${donefile}" \
-                                  "${sdk}" \
-                                  "${platform}" \
-                                  "${configuration}" \
-                                  "${style}" \
-                                  "${kitchendir}" \
-                                  "$@"
+                                         "${donefile}" \
+                                         "${sdk}" \
+                                         "${platform}" \
+                                         "${configuration}" \
+                                         "${style}" \
+                                         "${kitchendir}" \
+                                         "$@"
       then
          return 1
       fi
@@ -1537,14 +1539,14 @@ craft::build::do_craftorder()
    local kitchendir="$1"; shift
    local version="$1"; shift
 
-   [ -z "${craftorderfile}" ]  && internal_fail "craftorderfile is missing"
-   [ -z "${kitchendir}" ]      && internal_fail "kitchendir is missing"
+   [ -z "${craftorderfile}" ]  && _internal_fail "craftorderfile is missing"
+   [ -z "${kitchendir}" ]      && _internal_fail "kitchendir is missing"
 
    [ -z "${DEPENDENCY_DIR}" ]  && fail "DEPENDENCY_DIR is undefined"
-   [ -z "${CONFIGURATIONS}" ]  && internal_fail "CONFIGURATIONS is empty"
-   [ -z "${SDKS}" ]            && internal_fail "SDKS is empty"
-   [ -z "${PLATFORMS}" ]       && internal_fail "PLATFORMS is empty"
-   [ -z "${DISPENSE_STYLE}" ]  && internal_fail "DISPENSE_STYLE is empty"
+   [ -z "${CONFIGURATIONS}" ]  && _internal_fail "CONFIGURATIONS is empty"
+   [ -z "${SDKS}" ]            && _internal_fail "SDKS is empty"
+   [ -z "${PLATFORMS}" ]       && _internal_fail "PLATFORMS is empty"
+   [ -z "${DISPENSE_STYLE}" ]  && _internal_fail "DISPENSE_STYLE is empty"
 
    #
    # "NONE" creates no dependency folder
@@ -1573,7 +1575,7 @@ craft::build::do_craftorder()
    if [ -z "${craftorder}" ]
    then
       craft::dependency::end_update 'complete' || exit 1
-      log_verbose "The craftorder file is empty, nothing to build \
+      _log_verbose "The craftorder file is empty, nothing to build \
 (${craftorderfile#${MULLE_USER_PWD}/})"
       return
    fi
@@ -1615,20 +1617,20 @@ craft::build::do_craftorder()
             local filtered
 
             craft::qualifier::r_filtered_craftorder "${craftorder}" \
-                                  "${sdk}" \
-                                  "${platform}" \
-                                  "${configuration}" \
-                                  "${match_version}"
+                                                    "${sdk}" \
+                                                    "${platform}" \
+                                                    "${configuration}" \
+                                                    "${match_version}"
             filtered="${RVAL}"
 
             if ! craft::build::_do_craftorder "${filtered}" \
-                                      "${kitchendir}" \
-                                      "${match_version}" \
-                                      "${sdk}" \
-                                      "${platform}" \
-                                      "${configuration}" \
-                                      "${style}" \
-                                      "$@"
+                                              "${kitchendir}" \
+                                              "${match_version}" \
+                                              "${sdk}" \
+                                              "${platform}" \
+                                              "${configuration}" \
+                                              "${style}" \
+                                              "$@"
             then
                return 1
             fi
@@ -1666,26 +1668,27 @@ craft::build::do_mainproject()
    platform="${platform:-${MULLE_UNAME}}"
    configuration="${configuration:-Debug}"
 
-   local definitiondir
 
-   craft::path::r_determine_definition_dir "${name}" \
-                              "${PWD}" \
-                              "mainproject" \
-                              "${OPTION_PLATFORM_CRAFTINFO}" \
-                              "${OPTION_LOCAL_CRAFTINFO}" \
-                              "${sdk}" \
-                              "${platform}" \
-                              "${configuration}" \
-                              "auto"
-   case $? in
-      0|2)
-      ;;
+   local definition_dir
 
-      *)
-         exit 1
-      ;;
-   esac
-   definitiondir="${RVAL}"
+   definition_dir="${INFO_DIR}"
+   if [ -z "${definition_dir}" ]
+   then
+      craft::craftinfo::r_find_project_item "${name}" \
+                                            "${PWD}" \
+                                            "${OPTION_PLATFORM_CRAFTINFO}" \
+                                            "${platform}" \
+                                            "definition"
+      case $? in
+         0|2)
+         ;;
+
+         *)
+            exit 1
+         ;;
+      esac
+      definition_dir="${RVAL}"
+   fi
 
 #   local craftinfodir
 #
@@ -1709,26 +1712,26 @@ craft::build::do_mainproject()
 #   craftinfodir="${RVAL}"
 
    # always set --info-dir
-   if [ ! -z "${definitiondir}" ]
+   if [ ! -z "${definition_dir}" ]
    then
-      r_concat "${OPTIONS_MULLE_MAKE_PROJECT}" "--definition-dir '${definitiondir}'"
+      r_concat "${OPTIONS_MULLE_MAKE_PROJECT}" "--definition-dir '${definition_dir}'"
       OPTIONS_MULLE_MAKE_PROJECT="${RVAL}"
    else
       r_concat "${OPTIONS_MULLE_MAKE_PROJECT}" "--definition-dir 'NONE'"
       OPTIONS_MULLE_MAKE_PROJECT="${RVAL}"
    fi
 
-   include "craft::style"
+
 
    #
    # find proper build and log directory (always relax)
    #
    local kitchendir
 
-   craft::style::r_mainproject_kitchendir "${sdk}" \
-                                  "${platform}" \
-                                  "${configuration}" \
-                                  "${KITCHEN_DIR}"
+   craft::path::r_mainproject_kitchendir "${sdk}" \
+                                         "${platform}" \
+                                         "${configuration}" \
+                                         "${KITCHEN_DIR}"
    kitchendir="${RVAL}"
 
    local logdir
@@ -1801,7 +1804,8 @@ craft::build::do_mainproject()
 
    local sdk_path
 
-   craft::style::r_get_mulle_sdk_path "${sdk}" "${platform}" "${style}"
+
+   craft::path::r_get_mulle_sdk_path "${sdk}" "${platform}" "${style}"
    sdk_path="${RVAL}"
    
    if [ ! -z "${sdk_path}" ]
@@ -1900,11 +1904,11 @@ craft::build::common()
    local OPTION_CALLBACK
 
    # header install phase currently not installing for some reason
-   case "${MULLE_UNAME}" in 
-      windows|mingw*)
-         OPTION_PARALLEL="NO"
-      ;;
-   esac
+#  case "${MULLE_UNAME}" in
+#     windows|mingw*)
+#        OPTION_PARALLEL="NO"
+#     ;;
+#  esac
 
    while [ $# -ne 0 ]
    do
@@ -2110,8 +2114,8 @@ craft::build::common()
    done
 
 
-   [ -z "${KITCHEN_DIR}" ] && internal_fail "KITCHEN_DIR not set"
-   [ -z "${MULLE_UNAME}" ] && internal_fail "MULLE_UNAME not set"
+   [ -z "${KITCHEN_DIR}" ] && _internal_fail "KITCHEN_DIR not set"
+   [ -z "${MULLE_UNAME}" ] && _internal_fail "MULLE_UNAME not set"
 
    DISPENSE_STYLE="${DISPENSE_STYLE:-none}"
    CONFIGURATIONS="${CONFIGURATIONS:-Debug}"
@@ -2134,11 +2138,6 @@ craft::build::common()
       r_absolutepath "${DEPENDENCY_DIR}"
       DEPENDENCY_DIR="${RVAL}"
    fi
-   if [ ! -z "${CRAFTINFO_PATH}" ]
-   then
-      r_absolutepath "${CRAFTINFO_PATH}"
-      CRAFTINFO_PATH="${RVAL}"
-   fi
 
    filenameenv="${KITCHEN_DIR}/.mulle-craft"
    currentenv="${MULLE_UNAME};${MULLE_HOSTNAME};${MULLE_USERNAME}"
@@ -2153,14 +2152,11 @@ craft::build::common()
 ${currentenv}"
    fi
 
-   if [ -z "${MULLE_CRAFT_PATH_SH}" ]
-   then
-      . "${MULLE_CRAFT_LIBEXEC_DIR}/mulle-craft-path.sh" || exit 1
-   fi
-   if [ -z "${MULLE_CRAFT_SEARCHPATH_SH}" ]
-   then
-      . "${MULLE_CRAFT_LIBEXEC_DIR}/mulle-craft-searchpath.sh" || exit 1
-   fi
+   include "craft::style"
+   include "craft::path"
+   include "craft::craftinfo"
+   include "craft::searchpath"
+
 
    if [ "${OPTION_USE_CRAFTORDER}" = 'YES' ]
    then
@@ -2178,13 +2174,8 @@ ${currentenv}"
          fail "Missing craftorder file \"${CRAFTORDER_FILE}\""
       fi
 
-      if [ -z "${MULLE_CRAFT_QUALIFIER_SH}" ]
-      then
-         . "${MULLE_CRAFT_LIBEXEC_DIR}/mulle-craft-qualifier.sh" || exit 1
-      fi
-
-      [ -z "${MULLE_CRAFT_DEPENDENCY_SH}" ] && \
-         . "${MULLE_CRAFT_LIBEXEC_DIR}/mulle-craft-dependency.sh"
+      include "craft::qualifier"
+      include "craft::dependency"
 
       craft::build::do_craftorder "${CRAFTORDER_FILE}" \
                           "${CRAFTORDER_KITCHEN_DIR}" \
@@ -2196,7 +2187,7 @@ ${currentenv}"
    #
    # Build the project
    #
-   [ "${OPTION_USE_PROJECT}" = 'YES' ] || internal_fail "hein ?"
+   [ "${OPTION_USE_PROJECT}" = 'YES' ] || _internal_fail "hein ?"
 
    # don't build if only headers are built for example
    case "${OPTION_PHASES}" in

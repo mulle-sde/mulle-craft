@@ -1,4 +1,7 @@
-#! /usr/bin/env bash
+# shellcheck shell=bash
+# shellcheck disable=SC2236
+# shellcheck disable=SC2166
+# shellcheck disable=SC2006
 #
 #   Copyright (c) 2017 Nat! - Mulle kybernetiK
 #   All rights reserved.
@@ -172,7 +175,7 @@ craft::dependency::_install_tarballs()
 #
 craft::dependency::get_state()
 {
-   [ -z "${DEPENDENCY_DIR}" ] && internal_fail "DEPENDENCY_DIR not set"
+   [ -z "${DEPENDENCY_DIR}" ] && _internal_fail "DEPENDENCY_DIR not set"
 
    if ! rexekutor egrep -v '^#' "${DEPENDENCY_DIR}/.state" 2> /dev/null
    then
@@ -249,7 +252,7 @@ craft::dependency::get_timestamp()
 {
    log_entry "craft::dependency::get_timestamp" "$@"
 
-   [ -z "${DEPENDENCY_DIR}" ] && internal_fail "DEPENDENCY_DIR not set"
+   [ -z "${DEPENDENCY_DIR}" ] && _internal_fail "DEPENDENCY_DIR not set"
 
    if [ -f "${DEPENDENCY_DIR}/.state" ]
    then
@@ -264,8 +267,8 @@ craft::dependency::init()
 
    local style="$1"
 
-   [ -z "${style}" ] && internal_fail "style not set"
-   [ -z "${DEPENDENCY_DIR}" ] && internal_fail "DEPENDENCY_DIR not set"
+   [ -z "${style}" ] && _internal_fail "style not set"
+   [ -z "${DEPENDENCY_DIR}" ] && _internal_fail "DEPENDENCY_DIR not set"
 
    mkdir_if_missing "${DEPENDENCY_DIR}"
 
@@ -281,7 +284,7 @@ craft::dependency::unprotect()
 {
    log_entry "craft::dependency::unprotect" "$@"
 
-   [ -z "${DEPENDENCY_DIR}" ] && internal_fail "DEPENDENCY_DIR not set"
+   [ -z "${DEPENDENCY_DIR}" ] && _internal_fail "DEPENDENCY_DIR not set"
 
    if [ ! -d "${DEPENDENCY_DIR}" ]
    then
@@ -305,7 +308,7 @@ craft::dependency::protect()
 {
    log_entry "craft::dependency::protect" "$@"
 
-   [ -z "${DEPENDENCY_DIR}" ] && internal_fail "DEPENDENCY_DIR not set"
+   [ -z "${DEPENDENCY_DIR}" ] && _internal_fail "DEPENDENCY_DIR not set"
 
    if [ ! -d "${DEPENDENCY_DIR}" ]
    then
@@ -331,7 +334,7 @@ craft::dependency::clean()
 {
    log_entry "craft::dependency::clean" "$@"
 
-   [ -z "${DEPENDENCY_DIR}" ] && internal_fail "DEPENDENCY_DIR not set"
+   [ -z "${DEPENDENCY_DIR}" ] && _internal_fail "DEPENDENCY_DIR not set"
 
    if [ "${OPTION_PROTECT_DEPENDENCY}" = 'YES' ]
    then
@@ -351,7 +354,7 @@ craft::dependency::begin_update()
    local style="$1"
    local warnonrentry="${2:-nowarn}"
 
-   [ -z "${DEPENDENCY_DIR}" ] && internal_fail "DEPENDENCY_DIR not set"
+   [ -z "${DEPENDENCY_DIR}" ] && _internal_fail "DEPENDENCY_DIR not set"
 
    local state
 
@@ -382,7 +385,7 @@ craft::dependency::begin_update()
       ;;
 
       *)
-         internal_fail "Empty or unknown dependency state \"${state}\""
+         _internal_fail "Empty or unknown dependency state \"${state}\""
       ;;
    esac
 
@@ -407,7 +410,7 @@ craft::dependency::end_update()
 
    local state="${1:-ready}"
 
-   [ -z "${DEPENDENCY_DIR}" ] && internal_fail "DEPENDENCY_DIR not set"
+   [ -z "${DEPENDENCY_DIR}" ] && _internal_fail "DEPENDENCY_DIR not set"
 
    log_fluff "Dependency update ended with ${state}"
 
@@ -454,7 +457,7 @@ craft::dependency::r_existing_dirs_path()
 
    local subdirectories="$1"
 
-   [ -z "${DEPENDENCY_DIR}" ] && internal_fail "DEPENDENCY_DIR not set"
+   [ -z "${DEPENDENCY_DIR}" ] && _internal_fail "DEPENDENCY_DIR not set"
 
    local subdir
 
@@ -484,7 +487,7 @@ craft::dependency::r_dir_locations()
    local configuration="$3"
    local style="$4"
 
-   [ -z "${DEPENDENCY_DIR}" ] && internal_fail "DEPENDENCY_DIR not set"
+   [ -z "${DEPENDENCY_DIR}" ] && _internal_fail "DEPENDENCY_DIR not set"
 
    if [ -z "${MULLE_CRAFT_STYLE_SH}" ]
    then

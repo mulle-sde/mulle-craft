@@ -44,6 +44,8 @@ do
          do
             mulle-make install --configuration "${configuration}" \
                                --sdk "${sdk}" \
+                               --definition-dir ".mulle/share/craft/definition" \
+                               --aux-definition-dir "dependency/share/mulle-craft/${project}/definition" \
                                --platform "${platform}" \
                                --prefix "${tmpdir}" \
                                "${project}"
@@ -66,26 +68,35 @@ So it's conceptually fairly simple, if you know how
 But then there are also variations and options :)
 
 
-### The *info folder*
+### The craftinfo and the definition folder
 
-**mulle-make** accepts a so called *info-folder*, which contains compile
-flags and environment variables to craft a project.
+**mulle-make** accepts a so called *definition-folder*, which contains compile
+flags and environment variables "definitions" to craft a project.
+These definitions can be supplemented and overridden by an auxiliary definition
+folder.
 
-These can be platform specific, but don't have to be. It is one of
-**mulle-craft** tasks to pick the right *info-folder* and feed it to
+In a typical mulle-sde project the main definition-folder is located in the
+`.main/<share|etc>/craft` folder. The auxiliary definition folder is
+found inside `dependency/share/mulle-craft/${projectname}`.
+This location is called the "craftinfo" as it can also contain other craft
+related information besides the definitions..
+
+These definitions can be platform specific. A folder suffix
+distinguishes between the definitions for the various platforms. It is one of
+**mulle-craft** tasks to pick the right *definition-folders* and feed them to
 **mulle-make**.
 
 
-#### How mulle-craft searches for the *info-folder*
+#### How mulle-craft searches for the craftinfo
 
 First the `dependency/share/mulle-craft` folder will be searched
 for matching folders. A match is made if the name of the to-be-built
-project is the same as the *info-folder* name (without extension).
+project is the same as the *craftinfo* name (without extension).
 
-An *info-folder* may have an extension, which can be one of the simplified
-`mulle-craft uname` outputs, which are platform specific.
-An *info-folder* with a matching extension is preferred over a matching name
-with no extension.
+Inside the *craftinfo* folder there are the "definitions". A *definition-folder*
+may have an extension (one of the platform specific.`mulle-craft uname`
+outputs. A *definition-folder* with a matching extension is preferred over a
+matching name with no extension.
 
 If mulle-craft finds no info-folder there then a project specific
 `.mulle/etc/craft` or `.mulle/share/craft` folder is searched if present.

@@ -1,4 +1,7 @@
-#! /usr/bin/env bash
+# shellcheck shell=bash
+# shellcheck disable=SC2236
+# shellcheck disable=SC2166
+# shellcheck disable=SC2006
 #
 #   Copyright (c) 2021 Nat! - Mulle kybernetiK
 #   All rights reserved.
@@ -194,9 +197,9 @@ craft::qualifier::r_craftorder_qualifier()
 
 craft::qualifier::include_nodemarks_if_needed()
 {
-   if [ -z "${MULLE_SOURCETREE_NODEMARKS_SH}" ]
+   if ! [ ${MULLE_SOURCETREE_NODEMARKS_SH+x} ]
    then
-      if [ -z "${MULLE_SOURCETREE_LIBEXEC_DIR}" ]
+      if ! [ ${MULLE_SOURCETREE_LIBEXEC_DIR+x} ]
       then
          MULLE_SOURCETREE_LIBEXEC_DIR="`"${MULLE_SOURCETREE:-mulle-sourcetree}" libexec-dir`"
       fi
@@ -396,7 +399,7 @@ craft::qualifier::main()
 
          if [ "${warn}" = 'YES' ]
          then
-            log_warning "warning: version-min-${OPTION_PLATFORM:-${MULLE_UNAME}} needs \
+            _log_warning "warning: version-min-${OPTION_PLATFORM:-${MULLE_UNAME}} needs \
 version-max-${OPTION_PLATFORM:-${MULLE_UNAME}} to work and vice versa"
          fi
 

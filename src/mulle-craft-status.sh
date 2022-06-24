@@ -1,4 +1,7 @@
-#! /usr/bin/env bash
+# shellcheck shell=bash
+# shellcheck disable=SC2236
+# shellcheck disable=SC2166
+# shellcheck disable=SC2006
 #
 #   Copyright (c) 2018 Nat! - Mulle kybernetiK
 #   Copyright (c) 2018 Nat! - Codeon GmbH
@@ -65,11 +68,8 @@ craft::status::r_get_names_from_file()
    local line
    local names
 
-   shell_disable_glob; IFS=$'\n'
-   for line in ${lines}
-   do
-      shell_enable_glob; IFS="${DEFAULT_IFS}"
-
+   .foreachline line in ${lines}
+   .do
       local project
       local marks
 
@@ -86,9 +86,7 @@ craft::status::r_get_names_from_file()
             names="${RVAL}"
          ;;
       esac
-
-   done
-   shell_enable_glob; IFS="${DEFAULT_IFS}"
+   .done
 
    RVAL="${names}"
 }
@@ -103,6 +101,7 @@ craft::status::output_names_with_status()
    local configuration="$3"
 
    shift 3
+
    local all_names="$1"
    local built_names="$2"
    local kitchendir="$3"
@@ -148,49 +147,43 @@ craft::status::output_names_with_status()
       ;;
    esac
 
-   shell_disable_glob; IFS=$'\n'
-   for name in ${all_names}
-   do
+   include "craft::path"
+
+   .foreachline name in ${all_names}
+   .do
       #
       # get remapped _configuration
       # get actual _kitchendir
       #
 
-      if [ -z "${MULLE_CRAFT_STYLE_SH}" ]
-      then
-         . "${MULLE_CRAFT_LIBEXEC_DIR}/mulle-craft-style.sh"
-      fi
 
       if [ "${is_main}" = "YES" ]
       then
-         craft::style::r_mainproject_kitchendir "${sdk}" \
+         craft::path::r_mainproject_kitchendir "${sdk}" \
                                         "${platform}" \
                                         "${configuration}" \
                                         "${kitchendir}"
          _kitchendir="${RVAL}"
          _configuration="${configuration}"
       else
-         craft::style::_evaluate_variables "${name}" \
-                                   "${sdk}" \
-                                   "${platform}" \
-                                   "${configuration}" \
-                                   "relax" \
-                                   "${kitchendir}" \
-                                   "NO"
+         craft::path::_evaluate_variables "${name}" \
+                                          "${sdk}" \
+                                          "${platform}" \
+                                          "${configuration}" \
+                                          "relax" \
+                                          "${kitchendir}" \
+                                          "NO"
       fi
 
       phase="`egrep -v '^#' "${_kitchendir}/.phase" 2> /dev/null`"
       project="`egrep -v '^#' "${_kitchendir}/.project" 2> /dev/null`"
       rval="`egrep -v '^#' "${_kitchendir}/.status" 2> /dev/null`"
 
-      if [ "${MULLE_FLAG_LOG_SETTINGS}" = 'YES' ]
-      then
-         log_trace2 "_kitchendir    : ${_kitchendir}"
-         log_trace2 "_configuration : ${_configuration}"
-         log_trace2 "phase          : ${phase}"
-         log_trace2 "project        : ${project}"
-         log_trace2 "rval           : ${rval}"
-      fi
+      log_setting "_kitchendir    : ${_kitchendir}"
+      log_setting "_configuration : ${_configuration}"
+      log_setting "phase          : ${phase}"
+      log_setting "project        : ${project}"
+      log_setting "rval           : ${rval}"
 
       # make it so it lists completed phases, which is less confusing IMO
       if [ ! -z "${phase}" ]
@@ -245,8 +238,7 @@ craft::status::output_names_with_status()
       else
          printf ";%s\n" "${state}"
       fi
-   done
-   shell_enable_glob; IFS="${DEFAULT_IFS}"
+   .done
 }
 
 
@@ -282,9 +274,9 @@ craft::status::__parse_triple()
 
    if [ "${MULLE_FLAG_LOG_SETTINGS}" = 'YES' ]
    then
-      log_trace2 "sdk:           ${_sdk}"
-      log_trace2 "platform:      ${_platform}"
-      log_trace2 "configuration: ${_configuration}"
+      log_setting "sdk:           ${_sdk}"
+      log_setting "platform:      ${_platform}"
+      log_setting "configuration: ${_configuration}"
    fi
 }
 
@@ -320,7 +312,7 @@ craft::status::output_with_donefile()
 
    craft::status::__parse_donefile "${donefile}"
 
-   log_info " SDK:${C_MAGENTA}${C_BOLD}${_sdk}${C_INFO} \
+   _log_info " SDK:${C_MAGENTA}${C_BOLD}${_sdk}${C_INFO} \
 Platform:${C_MAGENTA}${C_BOLD}${_platform}${C_INFO} \
 Configuration:${C_MAGENTA}${C_BOLD}${_configuration}${C_INFO}"
 
@@ -376,7 +368,7 @@ craft::status::main()
    done
 
    [ -z "${CRAFTORDER_KITCHEN_DIR}" ] \
-   && internal_fail "CRAFTORDER_KITCHEN_DIR is empty"
+   && _internal_fail "CRAFTORDER_KITCHEN_DIR is empty"
 
    if [ -z "${CRAFTORDER_FILE}" ]
    then
@@ -455,11 +447,11 @@ craft::status::main()
    if [ ! -z "${dependency_donefiles}" ]
    then
       log_info "Craft status of ${C_RESET_BOLD}${DEPENDENCY_DIR#${MULLE_USER_PWD}/}"
-      for donefile in ${dependency_donefiles}
-      do
+      .for donefile in ${dependency_donefiles}
+      .do
          craft::status::output_with_donefile "${donefile}" \
-                                     "${CRAFTORDER_KITCHEN_DIR}"
-      done
+                                             "${CRAFTORDER_KITCHEN_DIR}"
+      .done
    fi
 
    if [ -f "${KITCHEN_DIR}/.mulle-craft-last" ]
@@ -476,10 +468,13 @@ craft::status::main()
 
       craft::status::__parse_triple "${triple//;/--}"
 
-      craft::status::output "${_sdk}" "${_platform}" "${_configuration}" \
-                          "${PROJECT_NAME}" "${PROJECT_NAME}" \
-                          "${KITCHEN_DIR}" "${mode}" \
-
+      craft::status::output "${_sdk}" \
+                            "${_platform}" \
+                            "${_configuration}" \
+                            "${PROJECT_NAME}" \
+                            "${PROJECT_NAME}" \
+                            "${KITCHEN_DIR}" \
+                            "${mode}"
    fi
 }
 

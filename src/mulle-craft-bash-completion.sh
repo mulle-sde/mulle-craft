@@ -35,7 +35,7 @@
 _mulle_craft_complete()
 {
    local cur=${COMP_WORDS[COMP_CWORD]}
-   local prev=${COMP_WORDS[COMP_CWORD-1]}
+#   local prev=${COMP_WORDS[COMP_CWORD-1]}
 
    local i
    local context

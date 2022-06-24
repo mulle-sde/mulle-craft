@@ -1,6 +1,14 @@
-#! /usr/bin/env bash
+#! /bin/sh
 
 [ "${TRACE}" = 'YES' ] && set -x && : "$0" "$@"
+
+
+###   ###   ###   ###   ###   ###   ###   ###   ###   ###   ###   ###   ###
+MULLE_BASHFUNCTIONS_LIBEXEC_DIR="`mulle-bashfunctions libexec-dir`" || exit 1
+export MULLE_BASHFUNCTIONS_LIBEXEC_DIR
+. "${MULLE_BASHFUNCTIONS_LIBEXEC_DIR}/mulle-boot.sh" || exit 1
+. "${MULLE_BASHFUNCTIONS_LIBEXEC_DIR}/mulle-bashfunctions-minimal.sh" || exit 1
+###   ###   ###   ###   ###   ###   ###   ###   ###   ###   ###   ###   ###
 
 
 filter_darwin()
@@ -43,8 +51,8 @@ emit_defines()
    local escaped_test_path
    local escaped_tmp_path
 
-   [ -z "${MULLE_TEST_DIR}" ] && internal_fail "MULLE_TEST_DIR is undefined"
-   [ -z "${MULLE_TMP_DIR}" ] && internal_fail "MULLE_TMP_DIR is undefined"
+   [ -z "${MULLE_TEST_DIR}" ] && _internal_fail "MULLE_TEST_DIR is undefined"
+   [ -z "${MULLE_TMP_DIR}" ] && _internal_fail "MULLE_TMP_DIR is undefined"
 
    r_escaped_sed_pattern "${MULLE_TEST_DIR}"
    escaped_test_path="${RVAL}"
@@ -62,7 +70,7 @@ main()
    # remove mock- prefix , convert to uppercase, append _REDIRECT_FILE
    envvar="`basename -- "$0" | sed 's/^mock-\(.*\)/\1/' | tr 'a-z-' 'A-Z_'`_REDIRECT_FILE"
 
-   if [ ! -z "${ZSH_VERSION}" ]
+   if [ ${ZSH_VERSION+x} ]
    then
       filename="${(P)envvar}"
    else
@@ -79,13 +87,4 @@ main()
 }
 
 
-init()
-{
-   MULLE_BASHFUNCTIONS_LIBEXEC_DIR="`mulle-bashfunctions libexec-dir`"
-
-   . "${MULLE_BASHFUNCTIONS_LIBEXEC_DIR}/mulle-bashfunctions-minimal.sh" || exit 1
-}
-
-
-init "$@"
 main "$@"

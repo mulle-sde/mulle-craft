@@ -1,4 +1,7 @@
-#! /usr/bin/env bash
+# shellcheck shell=bash
+# shellcheck disable=SC2236
+# shellcheck disable=SC2166
+# shellcheck disable=SC2006
 #
 #   Copyright (c) 2017 Nat! - Mulle kybernetiK
 #   All rights reserved.
@@ -38,9 +41,9 @@ craft::log::usage()
 
     cat <<EOF >&2
 Usage:
-   ${MULLE_USAGE_NAME} log [options] [project] [command]
+   ${MULLE_USAGE_NAME} log [options] [command] [project]
 
-   List available build logs and run arbitrary commands on them like
+   List available build logs or run arbitrary commands on them like
    'cat' or 'grep', where 'cat' is the default.
 
    Show last project logs with:
@@ -182,7 +185,7 @@ craft::log::list()
    local configuration
    local OPTION_OUTPUT="DEFAULT"
 
-   while :
+   while [ $# -ne 0 ]
    do
       case "$1" in
          -h*|--help|help)
@@ -224,20 +227,17 @@ craft::log::list()
    then
       log_info "Project logs"
 
-      shell_disable_glob; IFS=$'\n'
-      for directory in ${directories}
-      do
-         IFS="${DEFAULT_IFS}" ; shell_enable_glob
-
+      .foreachline directory in ${directories}
+      .do
          r_dirname "${directory#${KITCHEN_DIR}/}"
          configuration="${RVAL}"
 
          craft::log::list_tool_logs "${OPTION_OUTPUT}" "${directory}" "" "${configuration}"
-      done
-      IFS="${DEFAULT_IFS}" ; shell_enable_glob
+      .done
    fi
 
-   directories="`craft::log::craftorder_log_dirs`"
+   directories="`craft::log::craftorder_log_dirs`" || exit 1
+
    log_debug "Craftorder log-directories: ${directories}"
 
    if [ ! -z "${directories}" ]
@@ -247,179 +247,187 @@ craft::log::list()
       local configuration_name
       local name
 
-      shell_disable_glob; IFS=$'\n'
-      for directory in ${directories}
-      do
-         IFS="${DEFAULT_IFS}" ; shell_enable_glob
-
+      .foreachline directory in ${directories}
+      .do
          r_dirname "${directory#${CRAFTORDER_KITCHEN_DIR}/}"
          configuration_name="${RVAL}"
          configuration="${configuration_name%%/*}"
          name="${configuration_name#*/}"
+
          craft::log::list_tool_logs "${OPTION_OUTPUT}" "${directory}" "${name}" "${configuration}"
-      done
-      IFS="${DEFAULT_IFS}" ; shell_enable_glob
+      .done
    fi
 }
+
+
+craft::log::craftorders()
+{
+   log_entry "craft::log::craftorders" "$@"
+
+   local name="$1"
+   local cmd="$2"
+
+   shift 2
+
+   local lastsdk
+   local lastplatform
+   local lastconfiguration
+   local lastvalues
+
+   lastvalues="`rexekutor egrep -s -v '^#' "${CRAFTORDER_KITCHEN_DIR}/.mulle-craft-last"`"
+
+   lastsdk="${lastvalues%%;*}"
+   lastplatform="${lastvalues%;*}"
+   lastplatform="${lastplatform#*;}"
+   lastconfiguration="${lastvalues##*;}"
+
+   log_debug "lastvalues: ${lastsdk};${lastplatform};${lastconfiguration}"
+
+   local sdk="${OPTION_SDK}"
+   local platform="${OPTION_PLATFORM}"
+   local style="${OPTION_SDK:-${MULLE_CRAFT_DISPENSE_STYLE:-none}}"
+
+   configuration="${OPTION_CONFIGURATION}"
+   configuration="${configuration:-${lastconfiguration}}"
+   configuration="${configuration:-Release}"
+
+   sdk="${sdk:-${lastsdk}}"
+   platform="${platform:-${lastplatform}}"
+
+   sdk="${sdk:-Default}"
+   platform="${platform:-${MULLE_UNAME}}"
+
+   include "craft::style"
+
+   log_setting "sdk           : ${sdk}"
+   log_setting "platform      : ${platform}"
+   log_setting "configuration : ${configuration}"
+
+   local _kitchendir
+   local _configuration
+   local _evaledproject
+   local _name
+
+   include "craft::path"
+
+   craft::path::_evaluate_variables "${name}" \
+                                    "${sdk}" \
+                                    "${platform}" \
+                                    "${configuration}" \
+                                    "${style}" \
+                                    "${CRAFTORDER_KITCHEN_DIR#${PWD}/}" \
+                                    "NO"
+
+   log_debug "Build directory: ${_kitchendir}"
+
+   # build/.craftorder/Debug/mulle-c11/.log/
+   local globpattern
+
+   r_filepath_concat "${_kitchendir}" ".log" "*.${OPTION_TOOL}.log"
+   globpattern="${RVAL}"
+#      echo ${globpattern}
+
+   # just ensure globbing is ON!, as its the default
+   shell_enable_nullglob
+   shell_enable_glob
+
+   local found
+   local i
+
+   for i in ${globpattern}
+   do
+      log_info "${C_RESET_BOLD}${i}:"
+      exekutor "${cmd}" "$@" "${i}"
+      found="YES"
+   done
+
+   shell_disable_nullglob
+
+   if [ -z "${found}" ]
+   then
+      log_verbose "No craftorder logs match for \"${name}\" (${globpattern})"
+   fi
+}
+
+
+craft::log::project()
+{
+   log_entry "craft::log::project" "$@"
+
+   local cmd="$1"
+
+   [ $# -ne 0 ] && shift
+
+   log_info "${PROJECT_NAME:-${PWD}}"
+
+   local configuration
+
+   configuration="${OPTION_CONFIGURATION}"
+   configuration="${configuration:-Release}"
+
+   local logfiles
+   local directory
+
+   directory="${KITCHEN_DIR#${PWD}/}"
+
+   shell_enable_nullglob
+   shell_is_glob_enabled || _internal_fail "glob is disabled"
+
+   IFS=$'\n'
+   log_debug "Log pattern : ${directory}/${configuration}/.log/*.${OPTION_TOOL}.log"
+   logfiles=$( ls -1 "${directory}"/${configuration}/.log/*.${OPTION_TOOL}.log )
+   shell_disable_nullglob
+   IFS="${DEFAULT_IFS}"
+
+   if [ ! -z "${logfiles}" ]
+   then
+      local i
+
+      .foreachline i in ${logfiles}
+      .do
+         log_info "${C_RESET_BOLD}${i}:"
+         exekutor "${cmd}" "$@" "${i}"
+      .done
+   else
+      log_verbose "No project logs match"
+   fi
+}
+
 
 
 craft::log::command()
 {
    log_entry "craft::log::command" "$@"
 
-   local name="$1"; shift
-
-   while :
-   do
-      case "$1" in
-         -h*|--help|help)
-            craft::log::usage
-         ;;
-
-         -*)
-            craft::log::usage "Unknown option \"$1\""
-         ;;
-
-         *)
-            break
-         ;;
-      esac
-
-      shift
-   done
+   local name="$1"
+   [ $# -ne 0 ] && shift
 
    local cmd="${1:-cat}"
    [ $# -ne 0 ] && shift
 
-   local directory
-   local logfiles
-   local logfile
-
-   local sdk="${OPTION_SDK}"
-   local platform="${OPTION_PLATFORM}"
-   local configuration="${OPTION_CONFIGURATION}"
-   local style="${MULLE_CRAFT_DISPENSE_STYLE:-none}"
-
-   local lastsdk
-   local lastplatform
-   local lastconfiguration
-
-   if [ -z "${name}" ]
+   if [ ! -z "${name}" ]
    then
       #
       # try to figure out what the last run used for sdk/platform/config
       # use these values as default, if none are specified
       #
-      local lastvalues
-
-      lastvalues="`rexekutor egrep -s -v '^#' "${CRAFTORDER_KITCHEN_DIR}/.mulle-craft-last"`"
-
-      lastsdk="${lastvalues%%;*}"
-      lastplatform="${lastvalues%;*}"
-      lastplatform="${lastplatform#*;}"
-      lastconfiguration="${lastvalues##*;}"
-
-      log_debug "lastvalues: ${lastsdk};${lastplatform};${lastconfiguration}"
+      craft::log::craftorders "${name}" "${cmd}" "$@"
    fi
 
-   sdk="${sdk:-${lastsdk}}"
-   platform="${platform:-${lastplatform}}"
-   configuration="${configuration:-${lastconfiguration}}"
-
-   sdk="${sdk:-Default}"
-   platform="${platform:-${MULLE_UNAME}}"
-   configuration="${configuration:-Release}"
-
-
-   if [ ! -z "${name}" ]
-   then
-      [ -z "${MULLE_CRAFT_STYLE_SH}" ] && \
-            . "${MULLE_CRAFT_LIBEXEC_DIR}/mulle-craft-style.sh"
-
-
-      local _kitchendir
-      local _configuration
-      local _evaledproject
-      local _name
-
-      craft::style::_evaluate_variables "${name}" \
-                                        "${sdk}" \
-                                        "${platform}" \
-                                        "${configuration}" \
-                                        "${style}" \
-                                        "${CRAFTORDER_KITCHEN_DIR#${PWD}/}" \
-                                        "NO"
-
-      directory="${_kitchendir}"
-
-      log_debug "Build directory: ${directory}"
-
-      # build/.craftorder/Debug/mulle-c11/.log/
-      local prefix
-      local found
-      local globpattern
-
-      globpattern="${directory}/.log/${OPTION_TOOL}.log"
-#      echo ${globpattern}
-
-      # just ensure globbing is ON!
-      shell_enable_nullglob
-#      echo ""
-      for i in ${globpattern}
-      do
-         shell_disable_nullglob
-
-         log_info "${C_RESET_BOLD}${i}:"
-         exekutor "${cmd}" "$@" "${i}"
-         found="YES"
-      done
-      shell_disable_nullglob
-
-      if [ -z "${found}" ]
-      then
-         log_verbose "No craftorder logs match for \"${name}\" (${globpattern})"
-      fi
-   fi
 
    #
    # Show logs of main if only main or all are selected
    #
    case "${name}" in
       ''|'*')
-         log_info "${PROJECT_NAME}"
-
-         directory="${KITCHEN_DIR#${PWD}/}"
-         log_debug "Project build directory: ${directory}"
-
-         # https://stackoverflow.com/questions/2937407/test-whether-a-glob-matches-any-files#
-         logfiles=
-         if rexekutor compgen -G "${directory}" > /dev/null 2>&1
-         then
-            shell_enable_nullglob
-            logfiles="${directory}/${configuration}/.log/*.${OPTION_TOOL}.log"
-            shell_disable_nullglob
-         fi
-
-         if [ ! -z "${logfiles}" ]
-         then
-            shell_enable_nullglob
-            for i in ${logfiles}
-            do
-               shell_disable_nullglob
-               log_info "${C_RESET_BOLD}${i}:"
-               exekutor "${cmd}" "$@" "${i}"
-            done
-            shell_disable_nullglob
-         else
-            log_verbose "No project logs match"
-         fi
+         craft::log::project "${cmd}" "$@"
       ;;
    esac
 }
 
 
 #
-# mulle-craft isn't rules so much by command line arguments
+# mulle-craft isn't ruled so much by command line arguments
 # but uses mostly ENVIRONMENT variables
 # These are usually provided with mulle-sde
 #
@@ -450,6 +458,27 @@ craft::log::main()
             shift
 
             OPTION_CONFIGURATION="$1"
+         ;;
+
+         -p|--platform)
+            [ $# -eq 1 ] && fail "Missing argument to \"$1\""
+            shift
+
+            OPTION_PLATFORM="$1"
+         ;;
+
+         -s|--sdk)
+            [ $# -eq 1 ] && fail "Missing argument to \"$1\""
+            shift
+
+            OPTION_SDK="$1"
+         ;;
+
+         --style)
+            [ $# -eq 1 ] && fail "Missing argument to \"$1\""
+            shift
+
+            OPTION_STYLE="$1"
          ;;
 
          -t|--tool)

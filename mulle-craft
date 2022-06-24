@@ -1,5 +1,10 @@
 #! /bin/sh
 #
+# shellcheck shell=bash
+# shellcheck disable=SC2236
+# shellcheck disable=SC2166
+# shellcheck disable=SC2006
+#
 #   Copyright (c) 2017 Nat! - Mulle kybernetiK
 #   All rights reserved.
 #
@@ -32,7 +37,7 @@
 [ "${TRACE}" = 'YES' -o "${MULLE_CRAFT_TRACE}" = 'YES' ] && set -x && : "$0" "$@"
 
 
-MULLE_EXECUTABLE_VERSION=1.0.0
+MULLE_EXECUTABLE_VERSION=2.0.0
 
 ##########################################################################
 ###   ###   ###   ###   ###   ###   ###   ###   ###   ###   ###   ###   ###
@@ -45,7 +50,7 @@ MULLE_EXECUTABLE_VERSION=1.0.0
 #
 # Figure out MULLE_BASHFUNCTIONS_LIBEXEC_DIR on this machine if needed.
 #
-if [ -z "${MULLE_BASHFUNCTIONS_LIBEXEC_DIR}" ]
+if ! [ ${MULLE_BASHFUNCTIONS_LIBEXEC_DIR+x} ]
 then
    MULLE_BASHFUNCTIONS_LIBEXEC_DIR="`mulle-bashfunctions libexec-dir`" || exit 1
    export MULLE_BASHFUNCTIONS_LIBEXEC_DIR
@@ -55,7 +60,7 @@ fi
 # The booter reruns the executable either with bash or zsh, whatever the
 # system provides. On the second run --no-auto-shell will be set first.
 #
-if [ "$1" != --no-auto-shell ]
+if [ "${1:-}" != --no-auto-shell ]
 then
    . "${MULLE_BASHFUNCTIONS_LIBEXEC_DIR}/mulle-boot.sh" || exit 1
 else
@@ -81,18 +86,19 @@ MULLE_EXECUTABLE="${BASH_SOURCE[0]:-${(%):-%x}}"
 ###   ###   ###   ###   ###   ###   ###   ###   ###   ###   ###   ###   ###
 ###########################################################################
 
-
-
 #
 # Determine location of own libexec directory. Which is `src` in development
 # and ../libexec when deployed. MULLE_EXECUTABLE needs to be defined for this.
 #
 
-if [ -z "${MULLE_CRAFT_LIBEXEC_DIR}" ]
+if ! [ ${MULLE_CRAFT_LIBEXEC_DIR+x} ]
 then
    r_get_libexec_dir "${MULLE_EXECUTABLE}" "mulle-craft" "mulle-craft-clean.sh"
    MULLE_CRAFT_LIBEXEC_DIR="${RVAL}"
 fi
+
+set +u
+
 
 
 craft::usage()
@@ -132,12 +138,12 @@ EOF
 Commands:
    clean                : clean output
    craftorder           : craft projects using a craftorder file
-   craftinfo-searchpath : show current craftinfo searchpath
    list                 : list recraft::maining builds in craftorder file
    log                  : inspect kitchen logs
    project              : craft craft::main project without craftorder (default)
    qualify              : test build qualifiers used in craftorder files
-   search               : search for a specific craftinfo
+   find                 : find for an item in craftinfos
+   searchpath           : show searchpath for headers and libraries
    status               : returns 0 if dependency is ready
 EOF
 
@@ -192,8 +198,8 @@ craft::setup_environment()
 
    if [ "${MULLE_FLAG_LOG_SETTINGS}" = 'YES' ]
    then
-      log_trace2 "KITCHEN_DIR :           ${KITCHEN_DIR}"
-      log_trace2 "CRAFTORDER_KITCHEN_DIR: ${CRAFTORDER_KITCHEN_DIR}"
+      log_setting "KITCHEN_DIR :           ${KITCHEN_DIR}"
+      log_setting "CRAFTORDER_KITCHEN_DIR: ${CRAFTORDER_KITCHEN_DIR}"
    fi
 }
 
@@ -333,7 +339,7 @@ craft::main()
       qualifier)
       ;;
 
-      *-dir)
+      *-dir|search|craftinfo-search|searchpath)
          MULLE_SQUELCH_ENVIRONMENT_WARNING='YES'
          craft::setup_environment
       ;;
@@ -355,20 +361,6 @@ craft::main()
    cmd="${cmd:-${MULLE_CRAFT_DEFAULT_CMD}}"
 
    case "${cmd:-project}" in
-      craftorder)
-         # shellcheck source=src/mulle-craft-build.sh
-         . "${MULLE_CRAFT_LIBEXEC_DIR}/mulle-craft-build.sh"
-
-         craft::build::craftorder_main "$@"
-      ;;
-
-      clean)
-         # shellcheck source=src/mulle-craft-clean.sh
-         . "${MULLE_CRAFT_LIBEXEC_DIR}/mulle-craft-clean.sh"
-
-         craft::clean::main "$@"
-      ;;
-
       addiction-dir)
          printf "%s\n" "${ADDICTION_DIR}"
       ;;
@@ -389,18 +381,25 @@ craft::main()
          printf "%s\n" "${MULLE_CRAFT_LIBEXEC_DIR}"
       ;;
 
-      # rename to "find" ? again ??
-      craftinfo-searchpath)         # shellcheck source=src/mulle-craft-path.sh
-         . "${MULLE_CRAFT_LIBEXEC_DIR}/mulle-craft-path.sh"
+      craftorder)
+         # shellcheck source=src/mulle-craft-build.sh
+         . "${MULLE_CRAFT_LIBEXEC_DIR}/mulle-craft-build.sh"
 
-         craft::path::craftinfo_searchpath_main "$@"
+         craft::build::craftorder_main "$@"
+      ;;
+
+      clean)
+         # shellcheck source=src/mulle-craft-clean.sh
+         . "${MULLE_CRAFT_LIBEXEC_DIR}/mulle-craft-clean.sh"
+
+         craft::clean::main "$@"
       ;;
 
       donefile|donefiles)
-         # shellcheck source=src/mulle-craft-style.sh
-         . "${MULLE_CRAFT_LIBEXEC_DIR}/mulle-craft-style.sh"
+         # shellcheck source=src/mulle-craft-donefile.sh
+         . "${MULLE_CRAFT_LIBEXEC_DIR}/mulle-craft-donefile.sh"
 
-         craft::style::donefiles_main "$@"
+         craft::donefile::main "$@"
       ;;
 
       install)
@@ -450,12 +449,11 @@ craft::main()
          craft::dependency::quickstatus_main "$@"
       ;;
 
-      # rename to find ? again ??
-      search|craftinfo-search)
+      find)
          # shellcheck source=src/mulle-craft-path.sh
-         . "${MULLE_CRAFT_LIBEXEC_DIR}/mulle-craft-path.sh"
+         . "${MULLE_CRAFT_LIBEXEC_DIR}/mulle-craft-craftinfo.sh"
 
-         craft::path::craftinfo_search_main "$@"
+         craft::craftinfo::main "$@"
       ;;
 
       searchpath)

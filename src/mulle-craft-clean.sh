@@ -1,4 +1,7 @@
-#! /usr/bin/env bash
+# shellcheck shell=bash
+# shellcheck disable=SC2236
+# shellcheck disable=SC2166
+# shellcheck disable=SC2006
 #
 #   Copyright (c) 2017 Nat! - Mulle kybernetiK
 #   All rights reserved.
@@ -129,7 +132,7 @@ craft::clean::main()
       shift
    done
 
-   [ -z "${KITCHEN_DIR}" ] && internal_fail "KITCHEN_DIR is empty"
+   [ -z "${KITCHEN_DIR}" ] && _internal_fail "KITCHEN_DIR is empty"
 
    if [ $# -eq 0 ]
    then
@@ -228,7 +231,7 @@ craft::clean::main()
 
             local directory
 
-            craft::style::r_build_directory_name "${cleantarget}"
+            craft::path::r_build_directory_name "${cleantarget}"
             directory="${RVAL}"
 
             if [ "${OPTION_TOUCH}" = 'NO' ]

@@ -69,18 +69,18 @@ main()
    local filename
 
    filename="${directory}/build/.craftorder/SDK_A-PLATFORM_1/Release/foreign_project/CMakeCache.txt"
-   [ -f "${filename}" ] || internal_fail "expected file \"${filename}\" missing"
+   [ -f "${filename}" ] || _internal_fail "expected file \"${filename}\" missing"
 
    filename="${directory}/build/.craftorder/SDK_B-PLATFORM_2/Debug/foreign_project/CMakeCache.txt"
-   [ -f "${filename}" ] || internal_fail "expected file \"${filename}\" missing"
+   [ -f "${filename}" ] || _internal_fail "expected file \"${filename}\" missing"
 
    log_verbose "----- #1 PASSED -----"
 
    filename="${directory}/dependency/SDK_A-PLATFORM_2/Release/share/foo.txt"
-   [ -f  "${filename}" ] || internal_fail "expected file \"${filename}\" missing"
+   [ -f  "${filename}" ] || _internal_fail "expected file \"${filename}\" missing"
 
    filename="${directory}/dependency/SDK_B-PLATFORM_1/Debug/share/foo.txt"
-   [ -f "${filename}" ] || internal_fail "expected file \"${filename}\" missing"
+   [ -f "${filename}" ] || _internal_fail "expected file \"${filename}\" missing"
 
    log_verbose "----- #2 PASSED -----"
 

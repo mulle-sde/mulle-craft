@@ -1,4 +1,7 @@
-#! /usr/bin/env bash
+# shellcheck shell=bash
+# shellcheck disable=SC2236
+# shellcheck disable=SC2166
+# shellcheck disable=SC2006
 #
 #   Copyright (c) 2017 Nat! - Mulle kybernetiK
 #   All rights reserved.
@@ -65,7 +68,6 @@ Environment:
 EOF
   exit 1
 }
-
 
 
 craft::searchpath::main()
@@ -154,18 +156,13 @@ craft::searchpath::main()
       shift
    done
 
-   if [ -z "${MULLE_CRAFT_PATH_SH}" ]
-   then
-      . "${MULLE_CRAFT_LIBEXEC_DIR}/mulle-craft-path.sh" || exit 1
-   fi
-   if [ -z "${MULLE_CRAFT_STYLE_SH}" ]
-   then
-      . "${MULLE_CRAFT_LIBEXEC_DIR}/mulle-craft-style.sh" || exit 1
-   fi
    local type="$1"
 
-   [ -z "${type}" ] && usage "Type is missing"
-   [ $# -ne 1 ] && usage "Superflous parameters \"$*\""
+   [ -z "${type}" ] && craft::searchpath::usage "Type is missing"
+   [ $# -ne 1 ] && craft::searchpath::usage "Superflous parameters \"$*\""
+
+   include "craft::path"
+   include "craft::style"
 
    local subdir
 
@@ -183,7 +180,7 @@ craft::searchpath::main()
       ;;
 
       *)
-         usage "Unknown type \"$1\""
+         craft::searchpath::usage "Unknown type \"$1\""
       ;;
    esac
 
@@ -192,9 +189,6 @@ craft::searchpath::main()
       subdir=""
    fi
 
-   local configuration
-   local platform
-   local sdk
    local subdir
 
    local directory
@@ -202,19 +196,20 @@ craft::searchpath::main()
 
    configurations="${configurations}:Release"
 
-   shell_disable_glob; IFS=':'
-   for configuration in ${configurations}
-   do
-      for platform in ${platforms}
-      do
-         for sdk in ${sdks}
-         do
-            shell_enable_glob; IFS="${DEFAULT_IFS}"
+   local configuration
+   local platform
+   local sdk
 
+   .foreachpath configuration in ${configurations}
+   .do
+      .foreachpath platform in ${platforms}
+      .do
+         .foreachpath sdk in ${sdks}
+         .do
             craft::style::r_get_sdk_platform_configuration_string "${sdk}" \
-                                                          "${platform}" \
-                                                          "${configuration}" \
-                                                          "${style}"
+                                                                  "${platform}" \
+                                                                  "${configuration}" \
+                                                                  "${style}"
             directory="${RVAL}"
 
             r_filepath_concat "${DEPENDENCY_DIR}" "${directory}"
@@ -226,15 +221,13 @@ craft::searchpath::main()
                r_add_unique_line "${paths}" "${RVAL}"
                paths="${RVAL}"
             fi
-
-            shell_disable_glob; IFS=':'
-         done
-      done
-   done
-   shell_enable_glob; IFS="${DEFAULT_IFS}"
+         .done
+      .done
+   .done
 
    r_filepath_concat "${ADDICTION_DIR}" "${subdir}"
    r_absolutepath "${RVAL}"
+
    if [ "${OPTION_IF_EXISTS}" = 'NO' ] || [  -d "${RVAL}" ]
    then
       r_add_unique_line "${paths}" "${RVAL}"
@@ -243,14 +236,11 @@ craft::searchpath::main()
 
    local searchpath
 
-   shell_disable_glob; IFS=$'\n'
-   for directory in ${paths}
-   do
-      shell_enable_glob; IFS="${DEFAULT_IFS}"
+   .foreachline directory in ${paths}
+   .do
       r_colon_concat "${searchpath}" "${directory}"
       searchpath="${RVAL}"
-   done
-   shell_enable_glob; IFS="${DEFAULT_IFS}"
+   .done
 
    [ ! -z "${searchpath}" ] && printf "%s\n" "${searchpath}"
 }

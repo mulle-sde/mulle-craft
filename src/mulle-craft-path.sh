@@ -1,4 +1,7 @@
-#! /usr/bin/env bash
+# shellcheck shell=bash
+# shellcheck disable=SC2236
+# shellcheck disable=SC2166
+# shellcheck disable=SC2006
 #
 #   Copyright (c) 2017 Nat! - Mulle kybernetiK
 #   All rights reserved.
@@ -31,614 +34,334 @@
 #
 MULLE_CRAFT_PATH_SH="included"
 
-
-craft::path::craftinfo_searchpath_usage()
+#
+# local _configuration
+# local _evaledproject
+# local _name
+#
+craft::path::r_mapped_configuration()
 {
-   [ "$#" -ne 0 ] && log_error "$*"
+   log_entry "craft::path::r_mapped_configuration" "$@"
 
-    cat <<EOF >&2
-Usage:
-   ${MULLE_USAGE_NAME} craftinfo-searchpath [options] <framework|header|library>
+   local name="$1"
+   local configuration="$2"
 
-   Emits the craftinfo searchpath.
+   include "case"
 
-Options:
-   --style <style>   : adjust output to match style
-   --release         : adjust output to match configuration "Release"
-   --debug           : adjust output to match configuration "Debug"
+   local base_identifier
 
-Environment:
+   r_tweaked_de_camel_case "${name}"
+   r_uppercase "${RVAL}"
+   r_identifier "${RVAL}"
+   base_identifier="${RVAL}"
 
-   DEPENDENCY_DIR             : place to store dependencies (usually required)
-   MULLE_CRAFT_DISPENSE_STYLE : how products are placed into DEPENDENCY_DIR
-EOF
-  exit 1
-}
+   #
+   # Map some configurations (e.g. Debug -> Release for mulle-objc-runtime)
+   # You can also map to empty, to skip a configuration
+   #
+   local value
+   local identifier
 
-
-
-craft::path::craftinfo_search_usage()
-{
-   [ "$#" -ne 0 ] && log_error "$*"
-
-    cat <<EOF >&2
-Usage:
-   ${MULLE_USAGE_NAME} search [options] [dependency]
-
-   Search for a craftinfo of the project or a given dependency.
-
-   TODO: explain searchpath.
-
-Options:
-   --project-dir <dir> : project directory
-   --no-platform       : ignore platform specific craftinfo
-   --no-local          : ignore local .mulle/etc/craft craftinfo
-
-Environment:
-   DEPENDENCY_DIR    : place to put dependencies into (generally required)
-EOF
-  exit 1
-}
-
-
-craft::path::r_concat_info_searchpath()
-{
-   log_entry "craft::path::r_concat_info_searchpath" "$@"
-
-   local searchpath="$1"
-   local directory="$2"
-   local platform="$3"
-   local allowplatform="$4"
-   local names="${5:-definition}"
-
-   if [ "${platform}" = 'Default' ]
+   identifier="MULLE_CRAFT_${base_identifier}_MAP_CONFIGURATIONS"
+   if [ ! -z "${ZSH_VERSION}" ]
    then
-      platform="${MULLE_UNAME}"
+      value="${(P)identifier}"
+   else
+      value="${!identifier}"
    fi
 
-   local name 
+   RVAL="${configuration}"
+   if [ -z "${value}" ]
+   then
+      return
+   fi
 
-   IFS=':'
-   for name in ${names}
-   do
-      IFS="${DEFAULT_IFS}"
-      if [ "${allowplatform}" != 'NO' ]   # empty is OK
-      then
-         r_colon_concat "${searchpath}" "${directory}/${name}.${platform}"
-         searchpath="${RVAL}"
-      fi
-      r_colon_concat "${searchpath}" "${directory}/${name}"
-   done
+   local mapped
+   local escaped
 
-   IFS="${DEFAULT_IFS}"
+   case ",${value}," in
+      *",${configuration}->"*","*)
+         r_escaped_sed_pattern "${configuration}"
+         escaped="${RVAL}"
+
+         mapped="`LC_ALL=C sed -n -e "s/.*,${escaped}->\([^,]*\),.*/\\1/p" <<< ",${value},"`"
+         if [ -z "${mapped}" ]
+         then
+         _log_verbose "Configuration \"${configuration}\" skipped due \
+to \"${identifier}\""
+            return 0
+         fi
+
+         _log_verbose "Configuration \"${configuration}\" mapped to \
+\"${mapped}\" due to environment variable \"${identifier}\""
+         RVAL="${mapped}"
+      ;;
+   esac
 }
 
 
-craft::path::r_determine_craftinfo_searchpath()
+craft::path::r_dependencydir()
 {
-   log_entry "craft::path::r_determine_craftinfo_searchpath" "$@"
+   log_entry "craft::path::r_dependencydir" "$@"
 
-   [ $# -eq 9 ] || internal_fail "api error"
+   local sdk="$1"
+   local platform="$2"
+   local configuration="$3"
+   local style="$4"
 
-   local name="${1:-unknown}"
-   local projectdir="${2:-${PWD}}"
-   local projecttype="${3:-mainproject}"
-   local allowplatform="${4:-YES}"
-   local allowlocal="${5:-YES}"
-   local platform="${6:-Default}"
-   local configuration="${7:-Release}"
-   local dependencydir="${8:-dependency}"
-   local subdir="$9"
+   include "craft::style"
+
+   #
+   # Figure out where to dispense into
+   #
+   craft::style::r_get_sdk_platform_configuration_string "${sdk}" \
+                                                         "${platform}" \
+                                                         "${configuration}"  \
+                                                         "${style}"
+   r_filepath_concat "${DEPENDENCY_DIR}" "${RVAL}"
+}
+
+
+craft::path::r_mainproject_kitchendir()
+{
+   log_entry "craft::path::r_mainproject_kitchendir" "$@"
+
+   local sdk="$1"
+   local platform="$2"
+   local configuration="$3"
+   local kitchendir="$4"
+
+   local stylesubdir
+
+   include "craft::style"
+
+   craft::style::r_get_sdk_platform_configuration_string "${sdk}" \
+                                                         "${platform}" \
+                                                         "${configuration}" \
+                                                         "relax"
+   stylesubdir="${RVAL}"
+
+   r_filepath_concat "${kitchendir}" "${stylesubdir}"
+}
+
+
+
+#
+# TODO: prefix MULLE_ prefix on MULLE_SDK_PATH is a bit weird since
+# all other flags known by mulle-make do not have a MULLE_ prefix
+#
+craft::path::r_get_mulle_sdk_path()
+{
+   log_entry "craft::path::r_get_mulle_sdk_path" "$@"
+
+   local sdk="$1"
+   local platform="$2"
+   local style="$3"
+
+   local sdk_platform
+
+   include "craft::style"
+
+   craft::style::r_get_sdk_platform_string "${sdk}" "${platform}" "${style}"
+   sdk_platform="${RVAL}"
+
+   local addiction_dir
+   local dependency_dir
+
+   r_filepath_concat "${ADDICTION_DIR}" "${sdk_platform}"
+   addiction_dir="${RVAL}"
+   r_filepath_concat "${DEPENDENCY_DIR}" "${sdk_platform}"
+   dependency_dir="${RVAL}"
+
+   r_colon_concat "${dependency_dir}" "${addiction_dir}"
+   r_colon_concat "${RVAL}" "${MULLE_SDK_PATH}"
+
+   # this will be passed as MULLE_SDK_PATH
+
+   log_debug "sdk_path: ${RVAL}"
+}
+
+
+craft::path::r_name_from_evaledproject()
+{
+   log_entry "craft::path::r_name_from_evaledproject" "$@"
+
+   local evaledproject="$1"
+
+   [ -z "${evaledproject}" ] && _internal_fail "evaledproject is empty"
+
+   local name
+#   log_setting "MULLE_VIRTUAL_ROOT=${MULLE_VIRTUAL_ROOT}"
+#   log_setting "MULLE_SOURCETREE_STASH_DIR=${MULLE_SOURCETREE_STASH_DIR}"
+
+   name="${evaledproject#${MULLE_VIRTUAL_ROOT:-${PWD}}/}"
+   name="${name#${MULLE_SOURCETREE_STASH_DIRNAME:-stash}/}"
+
+   # replace everything thats not an identifier or . _ - + with -
+   name="${name//[^a-zA-Z0-9_.+-]/-}"
+   name="${name##-}"
+   name="${name%%-}"
+
+   [ -z "${name}" ] && _internal_fail "Name is empty from \"${project}\""
+
+   RVAL="${name}"
+}
+
+
+craft::path::r_name_from_project()
+{
+   log_entry "craft::path::r_name_from_project" "$@"
+
+   local project="$1"
+
+   r_expanded_string "${project}"
+   craft::path::r_name_from_evaledproject "${RVAL}"
+}
+
+
+#
+# remove any non-identifiers and file extensions from name
+#
+craft::path::r_build_directory_name()
+{
+   log_entry "craft::path::r_build_directory_name" "$@"
+
+   r_basename "$1"         # just filename
+   RVAL="${RVAL%%.*}"      # remove file extensions
+   r_identifier "${RVAL}"  # make identifier (bad chars -> '_')
+   RVAL="${RVAL%%_}"       # remove trailing '_'
+   RVAL="${RVAL##_}"       # remove leading '_'
+}
+
+
+craft::path::r_effective_project_kitchendir()
+{
+   log_entry "craft::path::r_effective_project_kitchendir" "$@"
+
+   local name="$1"
+   local parentkitchendir="$2"
+   local verify="${3:-YES}"
 
    local directory
-   local depsubdir
-   local searchpath
 
-   case "${projecttype}" in
-      "dependency")
-         if [ ! -z "${dependencydir}" ]
-         then
-            if [ ! -z "${configuration}" ]
-            then
-               r_filepath_concat "${dependencydir}" "${subdir}"
-               depsubdir="${RVAL}"
-
-               directory="${depsubdir}/share/mulle-craft/${name}"
-               craft::path::r_concat_info_searchpath "${searchpath}" \
-                                        "${directory}" \
-                                        "${platform}" \
-                                        "${allowplatform}" \
-                                        "${MULLE_CRAFT_DEFINITION_NAMES}"
-               searchpath="${RVAL}"
-            fi
-
-            directory="${dependencydir}/share/mulle-craft/${name}"
-            craft::path::r_concat_info_searchpath "${searchpath}" \
-                                     "${directory}" \
-                                     "${platform}" \
-                                     "${allowplatform}" \
-                                     "${MULLE_CRAFT_DEFINITION_NAMES}"
-            searchpath="${RVAL}"
-         fi
-      ;;
-
-      "mainproject")
-         [ -z "${projectdir}" ] && internal_fail "projectdir not set"
+   # allow '*' for log, possibly foo* too
+   case "${name}" in
+      *'*')
+         directory="${name}"
       ;;
 
       *)
-         internal_fail "Unknown project type \"${projecttype}\""
+         craft::path::r_build_directory_name "${name}"
+         directory="${RVAL}"
       ;;
    esac
 
-   RVAL="${searchpath}"
+   #
+   # find proper build directory
+   # find proper log directory
+   #
+   local kitchendir
+
+   r_filepath_concat "${parentkitchendir}" "${directory}"
+   kitchendir="${RVAL}"
+
+   r_absolutepath "${kitchendir}"
+   kitchendir="${RVAL}"
+
+   #
+   # allow name dupes, but try to avoid proliferation of
+   # builddirs
+   #
+   if [ "${verify}" = 'YES' ] && [ -d "${kitchendir}" ]
+   then
+      local oldproject
+
+      oldproject="`cat "${kitchendir}/.project" 2> /dev/null`"
+      if [ ! -z "${oldproject}" -a "${oldproject}" = "${project}" ]
+      then
+         RVAL="${kitchendir}"
+         return 0
+      fi
+
+      #
+      # if projects exist with duplicate names, add a random number at end
+      # to differentiate
+      #
+      local randomstring
+
+      while [ -d "${kitchendir}" ]
+      do
+         randomstring="`uuidgen | cut -c'1-6'`"
+         r_filepath_concat "${parentkitchendir}" "${directory}-${randomstring}"
+         kitchendir="${RVAL}"
+      done
+   fi
+
+   log_fluff "Kitchen directory is \"${kitchendir}\""
+
+   RVAL="${kitchendir}"
+   return 0
 }
 
 
-craft::path::r_determine_craftinfo_dir()
+#
+# uses passed in values to evaluate final ones. This code may change the
+# configuration (f.e. a nice feature, if a project doesn't support it)
+# and will finalize the name of the build directory and the name to be shown
+# as what gets compiled.
+#
+# local _kitchendir
+# local _configuration
+# local _evaledproject
+# local _name
+#
+craft::path::_evaluate_variables()
 {
-   log_entry "craft::path::r_determine_craftinfo_dir" "$@"
+   log_entry "craft::path::_evaluate_variables" "$@"
+
+   local project="$1"
+   local sdk="$2"
+   local platform="$3"
+   local configuration="$4"
+   # local style="$5"  // unused always relax
+   local kitchendir="$6"
+   local verify="$7"   # can be left empty
 
    #
-   # upper case for the sake of sameness for ppl setting MULLE_CRAFT_CRAFTINFO_PATH
-   # in the environment ?=??
+   # getting the project name nice is fairly crucial to figure out when
+   # things go wrong. project * happens when we run log command
    #
-   [ $# -eq 9 ] || internal_fail "api error"
-
-   local name="${1:-unknown}"
-   local projectdir="${2:-${PWD}}"
-   local projecttype="${3:-mainproject}"
-   local allowplatform="${4:-YES}"
-   local allowlocal="${5:-YES}"
-   local sdk="${6:-Default}"
-   local platform="${7:-Default}"
-   local configuration="${8:-Release}"
-   local style="${9:-none}"
-
-   #
-   # hmm, how does this work for multiple crafts. It can't I guess
-   #      so only use for mainproject
-   #
-   if [ ! -z "${AUX_INFO_DIR}" -a "${projecttype}" = "mainproject" ]
+   if [ "${project}" = '*' ]
    then
-      log_fluff "Using definition defined by commandline (or environment INFO_DIR)"
-      RVAL="${AUX_INFO_DIR}"
-      return
-   fi
-
-   include "craft::searchpath"
-   include "craft::style"
-
-   local subdir
-
-   craft::style::r_get_sdk_platform_configuration_string "${sdk}" \
-                                                 "${platform}" \
-                                                 "${configuration}" \
-                                                 "${style}"
-   subdir="${RVAL}"
-
-   r_basename "${name}"
-   name="${RVAL}"
-
-   [ -z "${name}" ] && internal_fail "name is empty"
-
-   local craftinfodir
-   local searchpath
-
-   if [ ! -z "${MULLE_CRAFT_CRAFTINFO_PATH}" ]
-   then
-      r_expanded_string "${MULLE_CRAFT_CRAFTINFO_PATH}"
-      searchpath="${RVAL}"
+      _name="${project}"
+      _evaledproject=""
+      _configuration="${configuration}"
+      log_fluff "Configuration mapping will not be found by logs"
    else
-     craft::path::r_determine_craftinfo_searchpath "${name}" \
-                                      "${projectdir}" \
-                                      "${projecttype}" \
-                                      "${allowplatform}" \
-                                      "${allowlocal}" \
-                                      "${platform}" \
-                                      "${configuration}" \
-                                      "${DEPENDENCY_DIR}" \
-                                      "${subdir}"
-      searchpath="${RVAL}"
+      r_expanded_string "${project}"
+      _evaledproject="${RVAL}"
+      craft::path::r_name_from_evaledproject "${_evaledproject}"
+      _name="${RVAL}"
+
+      craft::path::r_mapped_configuration "${_name}" "${configuration}"
+      _configuration="${RVAL}"
    fi
 
-   log_fluff "Craftinfo search order: ${searchpath}"
-
-   shell_disable_glob ; IFS=':'
-   for craftinfodir in ${searchpath}
-   do
-      shell_enable_glob; IFS="${DEFAULT_IFS}"
-      if [ ! -z "${craftinfodir}" ] && [ -d "${craftinfodir}" ]
-      then
-         log_fluff "Craftinfo directory \"${craftinfodir}\" found"
-         RVAL="${craftinfodir}"
-         return 0
-      fi
-   done
-   shell_enable_glob; IFS="${DEFAULT_IFS}"
-
-   log_fluff "No craftinfo \"${name}\" found"
-
-   RVAL=""
-   return 2
-}
-
-
-craft::path::r_determine_definition_searchpath()
-{
-   log_entry "craft::path::r_determine_definition_searchpath" "$@"
-
-   [ $# -eq 6 ] || internal_fail "api error"
-
-   local name="${1:-unknown}"
-   local projectdir="${2:-${PWD}}"
-   local projecttype="${3:-mainproject}"
-   local allowplatform="${4:-YES}"
-   local allowlocal="${5:-YES}"
-   local platform="${6:-Default}"
-
-   if [ -z "${projectdir}" -o "${allowlocal}" = 'NO' ]
-   then
-      RVAL=""
-      return
-   fi
-
-   local searchpath
-
-   directory="${projectdir}/.mulle/etc/craft"
-   craft::path::r_concat_info_searchpath "${searchpath}" \
-                            "${directory}" \
-                            "${platform}" \
-                            "${allowplatform}"
-   searchpath="${RVAL}"
-
-   directory="${projectdir}/.mulle/share/craft"
-   craft::path::r_concat_info_searchpath "${searchpath}" \
-                            "${directory}" \
-                            "${platform}" \
-                            "${allowplatform}"
-}
-
-
-craft::path::r_determine_definition_dir()
-{
-   log_entry "craft::path::r_determine_definition_dir" "$@"
-
-   #
-   # upper case for the sake of sameness for ppl setting MULLE_CRAFT_CRAFTINFO_PATH
-   # in the environment ?=??
-   #
-   [ $# -eq 9 ] || internal_fail "api error"
-
-   local name="${1:-unknown}"
-   local projectdir="${2:-${PWD}}"
-   local projecttype="${3:-mainproject}"
-   local allowplatform="${4:-YES}"
-   local allowlocal="${5:-YES}"
-   local sdk="${6:-Default}"
-   local platform="${7:-Default}"
-   local configuration="${8:-Release}"
-   local style="${9:-none}"
-
-   #
-   # hmm, how does this work for multiple crafts. It can't I guess
-   #      so only use for mainproject
-   #
-   if [ ! -z "${INFO_DIR}" -a "${projecttype}" = "mainproject" ]
-   then
-      log_fluff "Using definition defined by commandline (or environment INFO_DIR)"
-      RVAL="${INFO_DIR}"
-      return
-   fi
-
-   include "craft::searchpath"
    include "craft::style"
 
-   r_basename "${name}"
-   name="${RVAL}"
+   #
+   # this is the build style which is always "relax"
+   #
+   craft::style::r_get_sdk_platform_configuration_string "${sdk}" \
+                                                         "${platform}" \
+                                                         "${_configuration}" \
+                                                         "relax"
+   r_filepath_concat "${kitchendir}" "${RVAL}"
+   craft::path::r_effective_project_kitchendir "${_name}" "${RVAL}" "${verify}"
+   _kitchendir="${RVAL}"
 
-   [ -z "${name}" ] && internal_fail "name is empty"
-
-   local searchpath
-
-   craft::path::r_determine_definition_searchpath "${name}" \
-                                     "${projectdir}" \
-                                     "${projecttype}" \
-                                     "${allowplatform}" \
-                                     "${allowlocal}" \
-                                     "${platform}"
-   searchpath="${RVAL}"
-
-   log_fluff "Definition search order: ${searchpath}"
-
-   local definitiondir
-
-   shell_disable_glob ; IFS=':'
-   for definitiondir in ${searchpath}
-   do
-      shell_enable_glob; IFS="${DEFAULT_IFS}"
-      if [ ! -z "${definitiondir}" ] && [ -d "${definitiondir}" ]
-      then
-         log_fluff "Definition directory \"${definitiondir}\" found"
-         RVAL="${definitiondir}"
-         return 0
-      fi
-   done
-   shell_enable_glob; IFS="${DEFAULT_IFS}"
-
-   log_fluff "No definition for \"${name}\" found"
-
-   RVAL=""
-   return 2
+   log_setting "kitchendir     : \"${_kitchendir}\""
+   log_setting "configuration  : \"${_configuration}\""
+   log_setting "evaledproject  : \"${_evaledproject}\""
+   log_setting "name           : \"${_name}\""
 }
-
-
-
-craft::path::craftinfo_searchpath_main()
-{
-   log_entry "craft::path::craftinfo_searchpath_main" "$@"
-
-   local OPTION_PROJECT_DIR="${PWD}"
-   local OPTION_PROJECT_TYPE="mainproject"
-   local OPTION_ALLOW_LOCAL='YES'
-   local OPTION_ALLOW_PROJECT='YES'
-   local OPTION_NAME
-   local OPTION_CONFIGURATION="Release"
-   local OPTION_SDK="Default"
-   local OPTION_PLATFORM="Default"
-   local OPTION_STYLE="none"
-
-   while [ $# -ne 0 ]
-   do
-      case "$1" in
-         -h*|--help|help)
-            craft::path::craftinfo_searchpath_usage
-         ;;
-
-         --release)
-            OPTION_CONFIGURATION="Release"
-         ;;
-
-         --debug)
-            # Release is fallback for Debug
-            OPTION_CONFIGURATION="Debug"
-         ;;
-
-         --dependency)
-            OPTION_PROJECT_TYPE="dependency"
-         ;;
-
-         --project)
-            OPTION_PROJECT_TYPE="mainproject"
-         ;;
-
-         --no-local)
-            OPTION_ALLOW_LOCAL="NO"
-         ;;
-
-         --no-platform)
-            OPTION_ALLOW_PLATFORM="NO"
-         ;;
-
-         --name)
-            [ $# -eq 1 ] && craft::path::craftinfo_searchpath_usage "Missing argument to \"$1\""
-            shift
-
-            OPTION_NAME="$1"
-         ;;
-
-         --project-dir)
-            [ $# -eq 1 ] && craft::path::craftinfo_searchpath_usage "Missing argument to \"$1\""
-            shift
-
-            OPTION_PROJECT_DIR="$1"
-         ;;
-
-
-         --project-type)
-            [ $# -eq 1 ] && craft::path::craftinfo_searchpath_usage "Missing argument to \"$1\""
-            shift
-
-            OPTION_PROJECT_TYPE="$1"
-         ;;
-
-         #
-         # quadruple of sdk/platform/configuration/style
-         #
-         --configuration)
-            [ $# -eq 1 ] && craft::path::craftinfo_searchpath_usage "Missing argument to \"$1\""
-            shift
-
-            OPTION_CONFIGURATION="$1"
-         ;;
-
-         --platform)
-            [ $# -eq 1 ] && craft::path::craftinfo_searchpath_usage "Missing argument to \"$1\""
-            shift
-
-            OPTION_PLATFORM="$1"
-         ;;
-
-         --sdk)
-            [ $# -eq 1 ] && craft::path::craftinfo_searchpath_usage "Missing argument to \"$1\""
-            shift
-
-            OPTION_SDK="$1"
-         ;;
-
-         --style)
-            [ $# -eq 1 ] && craft::path::craftinfo_searchpath_usage "Missing argument to \"$1\""
-            shift
-
-            OPTION_STYLE="$1"
-         ;;
-
-         -*)
-            craft::path::craftinfo_searchpath_usage "Unknown option \"$1\""
-         ;;
-
-         *)
-            break
-         ;;
-      esac
-
-      shift
-   done
-
-   OPTION_PROJECT_DIR="${OPTION_PROJECT_DIR:-${MULLE_VIRTUAL_ROOT}}"
-   OPTION_PROJECT_DIR="${OPTION_PROJECT_DIR:-${PWD}}"
-   OPTION_NAME="${OPTION_NAME:-`basename -- "${OPTION_PROJECT_DIR}"`}"
-
-   [ $# -ne 0 ] && craft::path::craftinfo_searchpath_usage "Superflous parameters \"$*\""
-
-   log_info "${OPTION_SDK}-${OPTION_PLATFORM}/${OPTION_CONFIGURATION}"
-
-   if [ -z "${MULLE_CRAFT_STYLE_SH}" ]
-   then
-      # shellcheck source=src/mulle-craft-style.sh
-      . "${MULLE_CRAFT_LIBEXEC_DIR}/mulle-craft-style.sh" || exit 1
-   fi
-
-   craft::style::r_get_sdk_platform_configuration_string "${OPTION_SDK}" \
-                                                 "${OPTION_PLATFORM}" \
-                                                 "${OPTION_CONFIGURATION}" \
-                                                 "${OPTION_STYLE}"
-   subdir="${RVAL}"
-
-   craft::path::r_determine_craftinfo_searchpath "${OPTION_NAME}" \
-                                    "${OPTION_PROJECT_DIR}" \
-                                    "${OPTION_PROJECT_TYPE}" \
-                                    "${OPTION_ALLOW_PLATFORM}" \
-                                    "${OPTION_ALLOW_LOCAL}" \
-                                    "${OPTION_PLATFORM}" \
-                                    "${OPTION_CONFIGURATION}" \
-                                    "${DEPENDENCY_DIR}" \
-                                    "${subdir}"
-   printf "%s\n" "${RVAL}"
-}
-
-
-
-craft::path::craftinfo_search_main()
-{
-   log_entry "craft::path::craftinfo_search_main" "$@"
-
-   local OPTION_PROJECT_DIR
-   local OPTION_PLATFORM_CRAFTINFO="${MULLE_CRAFT_PLATFORM_CRAFTINFO:-YES}"
-   local OPTION_LOCAL_CRAFTINFO="${MULLE_CRAFT_LOCAL_CRAFTINFO:-YES}"
-   local OPTION_PLATFORM='Default'
-   local OPTION_SDK='Default'
-   local OPTION_CONFIGURATION='Release'
-   local OPTION_STYLE='auto'
-
-   while [ $# -ne 0 ]
-   do
-      case "$1" in
-         -h*|--help|help)
-            craft::path::craftinfo_search_usage
-         ;;
-
-         -d|--project-dir)
-            [ $# -eq 1 ] && craft::path::craftinfo_search_usage "Missing argument to \"$1\""
-            shift
-
-            OPTION_PROJECT_DIR="$1"  # could be global env
-         ;;
-
-         --no-platform|--no-platform-craftinfo)
-            OPTION_PLATFORM_CRAFTINFO='NO'
-         ;;
-
-         --no-local|--no-local-craftinfo)
-            OPTION_LOCAL_CRAFTINFO='NO'
-         ;;
-
-         #
-         # quadruple of sdk/platform/configuration/style
-         #
-         --configuration)
-            [ $# -eq 1 ] && craft::path::craftinfo_searchpath_usage "Missing argument to \"$1\""
-            shift
-
-            OPTION_CONFIGURATION="$1"
-         ;;
-
-         --platform)
-            [ $# -eq 1 ] && craft::path::craftinfo_searchpath_usage "Missing argument to \"$1\""
-            shift
-
-            OPTION_PLATFORM="$1"
-         ;;
-
-         --sdk)
-            [ $# -eq 1 ] && craft::path::craftinfo_searchpath_usage "Missing argument to \"$1\""
-            shift
-
-            OPTION_SDK="$1"
-         ;;
-
-         --style)
-            [ $# -eq 1 ] && craft::path::craftinfo_searchpath_usage "Missing argument to \"$1\""
-            shift
-
-            OPTION_STYLE="$1"
-         ;;
-
-         -*)
-            craft::path::craftinfo_search_usage "Unknown option \"$1\""
-         ;;
-
-         *)
-            break
-         ;;
-      esac
-
-      shift
-   done
-
-   local rval
-
-   if [ $# -eq 0 ]
-   then
-      local name
-
-      name="${PROJECT_NAME}"
-      if [ -z "${PROJECT_NAME}" ]
-      then
-         r_basename "${PWD}"
-         name="${RVAL}"
-      fi
-
-	   craft::path::r_determine_craftinfo_dir "${name}" \
-                                "${OPTION_PROJECT_DIR}" \
-                                "mainproject" \
-                                "${OPTION_PLATFORM_CRAFTINFO}" \
-                                "${OPTION_LOCAL_CRAFTINFO}" \
-                                "${OPTION_SDK}" \
-                                "${OPTION_PLATFORM}" \
-                                "${OPTION_CONFIGURATION}" \
-                                "${OPTION_STYLE}"
-      rval=$?
-	else
-		if [ -z "${OPTION_PROJECT_DIR}" ]
-		then
-			fail "Specify --project-dir <dir> for dependency \"$1\""
-		fi
-
-	   craft::path::r_determine_craftinfo_dir "$1" \
-                                "${OPTION_PROJECT_DIR}" \
-                                "dependency" \
-                                "${OPTION_PLATFORM_CRAFTINFO}" \
-                                "${OPTION_LOCAL_CRAFTINFO}" \
-                                "${OPTION_SDK}" \
-                                "${OPTION_PLATFORM}" \
-                                "${OPTION_CONFIGURATION}" \
-                                "${OPTION_STYLE}"
-      rval=$?
-	fi
-
-   [ "${rval}" -eq 0 ] && printf "%s\n" "${RVAL}"
-
-   return $rval
-}
-
