@@ -1050,10 +1050,10 @@ craft::build::handle_step()
    fi
 
    if ! craft::build::handle_rval "${rval}" \
-                          "${marks}" \
-                          "${phasedonefile}" \
-                          "${line}" \
-                          "${project}"
+                                  "${marks}" \
+                                  "${phasedonefile}" \
+                                  "${line}" \
+                                  "${project}"
    then
       redirect_append_exekutor "${statusfile}" printf "%s\n" "${project};${phase};${rval}"
    fi
@@ -1078,7 +1078,6 @@ craft::build::handle_parallel()
    shift 5
 
    [ -z "${parallel}" ]      && _internal_fail "v is empty"
-   [ -z "${donefile}" ]      && _internal_fail "donefile is empty"
    [ -z "${configuration}" ] && _internal_fail "configuration is empty"
    [ -z "${platform}" ]      && _internal_fail "platform is empty"
    [ -z "${sdk}" ]           && _internal_fail "sdk is empty"
@@ -1378,36 +1377,45 @@ craft::build::_do_craftorder()
 
    shift 7
 
+   log_setting "craftorder      : ${craftorder}"
+
    local remaining
+
+   remaining="${craftorder}"
+
    local _donefile
    local _shared_donefile  # filled by craft::style::__have_donefiles sideeffect
 
+   local rval
 
-   local rval 
+   rval=48
 
-   include "craft::donefile"
-
-   craft::donefile::__have_donefiles "${sdk}" "${platform}" "${configuration}"
-   rval=$?
-
-   log_setting "craftorder      : ${craftorder}"
-   log_setting "donefile        : ${_donefile}"
-   log_setting "shared_donefile : ${_shared_donefile}"
-
-   if [ $rval -eq 0 ]
+   if [ "${OPTION_DONEFILES}" = 'YES' ]
    then
-      if ! craft::build::r_remaining_craftorder_lines "${craftorder}" \
-                                                      "${_donefile}" \
-                                                      "${_shared_donefile}"
+      include "craft::donefile"
+
+      craft::donefile::__have_donefiles "${sdk}" "${platform}" "${configuration}"
+      rval=$?
+
+      log_setting "donefile        : ${_donefile}"
+      log_setting "shared_donefile : ${_shared_donefile}"
+
+      if [ $rval -eq 0 ]
       then
-         log_fluff "Everything in the craftorder has been crafted already"
-         return
-      fi
-      remaining="${RVAL}"
-   else
-      _log_fluff "No donefiles \"${_donefile#${MULLE_USER_PWD}/}\" or \
+         if ! craft::build::r_remaining_craftorder_lines "${craftorder}" \
+                                                         "${_donefile}" \
+                                                         "${_shared_donefile}"
+         then
+            log_fluff "Everything in the craftorder has been crafted already"
+            return
+         fi
+         remaining="${RVAL}"
+      else
+         _log_fluff "No donefiles \"${_donefile#${MULLE_USER_PWD}/}\" or \
 \"${_shared_donefile#${MULLE_USER_PWD}/}\" are present, so build everything"
-      remaining="${craftorder}"
+      fi
+   else
+      log_fluff "No donefiles allowed, so build everything"
    fi
 
    local donefile="${_donefile}"
@@ -1881,26 +1889,28 @@ craft::build::common()
 {
    log_entry "craft::build::common" "$@"
 
-   local OPTION_LENIENT='NO'
-   local OPTION_BUILD_DEPENDENCY="DEFAULT"
-   local OPTIONS_MULLE_MAKE_PROJECT=
-   local OPTION_PLATFORM_CRAFTINFO="${MULLE_CRAFT_PLATFORM_CRAFTINFO:-YES}"
-   local OPTION_LOCAL_CRAFTINFO="${MULLE_CRAFT_LOCAL_CRAFTINFO:-YES}"
-   local OPTION_REBUILD_BUILDORDER='NO'
-   local OPTION_PROTECT_DEPENDENCY='YES'
    local OPTION_ALLOW_SCRIPT="${MULLE_CRAFT_USE_SCRIPT:-DEFAULT}"
-   local OPTION_KEEP_DEPENDENCY_STATE='YES'
-   local OPTION_SINGLE_DEPENDENCY
-   local OPTION_LIST_REMAINING='NO'
+   local OPTION_BUILD_DEPENDENCY="DEFAULT"
    local OPTION_CLEAN_TMP='YES'
-   local OPTION_PARALLEL_LINK='YES'
-   local OPTION_PHASES="Headers Compile Link"
+   local OPTION_DONEFILES='YES'
+   local OPTION_KEEP_DEPENDENCY_STATE='YES'
+   local OPTION_LENIENT='NO'
+   local OPTION_LIST_REMAINING='NO'
+   local OPTION_LOCAL_CRAFTINFO="${MULLE_CRAFT_LOCAL_CRAFTINFO:-YES}"
+   local OPTION_MULLE_TEST='NO'
    local OPTION_PARALLEL='YES'
+   local OPTION_PARALLEL_LINK='YES'
    local OPTION_PARALLEL_MAKE='YES'
    local OPTION_PARALLEL_PHASE='YES' # NO sometimes usefule for debugging
-   local OPTION_MULLE_TEST='NO'
+   local OPTION_PHASES="Headers Compile Link"
+   local OPTION_PLATFORM_CRAFTINFO="${MULLE_CRAFT_PLATFORM_CRAFTINFO:-YES}"
    local OPTION_PREFERRED_LIBRARY_STYLE
+   local OPTION_PROTECT_DEPENDENCY='YES'
+   local OPTION_REBUILD_BUILDORDER='NO'
+   local OPTION_SINGLE_DEPENDENCY
    local OPTION_VERSION=DEFAULT
+   local OPTIONS_MULLE_MAKE_PROJECT=
+
    local OPTION_CALLBACK
 
    # header install phase currently not installing for some reason
@@ -2024,6 +2034,10 @@ craft::build::common()
 
          --no-platform|--no-platform-craftinfo)
             OPTION_PLATFORM_CRAFTINFO='NO'
+         ;;
+
+         --no-donefiles)
+            OPTION_DONEFILES='NO'
          ;;
 
          --no-local|--no-local-craftinfo)
