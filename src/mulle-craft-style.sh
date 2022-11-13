@@ -74,7 +74,7 @@ EOF
 
 craft::style::r_get_sdk_platform_string()
 {
-   log_entry "craft::style::r_get_sdk_platform_string" "$@"
+#  log_entry "craft::style::r_get_sdk_platform_string" "$@"
 
    local sdk="$1"
    local platform="$2"
@@ -156,7 +156,7 @@ craft::style::r_get_sdk_platform_string()
 #
 craft::style::r_get_sdk_platform_configuration_string()
 {
-   log_entry "craft::style::r_get_sdk_platform_configuration_string" "$@"
+#   log_entry "craft::style::r_get_sdk_platform_configuration_string" "$@"
 
    local sdk="$1"
    local platform="$2"

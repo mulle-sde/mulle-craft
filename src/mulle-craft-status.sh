@@ -160,9 +160,10 @@ craft::status::output_names_with_status()
       if [ "${is_main}" = "YES" ]
       then
          craft::path::r_mainproject_kitchendir "${sdk}" \
-                                        "${platform}" \
-                                        "${configuration}" \
-                                        "${kitchendir}"
+                                               "${platform}" \
+                                               "${configuration}" \
+                                               "relax" \
+                                               "${kitchendir}"
          _kitchendir="${RVAL}"
          _configuration="${configuration}"
       else
@@ -428,25 +429,25 @@ craft::status::main()
 
    if [ ! -z "${addiction_donefiles}" ]
    then
-      log_info "Craft status of ${C_RESET_BOLD}${ADDICTION_DIR#${MULLE_USER_PWD}/}"
+      log_info "Craft status of ${C_RESET_BOLD}${ADDICTION_DIR#"${MULLE_USER_PWD}/"}"
 
       # we can only figure out if the state is complete
       state="`egrep -v '^#' "${ADDICTION_DIR}/.state" `"
 
       case "${state}" in
          complete)
-            printf "   ${C_GREEN}%s${C_RESET}   OK\n" "${ADDICTION_DIR#${MULLE_USER_PWD}/}"
+            printf "   ${C_GREEN}%s${C_RESET}   OK\n" "${ADDICTION_DIR#"${MULLE_USER_PWD}/"}"
          ;;
 
          *)
-            printf "   ${C_RED}%s${C_RESET}   FAIL\n" "${ADDICTION_DIR#${MULLE_USER_PWD}/}"
+            printf "   ${C_RED}%s${C_RESET}   FAIL\n" "${ADDICTION_DIR#"${MULLE_USER_PWD}/"}"
          ;;
       esac
    fi
 
    if [ ! -z "${dependency_donefiles}" ]
    then
-      log_info "Craft status of ${C_RESET_BOLD}${DEPENDENCY_DIR#${MULLE_USER_PWD}/}"
+      log_info "Craft status of ${C_RESET_BOLD}${DEPENDENCY_DIR#"${MULLE_USER_PWD}/"}"
       .for donefile in ${dependency_donefiles}
       .do
          craft::status::output_with_donefile "${donefile}" \

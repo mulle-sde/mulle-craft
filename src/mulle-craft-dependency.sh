@@ -40,7 +40,7 @@ craft::dependency::install_tarball()
    local tarball="$1"
    local dst_dir="$2"
 
-   log_info "Installing tarball \"${tarball#${MULLE_USER_PWD}/}\" in \"${dst_dir#${MULLE_USER_PWD}/}\""
+   log_info "Installing tarball \"${tarball#"${MULLE_USER_PWD}/"}\" in \"${dst_dir#"${MULLE_USER_PWD}/"}\""
    exekutor "${TAR:-tar}" -xz ${TARFLAGS} \
                           -C "${dst_dir}" \
                           -f "${tarball}" || fail "failed to extract ${tar}"
@@ -52,7 +52,7 @@ craft::dependency::install_directory()
    local src_dir="$1"
    local dst_dir="$2"
 
-   log_info "Copying directory \"${src_dir#${MULLE_USER_PWD}/}\" to \"${dst_dir#${MULLE_USER_PWD}/}\""
+   log_info "Copying directory \"${src_dir#"${MULLE_USER_PWD}/"}\" to \"${dst_dir#"${MULLE_USER_PWD}/"}\""
    (
       cd "${src_dir}" &&
       exekutor "${TAR:-tar}" -cf ${TARFLAGS} .
@@ -88,14 +88,11 @@ craft::dependency::_install_tarballs()
    local tarflags
 
    # DEPENDENCY_TARBALL_PATH is the old name, fallen out of favor
-   shell_disable_glob ; IFS=':'
-   for tarball in ${TARBALLS:-${DEPENDENCY_TARBALL_PATH}}
-   do
-      shell_enable_glob; IFS="${DEFAULT_IFS}"
-
+   .foreachpath tarball in ${TARBALLS:-${DEPENDENCY_TARBALL_PATH}}
+   .do
       if [ -z "${tarball}" ]
       then
-         continue
+         .continue
       fi
 
       if [ ! -e "${tarball}" ]
@@ -106,8 +103,7 @@ craft::dependency::_install_tarballs()
       r_absolutepath "${tarball}"
       r_colon_concat "${tarballs}" "${RVAL}"
       tarballs="${RVAL}"
-   done
-   shell_enable_glob; IFS="${DEFAULT_IFS}"
+   .done
 
    [ -z "${tarballs}" ] && return 0
 
@@ -116,29 +112,21 @@ craft::dependency::_install_tarballs()
       tarflags="-v"
    fi
 
-   if [ -z "${MULLE_CRAFT_STYLE_SH}" ]
-   then
-      # shellcheck source=src/mulle-craft-style.sh
-      . "${MULLE_CRAFT_LIBEXEC_DIR}/mulle-craft-style.sh" || exit 1
-   fi
-
+   include "craft::style"
 
    (
       local directory
 
       craft::style::r_get_sdk_platform_configuration_string "Default" \
-                                                    "${MULLE_UNAME}" \
-                                                    "Release" \
-                                                    "${style}"
+                                                            "${MULLE_UNAME}" \
+                                                            "Release" \
+                                                            "${style}"
 
       r_filepath_concat "${DEPENDENCY_DIR}" "${RVAL}"
       directory="${RVAL}"
 
-      shell_disable_glob ; IFS=':'
-      for tarball in ${tarballs}
-      do
-         shell_enable_glob; IFS="${DEFAULT_IFS}"
-
+      .foreachpath tarball in ${tarballs}
+      .do
          local dst_dir
 
          dst_dir="${directory}"
@@ -159,7 +147,7 @@ craft::dependency::_install_tarballs()
          else
             craft::dependency::install_directory "${tarball}" "${dst_dir}"
          fi
-      done
+      .done
    ) || exit 1
 }
 
@@ -191,13 +179,22 @@ craft::dependency::set_state()
 {
    local state="$1"
 
-   log_verbose "Dependency folder marked as ${state}"
+   log_verbose "Dependency folder marked as \"${state}\""
 
    # for "install" this is superflous and unwanted
    if [ "${OPTION_KEEP_DEPENDENCY_STATE}" = 'YES' ]
    then
       redirect_exekutor "${DEPENDENCY_DIR}/.state" \
          printf "%s\n" "${state}"
+
+      # maintain .state-complete for the benefit of IDESupport.cmake
+      if [ "${state}" = "complete" ]
+      then
+         redirect_exekutor "${DEPENDENCY_DIR}/.state-complete" \
+            printf "# This file is for cmake/share/IDESupport.cmake\n"
+      else
+         remove_file_if_present "${DEPENDENCY_DIR}/.state-complete"
+      fi
    fi
 
    local script 
@@ -236,9 +233,9 @@ craft::dependency::set_state()
          then
             if [ ! -x "${script}" ]
             then
-               fail "Script \"${script#${MULLE_USER_PWD}/}\" is not executable"
+               fail "Script \"${script#"${MULLE_USER_PWD}/"}\" is not executable"
             fi
-            log_info "Executing \"${script#${MULLE_USER_PWD}/}\""
+            log_info "Executing \"${script#"${MULLE_USER_PWD}/"}\""
 
             DEPENDENCY_DIR="${DEPENDENCY_DIR}"
                exekutor "${script}" "${state}" || exit 1
@@ -261,6 +258,30 @@ craft::dependency::get_timestamp()
 }
 
 
+craft::dependency::write_cachedir_tag()
+{
+   log_entry "craft::dependency::write_cachedir_tag" "$@"
+
+   local dependencydir="$1"
+
+   [ "${MULLE_CACHEDIR_TAG}" != "YES" ] && return
+
+   # assume one stat is faster than open/write/close
+   [ -f "${dependencydir}/CACHEDIR.TAG" ] && return
+
+   redirect_exekutor "${dependencydir}/CACHEDIR.TAG" printf "%s\n" "\
+Signature: 8a477f597d28d172789f06886806bc55
+
+This file is a cache directory tag created by mulle-craft.
+If you use \`tar --exclude-caches-all\`, this directory will be excluded from
+your archive.
+
+You can suppress the generation of this file with:
+   mulle-sde env --global set MULLE_CACHEDIR_TAG NO
+"
+}
+
+
 craft::dependency::init()
 {
    log_entry "craft::dependency::init" "$@"
@@ -271,6 +292,7 @@ craft::dependency::init()
    [ -z "${DEPENDENCY_DIR}" ] && _internal_fail "DEPENDENCY_DIR not set"
 
    mkdir_if_missing "${DEPENDENCY_DIR}"
+   craft::dependency::write_cachedir_tag "${DEPENDENCY_DIR}"
 
    craft::dependency::set_state "initing"
 
@@ -297,7 +319,7 @@ craft::dependency::unprotect()
       ;;
 
       *)
-         log_fluff "Unprotecting ${DEPENDENCY_DIR#${MULLE_USER_PWD}/}"
+         log_fluff "Unprotecting ${DEPENDENCY_DIR#"${MULLE_USER_PWD}/"}"
          exekutor chmod -R ug+w "${DEPENDENCY_DIR}" || fail "could not chmod \"${DEPENDENCY_DIR}\""
       ;;
    esac
@@ -321,13 +343,11 @@ craft::dependency::protect()
       ;;
 
       *)
-         log_fluff "Protecting ${DEPENDENCY_DIR#${MULLE_USER_PWD}/}"
+         log_fluff "Protecting ${DEPENDENCY_DIR#"${MULLE_USER_PWD}/"}"
          exekutor chmod -R a-w "${DEPENDENCY_DIR}" || fail "could not chmod \"${DEPENDENCY_DIR}\""
       ;;
    esac
-
 }
-
 
 
 craft::dependency::clean()
@@ -412,7 +432,7 @@ craft::dependency::end_update()
 
    [ -z "${DEPENDENCY_DIR}" ] && _internal_fail "DEPENDENCY_DIR not set"
 
-   log_fluff "Dependency update ended with ${state}"
+   log_fluff "Dependency update ended with \"${state}\""
 
    if [ "${state}" = "complete" ]
    then
@@ -462,18 +482,13 @@ craft::dependency::r_existing_dirs_path()
    local subdir
 
    RVAL=""
-   shell_disable_glob; IFS=$'\n'
-   for subdir in ${subdirectories}
-   do
-      shell_enable_glob; IFS="${DEFAULT_IFS}"
-
+   .foreachline subdir in ${subdirectories}
+   .do
       if [ -d "${DEPENDENCY_DIR}/${subdir}" ]
       then
          r_colon_concat "${RVAL}" "${DEPENDENCY_DIR}/${subdir}"
       fi
-   done
-
-   shell_enable_glob; IFS="${DEFAULT_IFS}"
+   .done
 }
 
 
@@ -497,7 +512,10 @@ craft::dependency::r_dir_locations()
 
    local subdir
 
-   craft::style::r_get_sdk_platform_configuration_string "$@"
+   craft::style::r_get_sdk_platform_configuration_string "${sdk}" \
+                                                         "${platform}" \
+                                                         "${configuration}" \
+                                                         "${style}"
    subdir="${RVAL}"
 
    r_filepath_concat "${RVAL}" "${name}"

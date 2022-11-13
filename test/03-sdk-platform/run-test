@@ -60,9 +60,9 @@ main()
                                  --craftorder-file "${PWD}/craftorder" \
                                  --dependency-dir "${directory}/dependency" \
                               craftorder \
-                                 --configurations Debug:Release \
-                                 --sdks SDK_A:SDK_B \
-                                 --platforms PLATFORM_1:PLATFORM_2 \
+                                 --configurations "Debug:Release" \
+                                 --sdks "SDK_A:SDK_B" \
+                                 --platforms "PLATFORM_1:PLATFORM_2" \
                                  --style strict \
                                  --no-determine-sdk
 

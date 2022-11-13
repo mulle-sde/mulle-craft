@@ -56,7 +56,7 @@ Examples:
 Options:
    --configuration <name> : set configuration (Debug)
    --debug                : set configuration to "Debug"
-   --platform <name>      : setz platform  (${MULLE_UNAME})
+   --platform <name>      : set platform (${MULLE_UNAME})
    --release              : set configuration to "Release"
    --sdk <name>           : set SDK for (Default)
    --no-lf                : replace output linefeeds with space
@@ -114,11 +114,6 @@ craft::qualifier::r_craftorder_qualifier()
    r_lowercase "${sdk}"
    sdk="${RVAL}"
 
-   if [ "${platform}" = 'Default' ]
-   then
-      platform="${MULLE_UNAME}"
-   fi
-   
    r_lowercase "${platform}"
    platform="${RVAL}"
 
@@ -128,14 +123,17 @@ craft::qualifier::r_craftorder_qualifier()
    r_lowercase "${version}"
    version="${RVAL}"
 
-   # Default is not matchable, as we don't know it
-   if [ "${sdk}" != 'default' ]
+   if [ "${platform}" = 'default' ]
    then
-      clause="ENABLES craft-sdk-${sdk}"
-
-      r_concat "${qualifier}" "${clause}" $'\n'"AND "
-      qualifier="${RVAL}"
+      platform="${MULLE_UNAME}"
    fi
+
+   # default is not really matchable, as we don't know what it is, yet
+   # query is needed to avoid pulling in musl or cosmopolitan here
+   clause="ENABLES craft-sdk-${sdk}"
+
+   r_concat "${qualifier}" "${clause}" $'\n'"AND "
+   qualifier="${RVAL}"
 
    # also check the global platform flag
    clause="ENABLES platform-${platform}"
@@ -143,7 +141,7 @@ craft::qualifier::r_craftorder_qualifier()
    r_concat "${qualifier}" "${clause}" $'\n'"AND "
    qualifier="${RVAL}"
 
-   # now check craft-specfic flags, sdk and configuration are only
+   # now check craft-specific flags, sdk and configuration are only
    # interesting for craft, so there aren't global versions      
    clause="ENABLES craft-platform-${platform}"
    r_concat "${qualifier}" "${clause}" $'\n'"AND "
@@ -226,9 +224,9 @@ craft::qualifier::r_filtered_craftorder()
    qualifier="${RVAL}"
 
    craft::qualifier::r_craftorder_qualifier "${sdk}" \
-                          "${platform}" \
-                          "${configuration}" \
-                          "${version}"
+                                            "${platform}" \
+                                            "${configuration}" \
+                                            "${version}"
 
    r_concat "${qualifier}" "${RVAL}" $'\n'"AND "
    qualifier="${RVAL}"
@@ -346,7 +344,6 @@ craft::qualifier::main()
                                                       "${OPTION_VERSION}"
    version="${RVAL}"
 
-   local qualifier
    local no_build_qualifier
 
    craft::qualifier::r_craftorder_qualifier "${OPTION_SDK}" \
@@ -354,6 +351,8 @@ craft::qualifier::main()
                                             "${OPTION_CONFIGURATION}" \
                                             "${version}"
    no_build_qualifier="${RVAL}"
+
+   local qualifier
 
    r_concat "MATCHES build" "${no_build_qualifier}" $'\n'"AND "
    qualifier="${RVAL}"

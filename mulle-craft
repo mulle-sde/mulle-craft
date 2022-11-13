@@ -1,5 +1,4 @@
-#! /bin/sh
-#
+#! /usr/bin/env mulle-bash
 # shellcheck shell=bash
 # shellcheck disable=SC2236
 # shellcheck disable=SC2166
@@ -38,53 +37,6 @@
 
 
 MULLE_EXECUTABLE_VERSION=2.0.0
-
-##########################################################################
-###   ###   ###   ###   ###   ###   ###   ###   ###   ###   ###   ###   ###
-###########################################################################
-# #
-# # PRELUDE - Standard startup code for loading mulle-bashfunctions
-# #
-###
-
-#
-# Figure out MULLE_BASHFUNCTIONS_LIBEXEC_DIR on this machine if needed.
-#
-if ! [ ${MULLE_BASHFUNCTIONS_LIBEXEC_DIR+x} ]
-then
-   MULLE_BASHFUNCTIONS_LIBEXEC_DIR="`mulle-bashfunctions libexec-dir`" || exit 1
-   export MULLE_BASHFUNCTIONS_LIBEXEC_DIR
-fi
-
-#
-# The booter reruns the executable either with bash or zsh, whatever the
-# system provides. On the second run --no-auto-shell will be set first.
-#
-if [ "${1:-}" != --no-auto-shell ]
-then
-   . "${MULLE_BASHFUNCTIONS_LIBEXEC_DIR}/mulle-boot.sh" || exit 1
-else
-   shift    # get rid of --no-auto-shell
-fi
-
-
-#
-# Include mulle-bashfunctions.sh         : default functions
-#         mulle-bashfunctions-none.sh    : almost no functions
-#         mulle-bashfunctions-minimal.sh : few functions for basic scripts
-#         mulle-bashfunctions-all.sh     : everything, even obscure functions
-#
-# Do this first to get aliases
-#
-MULLE_EXECUTABLE="${BASH_SOURCE[0]:-${(%):-%x}}"
-. "${MULLE_BASHFUNCTIONS_LIBEXEC_DIR}/mulle-bashfunctions.sh" || exit 1
-
-###
-# # Now we are in bash or zsh with mulle-bashfunctions loaded
-# #
-###########################################################################
-###   ###   ###   ###   ###   ###   ###   ###   ###   ###   ###   ###   ###
-###########################################################################
 
 #
 # Determine location of own libexec directory. Which is `src` in development
@@ -201,6 +153,42 @@ craft::setup_environment()
       log_setting "KITCHEN_DIR :           ${KITCHEN_DIR}"
       log_setting "CRAFTORDER_KITCHEN_DIR: ${CRAFTORDER_KITCHEN_DIR}"
    fi
+
+   #
+   # various very basic noob checks
+   #
+   if [ "${KITCHEN_DIR#${DEPENDENCY_DIR}}" != "${KITCHEN_DIR}" -o \
+        "${DEPENDENCY_DIR#${KITCHEN_DIR}}" != "${DEPENDENCY_DIR}" ]
+   then
+      fail "Don't place DEPENDENCY_DIR into kitchen or vice versa"
+   fi
+
+   if [ "${ADDICTION_DIR#${DEPENDENCY_DIR}}" != "${ADDICTION_DIR}" -o \
+        "${DEPENDENCY_DIR#${ADDICTION_DIR}}" != "${DEPENDENCY_DIR}" ]
+   then
+      fail "Don't place ADDICTION_DIR into kitchen or vice versa"
+   fi
+
+   r_basename "${DEPENDENCY_DIR}"
+   case "${RVAL}" in
+      kitchen|addiction|stash|src|cmake)
+         fail "Don't use misleading name \"${RVAL}\" for DEPENDENCY_DIR"
+      ;;
+   esac
+
+   r_basename "${KITCHEN_DIR}"
+   case "${RVAL}" in
+      dependency|addiction|stash|src|cmake)
+         fail "Don't use misleading name \"${RVAL}\" for KITCHEN_DIR"
+      ;;
+   esac
+
+   r_basename "${ADDICTION_DIR}"
+   case "${RVAL}" in
+      dependency|kitchen|stash|src|cmake)
+         fail "Don't use misleading name \"${RVAL}\" for ADDICTION_DIR"
+      ;;
+   esac
 }
 
 
@@ -249,18 +237,12 @@ craft::main()
             KITCHEN_DIR="$1"
          ;;
 
-         -d|--definition-dir)
+         -d|--definition-dir|--aux-definition-dir)
             [ $# -eq 1 ] && craft::usage "Missing argument to \"$1\""
             shift
 
-            INFO_DIR="$1"
-         ;;
-
-         --aux-definition-dir)
-            [ $# -eq 1 ] && craft::usage "Missing argument to \"$1\""
-            shift
-
-            AUX_INFO_DIR="$1"
+            r_add_line "${INFO_DIRS}" "$1"
+            INFO_DIRS="${RVAL}"
          ;;
 
          -f|--force)
@@ -340,8 +322,8 @@ craft::main()
       ;;
 
       *-dir|search|craftinfo-search|searchpath)
-         MULLE_SQUELCH_ENVIRONMENT_WARNING='YES'
-         craft::setup_environment
+         MULLE_SQUELCH_ENVIRONMENT_WARNING='YES' \
+            craft::setup_environment
       ;;
 
       *)

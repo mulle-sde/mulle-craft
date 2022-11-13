@@ -138,7 +138,7 @@ craft::donefile::__have_donefiles()
    have_a_donefile="NO"
    if [ -f "${_donefile}" ]
    then
-      log_fluff "A donefile \"${_donefile#${MULLE_USER_PWD}/}\" is present"
+      log_fluff "A donefile \"${_donefile#"${MULLE_USER_PWD}/"}\" is present"
       have_a_donefile='YES'
       if [ "${MULLE_FLAG_LOG_SETTINGS}" = 'YES' ]
       then
@@ -150,12 +150,12 @@ craft::donefile::__have_donefiles()
 
    if [ -f "${_shared_donefile}" ]
    then
-      log_verbose "A shared donefile \"${_shared_donefile#${MULLE_USER_PWD}/}\" is present"
+      log_verbose "A shared donefile \"${_shared_donefile#"${MULLE_USER_PWD}/"}\" is present"
       have_a_donefile='YES'
 
       log_setting "shared donefile: `cat "${_shared_donefile}"`"
    else
-      log_fluff "There is no shared donefile \"${_shared_donefile#${MULLE_USER_PWD}/}\""
+      log_fluff "There is no shared donefile \"${_shared_donefile#"${MULLE_USER_PWD}/"}\""
    fi
 
    [ "${have_a_donefile}" = 'YES' ]
@@ -297,11 +297,11 @@ craft::donefile::main()
    then
       if [ -f "${donefile}" ]
       then
-         log_info "Donefile (${donefile#${MULLE_USER_PWD}/})"
+         log_info "Donefile (${donefile#"${MULLE_USER_PWD}/"})"
          rexekutor cat "${donefile}"
          have_output='YES'
       else
-         log_info "There is no donefile yet (${donefile#${MULLE_USER_PWD}/})"
+         log_info "There is no donefile yet (${donefile#"${MULLE_USER_PWD}/"})"
       fi
    fi
 
@@ -315,10 +315,10 @@ craft::donefile::main()
             echo
          fi
 
-         log_info "Shared donefile ({shared_donefile#${MULLE_USER_PWD}/})"
+         log_info "Shared donefile ({shared_donefile#"${MULLE_USER_PWD}/"})"
          rexekutor cat "${shared_donefile}"
       else
-         log_info "There is no shared donefile (${shared_donefile#${MULLE_USER_PWD}/})"
+         log_info "There is no shared donefile (${shared_donefile#"${MULLE_USER_PWD}/"})"
       fi
    fi
 }

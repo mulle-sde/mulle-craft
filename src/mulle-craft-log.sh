@@ -136,6 +136,8 @@ craft::log::list_tool_logs()
    local project="$3"
    local configuration="$4"
 
+   [ ! -d  "${logdir}" ] && return
+
    local i
    local s
    local cmdline
@@ -144,6 +146,8 @@ craft::log::list_tool_logs()
 
    if [ ! -z "${project}" ]
    then
+      log_info "${C_VERBOSE}${project}"
+
       cmdline="${cmdline} -p \"${project}\""
    fi
 
@@ -152,12 +156,8 @@ craft::log::list_tool_logs()
       cmdline="${cmdline} -c \"${configuration}\""
    fi
 
-   log_info "${C_VERBOSE}${project}"
-
-   shell_enable_nullglob
-   for i in "${logdir}"/*.log
-   do
-      shell_disable_nullglob
+   .foreachline i in `dir_list_files "${logdir}" "*.log" "f"`
+   .do
       if [ "${mode}" = "CMD" ]
       then
          r_basename "${i}"
@@ -165,10 +165,9 @@ craft::log::list_tool_logs()
          r_concat "${s}" "\"${i%%.log}\"" " "
          s="${RVAL}"
       else
-         printf "%s\n" "${i#${MULLE_USER_PWD}/}"
+         printf "%s\n" "${i#"${MULLE_USER_PWD}/"}"
       fi
-   done
-   shell_disable_nullglob
+   .done
 
    if [ "${mode}" = "CMD" ]
    then
@@ -285,7 +284,7 @@ craft::log::craftorders()
 
    local sdk="${OPTION_SDK}"
    local platform="${OPTION_PLATFORM}"
-   local style="${OPTION_SDK:-${MULLE_CRAFT_DISPENSE_STYLE:-none}}"
+   local style="${OPTION_SDK:-${MULLE_CRAFT_DISPENSE_STYLE:-auto}}"
 
    configuration="${OPTION_CONFIGURATION}"
    configuration="${configuration:-${lastconfiguration}}"
@@ -373,9 +372,16 @@ craft::log::project()
    shell_enable_nullglob
    shell_is_glob_enabled || _internal_fail "glob is disabled"
 
-   IFS=$'\n'
-   log_debug "Log pattern : ${directory}/${configuration}/.log/*.${OPTION_TOOL}.log"
-   logfiles=$( ls -1 "${directory}"/${configuration}/.log/*.${OPTION_TOOL}.log )
+   if [ -z "${OPTION_TOOL}" ]
+   then
+      log_debug "Log pattern : ${directory}/${configuration}/.log/*.${OPTION_TOOL}.log"
+      logfiles="`dir_list_files "${directory}/${configuration}/.log/" "*.${OPTION_TOOL}.log" `"
+   else
+      log_debug "Log pattern : ${directory}/${configuration}/.log/*.log"
+      logfiles="`dir_list_files "${directory}/${configuration}/.log/" "*.log" `"
+   fi
+   log_debug "Log files   : ${logfiles}"
+
    shell_disable_nullglob
    IFS="${DEFAULT_IFS}"
 

@@ -63,12 +63,8 @@ craft::path::r_mapped_configuration()
    local identifier
 
    identifier="MULLE_CRAFT_${base_identifier}_MAP_CONFIGURATIONS"
-   if [ ! -z "${ZSH_VERSION}" ]
-   then
-      value="${(P)identifier}"
-   else
-      value="${!identifier}"
-   fi
+   r_shell_indirect_expand "${identifier}"
+   value="${RVAL}"
 
    RVAL="${configuration}"
    if [ -z "${value}" ]
@@ -100,6 +96,52 @@ to \"${identifier}\""
 }
 
 
+craft::path::r_config_extension()
+{
+   log_entry "craft::path::r_config_extension" "$@"
+
+   local name="$1"
+
+   local identifier
+
+   identifier="MULLE_SOURCETREE_CONFIG_NAME"
+   if [ ! -z "${name}" ]
+   then
+      include "case"
+
+      local base_identifier
+
+      r_tweaked_de_camel_case "${name}"
+      r_uppercase "${RVAL}"
+      r_identifier "${RVAL}"
+      base_identifier="${RVAL}"
+
+      # figure out the config name of the project, use this as
+      # the extension for its definition
+      identifier="MULLE_SOURCETREE_CONFIG_NAME_${base_identifier}"
+   fi
+
+   local value
+
+   r_shell_indirect_expand "${identifier}"
+   value="${RVAL}"
+
+   case "${value}" in
+      'config'|'default')
+         value=""
+      ;;
+
+      *)
+         value=".${value}"
+      ;;
+   esac
+
+   log_verbose "Definition and craftinfo extension is \"${value}\""
+   RVAL="${value}"
+}
+
+
+
 craft::path::r_dependencydir()
 {
    log_entry "craft::path::r_dependencydir" "$@"
@@ -129,7 +171,8 @@ craft::path::r_mainproject_kitchendir()
    local sdk="$1"
    local platform="$2"
    local configuration="$3"
-   local kitchendir="$4"
+   local style="$4"
+   local kitchendir="$5"
 
    local stylesubdir
 
@@ -138,7 +181,7 @@ craft::path::r_mainproject_kitchendir()
    craft::style::r_get_sdk_platform_configuration_string "${sdk}" \
                                                          "${platform}" \
                                                          "${configuration}" \
-                                                         "relax"
+                                                         "${style}"
    stylesubdir="${RVAL}"
 
    r_filepath_concat "${kitchendir}" "${stylesubdir}"
@@ -170,6 +213,7 @@ craft::path::r_get_mulle_sdk_path()
 
    r_filepath_concat "${ADDICTION_DIR}" "${sdk_platform}"
    addiction_dir="${RVAL}"
+
    r_filepath_concat "${DEPENDENCY_DIR}" "${sdk_platform}"
    dependency_dir="${RVAL}"
 
@@ -195,6 +239,7 @@ craft::path::r_name_from_evaledproject()
 #   log_setting "MULLE_SOURCETREE_STASH_DIR=${MULLE_SOURCETREE_STASH_DIR}"
 
    name="${evaledproject#${MULLE_VIRTUAL_ROOT:-${PWD}}/}"
+   name="${name#${MULLE_SOURCETREE_STASH_DIR}/}"
    name="${name#${MULLE_SOURCETREE_STASH_DIRNAME:-stash}/}"
 
    # replace everything thats not an identifier or . _ - + with -
@@ -357,6 +402,7 @@ craft::path::_evaluate_variables()
                                                          "${_configuration}" \
                                                          "relax"
    r_filepath_concat "${kitchendir}" "${RVAL}"
+
    craft::path::r_effective_project_kitchendir "${_name}" "${RVAL}" "${verify}"
    _kitchendir="${RVAL}"
 

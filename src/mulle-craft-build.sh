@@ -56,20 +56,21 @@ Options:
    --sdk <sdk>    : specify sdk to build against (Default)
    --platform <p> : specify platform to build for (${MULLE_UNAME})
    --style <s>    : dependency style: auto, none, relax, strict, tight
+   --target <t>   : target to build of project (if any)
    --             : pass remaining options to mulle-make
 
 Environment:
-   ADDICTION_DIR          : place to get addictions from (optional)
-   KITCHEN_DIR            : place for intermediate craft products (required)
-   CONFIGURATIONS         : configurations to build, ':' separated
-   CRAFTINFO_PATH         : places to find craftinfos
-   DISPENSE_STYLE         : how to place build products into dependency (none)
-   DEPENDENCY_DIR         : place to put dependencies into
-   DEPENDENCY_TARBALLS    : tarballs to install into dependency, ':' separated
-   MULLE_CRAFT_MAKE_FLAGS : additional flags passed to mulle-make
-   MULLE_CRAFT_USE_SCRIPT : enables building with scripts
-   PLATFORMS              : platforms to build, ':' separated
-   SDKS                   : sdks to build, ':' separated
+   ADDICTION_DIR              : place to get addictions from (optional)
+   KITCHEN_DIR                : place for intermediate craft files (required)
+   CRAFTINFO_PATH             : places to find craftinfos
+   DISPENSE_STYLE             : how to install into dependency (none)
+   DEPENDENCY_DIR             : place to put dependencies into
+   DEPENDENCY_TARBALLS        : tarballs to install into dependency, ':' sep
+   MULLE_CRAFT_MAKE_FLAGS     : additional flags passed to mulle-make
+   MULLE_CRAFT_CONFIGURATIONS : configurations to build, ':' separated
+   MULLE_CRAFT_PLATFORMS      : platforms to build, ':' separated
+   MULLE_CRAFT_SDKS           : sdks to build, ':' separated
+   MULLE_CRAFT_USE_SCRIPT     : enables building with scripts
 
 Styles:
    none    : use root only. Only useful for a single configuration/sdk/platform
@@ -108,8 +109,10 @@ craft::build::assert_sane_name()
 #   _libpath
 #   _binpath
 #
-craft::build::__set_various_paths()
+craft::build::__add_various_paths()
 {
+   log_entry "craft::build::__add_various_paths" "$@"
+
    local sdk="$1"
    local platform="$2"
    local configuration="$3"
@@ -117,10 +120,15 @@ craft::build::__set_various_paths()
 
    _binpath="${PATH}"
 
-   local sdk_platform
+   local config_sdk_platform
 
-   craft::style::r_get_sdk_platform_string "${sdk}" "${platform}" "${style}"
-   sdk_platform="${RVAL}"
+   craft::style::r_get_sdk_platform_configuration_string "${sdk}" \
+                                                         "${platform}" \
+                                                         "${configuration}" \
+                                                         "${style}"
+   config_sdk_platform="${RVAL}"
+
+   log_debug "config_sdk_platform : ${config_sdk_platform}"
 
    if [ -d "${DEPENDENCY_DIR}/bin" ]
    then
@@ -128,23 +136,11 @@ craft::build::__set_various_paths()
       _binpath="${RVAL}"
    fi
 
-   if [ -d "${DEPENDENCY_DIR}/${configuration}/bin" ]
+   if [ ! -z "${config_sdk_platform}" ]
    then
-      r_colon_concat "${DEPENDENCY_DIR}/${configuration}/bin" "${_binpath}"
-      _binpath="${RVAL}"
-   fi
-
-   if [ ! -z "${sdk_platform}" ]
-   then
-      if [ -d "${DEPENDENCY_DIR}/${sdk_platform}/bin" ]
+      if [ -d "${DEPENDENCY_DIR}/${config_sdk_platform}/bin" ]
       then
-         r_colon_concat "${DEPENDENCY_DIR}/${sdk_platform}/bin" "${_binpath}"
-         _binpath="${RVAL}"
-      fi
-
-      if [ -d "${DEPENDENCY_DIR}/${sdk_platform}/${configuration}/bin" ]
-      then
-         r_colon_concat "${DEPENDENCY_DIR}/${sdk_platform}/${configuration}/bin" "${_binpath}"
+         r_colon_concat "${DEPENDENCY_DIR}/${config_sdk_platform}/bin" "${_binpath}"
          _binpath="${RVAL}"
       fi
    fi
@@ -154,6 +150,11 @@ craft::build::__set_various_paths()
    #
    if [ ! -z "${ADDICTION_DIR}" ]
    then
+      local sdk_platform
+
+      craft::style::r_get_sdk_platform_string "${sdk}" "${platform}" "${style}"
+      sdk_platform="${RVAL}"
+
       if [ ! -z "${sdk_platform}" ]
       then
          if [ -d "${ADDICTION_DIR}/${sdk_platform}/include" ]
@@ -208,6 +209,186 @@ craft::build::__set_various_paths()
 }
 
 
+#
+# local _includepath
+# local _frameworkspath
+# local _libpath
+# local _binpath
+#
+craft::build::__set_various_paths()
+{
+   log_entry "craft::build::__set_various_paths" "$@"
+
+   local sdk="$1"
+   local platform="$2"
+   local configuration="$3"
+   local style="$4"
+
+   if [ ! -z "${DEPENDENCY_DIR}" ]
+   then
+      craft::dependency::r_include_path "${sdk}" \
+                                        "${platform}" \
+                                        "${configuration}" \
+                                        "${style}"
+      _includepath="${RVAL}"
+
+      craft::dependency::r_lib_path "${sdk}" \
+                                    "${platform}" \
+                                    "${configuration}" \
+                                    "${style}"
+      _libpath="${RVAL}"
+
+      case "${MULLE_UNAME}" in
+         darwin)
+            craft::dependency::r_frameworks_path "${sdk}" \
+                                                 "${platform}" \
+                                                 "${configuration}" \
+                                                 "${style}"
+            _frameworkspath="${RVAL}"
+         ;;
+      esac
+   fi
+
+   craft::build::__add_various_paths "${sdk}" \
+                                     "${platform}" \
+                                     "${configuration}" \
+                                     "${style}"
+}
+
+
+craft::build::r_config_extensions()
+{
+   local name="$1"
+
+   craft::path::r_config_extension "${name}"
+
+   RVAL=":${RVAL}"
+   if [ "${RVAL}" = ':' ]
+   then
+      RVAL=""
+   fi
+}
+
+
+craft::build::r_project_definitiondirs()
+{
+   log_entry "craft::build::build_project" "$@"
+
+   local project="$1"
+   local name="$2"
+   local allowplatform="$3"
+   local sdk="$4"
+   local platform="$5"
+   local configuration="$6"
+   local style="$7"
+
+   #
+   # if projects exist with duplicate names, add a random number at end
+   # to differentiate
+   #
+   local definition_dirs
+
+   # INFO_DIRS is settable as flag in mulle-craft
+   definitiondirs="${INFO_DIRS}"
+
+   if [ -z "${definitiondirs}" ]
+   then
+      local extensions
+
+      craft::build::r_config_extensions "${name}"
+      extensions="${RVAL}"
+
+      local extension
+
+      # will run once for empty extensions, which is what we want
+      .foreachpath extension in ${extensions}
+      .do
+         # default values provided by dependency/share/mulle-craft/definition
+         craft::craftinfo::r_find_dependency_item "" \
+                                                  "${allowplatform}" \
+                                                  "${sdk}" \
+                                                  "${platform}" \
+                                                  "${configuration}" \
+                                                  "${style}"  \
+                                                  "definition${extension}"
+
+         case $? in
+            0)
+               log_fluff "Adding dependency root definition \"${RVAL}\" to definitiondirs"
+               r_add_line "${definitiondirs}" "${RVAL}"
+               definitiondirs="${RVAL}"
+            ;;
+
+            2)
+            ;;
+
+            *)
+               exit 1
+            ;;
+         esac
+      .done
+
+      # overrides of .mulle/share/craft/definition
+      if [ "${OPTION_LOCAL_CRAFTINFO}" = 'YES' ]
+      then
+         .foreachpath extension in ${extensions}
+         .do
+            craft::craftinfo::r_find_project_item "${name}" \
+                                                  "${project}" \
+                                                  "${allowplatform}" \
+                                                  "${sdk}" \
+                                                  "${platform}" \
+                                                  "definition${extension}"
+
+            case $? in
+               0)
+                  log_fluff "Adding project definition \"${RVAL}\" to definitiondirs"
+                  r_add_line "${definitiondirs}" "${RVAL}"
+                  definitiondirs="${RVAL}"
+               ;;
+
+               2)
+               ;;
+
+               *)
+                  exit 1
+               ;;
+            esac
+         .done
+      fi
+
+      # more overrides of craftinfo in .mulle/share/craft/whatevs/definition
+      .foreachpath extension in ${extensions}
+      .do
+         craft::craftinfo::r_find_dependency_item "${name}" \
+                                                  "${allowplatform}" \
+                                                  "${sdk}" \
+                                                  "${platform}" \
+                                                  "${configuration}" \
+                                                  "${style}"  \
+                                                  "definition${extension}"
+
+         case $? in
+            0)
+               log_fluff "Adding ${name} item \"${RVAL}\" to definitiondirs"
+               r_add_line "${definitiondirs}" "${RVAL}"
+               definitiondirs="${RVAL}"
+            ;;
+
+            2)
+            ;;
+
+            *)
+               exit 1
+            ;;
+         esac
+      .done
+   fi
+
+   RVAL="${definitiondirs}"
+}
+
+
 craft::build::build_project()
 {
    log_entry "craft::build::build_project" "$@"
@@ -237,63 +418,17 @@ craft::build::build_project()
    [ -z "${kitchendir}" ]  && _internal_fail "kitchendir is empty"
    [ -z "${phase}" ]       && _internal_fail "phase is empty"
 
-   #
-   # if projects exist with duplicate names, add a random number at end
-   # to differentiate
-   #
-   local definition_dir
 
-   # INFO_DIR is set as flag in mulle-craft
-   definition_dir="${INFO_DIR}"
-   if [ -z "${definition_dir}" ]
-   then
-      if [ "${OPTION_LOCAL_CRAFTINFO}" = 'YES' ]
-      then
-         craft::craftinfo::r_find_project_item "${name}" \
-                                               "${project}" \
-                                               "${OPTION_PLATFORM_CRAFTINFO}" \
-                                               "${platform}" \
-                                               "definition"
+   local definitiondirs
 
-         case $? in
-            0|2)
-            ;;
-
-            *)
-               exit 1
-            ;;
-         esac
-      fi
-
-      definition_dir="${RVAL}"
-   fi
-
-   local aux_definition_dir
-
-   # AUX_INFO_DIR is set as flag in mulle-craft
-   aux_definition_dir="${AUX_INFO_DIR}"
-   if [ -z "${aux_definition_dir}" ]
-   then
-      craft::craftinfo::r_find_dependency_item "${name}" \
-                                               "${OPTION_PLATFORM_CRAFTINFO}" \
-                                               "${sdk}" \
-                                               "${platform}" \
-                                               "${configuration}" \
-                                               "${style}"  \
-                                               "definition"
-
-      case $? in
-         0|2)
-         ;;
-
-         *)
-            exit 1
-         ;;
-      esac
-
-      aux_definition_dir="${RVAL}"
-   fi
-
+   craft::build::r_project_definitiondirs "${project}" \
+                                          "${name}" \
+                                          "${OPTION_PLATFORM_CRAFTINFO}" \
+                                          "${sdk}" \
+                                          "${platform}" \
+                                          "${configuration}" \
+                                          "${style}"
+   definitiondirs="${RVAL}"
 
    # subdir for configuration / sdk
 
@@ -301,31 +436,6 @@ craft::build::build_project()
    local _frameworkspath
    local _libpath
    local _binpath
-
-   if [ ! -z "${DEPENDENCY_DIR}" ]
-   then
-      craft::dependency::r_include_path "${sdk}" \
-                                        "${platform}" \
-                                        "${configuration}" \
-                                        "${style}"
-      _includepath="${RVAL}"
-
-      craft::dependency::r_lib_path "${sdk}" \
-                            "${platform}" \
-                            "${configuration}" \
-                            "${style}"
-      _libpath="${RVAL}"
-
-      case "${MULLE_UNAME}" in
-         darwin)
-            craft::dependency::r_frameworks_path "${sdk}" \
-                                                 "${platform}" \
-                                                 "${configuration}" \
-                                                 "${style}"
-            _frameworkspath="${RVAL}"
-         ;;
-      esac
-   fi
 
    craft::build::__set_various_paths "${sdk}" \
                                      "${platform}" \
@@ -413,19 +523,21 @@ This can lead to problems on darwin, but may solve problems on linux..."
       r_concat "${args}" "--build-dir '${kitchendir}'"
       args="${RVAL}"
    fi
-   if [ ! -z "${definition_dir}" ]
+
+   if [ -z "${definitiondirs}" ]
    then
-      r_concat "${args}" "--definition-dir '${definition_dir}'"
-      args="${RVAL}"
-   else
       r_concat "${args}" "--definition-dir 'NONE'" # not sure why
       args="${RVAL}"
+   else
+      local definitiondir
+
+      .foreachline definitiondir in ${definitiondirs}
+      .do
+         r_concat "${args}" "--definition-dir '${definitiondir}'"
+         args="${RVAL}"
+      .done
    fi
-   if [ ! -z "${aux_definition_dir}" ]
-   then
-      r_concat "${args}" "--aux-definition-dir '${aux_definition_dir}'"
-      args="${RVAL}"
-   fi
+
    if [ ! -z "${configuration}" ]
    then
       r_concat "${args}" "--configuration '${configuration}'"
@@ -473,11 +585,24 @@ This can lead to problems on darwin, but may solve problems on linux..."
       args="${RVAL}"
    fi
 
-   if [ "${OPTION_ALLOW_SCRIPT}" = 'YES' ]
-   then
-      r_concat "${args}" "--allow-script"
-      args="${RVAL}"
-   fi
+   case "${OPTION_ALLOW_SCRIPTS}" in
+      'YES')
+         r_concat "${args}" "--allow-script"
+         args="${RVAL}"
+      ;;
+
+      ""|'NO')
+      ;;
+
+      *)
+         .foreachitem script in ${OPTION_ALLOW_SCRIPTS}
+         .do
+            r_concat "${args}" "--allow-build-script '${script}'"
+            args="${RVAL}"
+         .done
+      ;;
+   esac
+
    if [ "${OPTION_PARALLEL_MAKE}" = 'NO' ]
    then
       r_concat "${args}" "--serial"
@@ -502,19 +627,17 @@ This can lead to problems on darwin, but may solve problems on linux..."
    fi
 
    local mulle_options_env_key
-   local mulle_options_env_value
 
    r_tweaked_de_camel_case "${name}"
    r_identifier "${RVAL}"
    r_uppercase "${RVAL}"
+
    mulle_options_env_key="MULLE_CRAFT_${RVAL}_MAKE_OPTIONS"
 
-   if [ ${ZSH_VERSION+x} ]
-   then
-      mulle_options_env_value="${(P)RVAL}"
-   else
-      mulle_options_env_value="${!RVAL}"
-   fi
+   local mulle_options_env_value
+
+   r_shell_indirect_expand "${mulle_options_env_key}"
+   mulle_options_env_value="${RVAL}"
 
    local auxargs
    local i
@@ -563,7 +686,8 @@ set to ${C_RESET_BOLD}${mulle_options_env_value}${C_VERBOSE}"
       MULLE_FLAG_LOG_EXEKUTOR="YES"
    fi
 
-   eval_exekutor "${environment}" \
+   # use rexekutor becauee mulle-make gets the technical flags
+   eval_rexekutor "${environment}" \
                      "'${MULLE_MAKE}'" \
                         "${flags}" \
                         "${MULLE_TECHNICAL_FLAGS}" \
@@ -743,7 +867,7 @@ craft::build::build_dependency_with_dispense()
 
    case $? in
       0)
-         log_verbose "Found dispense mapper ${C_RESET_BOLD}${mapper_file#${MULLE_USER_PWD}/}"
+         log_verbose "Found dispense mapper ${C_RESET_BOLD}${mapper_file#"${MULLE_USER_PWD}/"}"
          mapper_file="${RVAL}"
 
          r_concat "${options}" "--mapper-file '${mapper_file}'"
@@ -1031,15 +1155,15 @@ craft::build::handle_step()
    local rval
 
    craft::build::handle "${cmd}" \
-                "${project}" \
-                "${marks}" \
-                "${sdk}" \
-                "${platform}" \
-                "${configuration}" \
-                "${style}" \
-                "${kitchendir}" \
-                "${phase}" \
-                "$@"
+                        "${project}" \
+                        "${marks}" \
+                        "${sdk}" \
+                        "${platform}" \
+                        "${configuration}" \
+                        "${style}" \
+                        "${kitchendir}" \
+                        "${phase}" \
+                        "$@"
    rval=$?
 
    local phasedonefile
@@ -1411,8 +1535,8 @@ craft::build::_do_craftorder()
          fi
          remaining="${RVAL}"
       else
-         _log_fluff "No donefiles \"${_donefile#${MULLE_USER_PWD}/}\" or \
-\"${_shared_donefile#${MULLE_USER_PWD}/}\" are present, so build everything"
+         _log_fluff "No donefiles \"${_donefile#"${MULLE_USER_PWD}/"}\" or \
+\"${_shared_donefile#"${MULLE_USER_PWD}/"}\" are present, so build everything"
       fi
    else
       log_fluff "No donefiles allowed, so build everything"
@@ -1439,6 +1563,18 @@ craft::build::_do_craftorder()
    local parallel
    local project
    local marks
+   local is_parallel_enabled
+
+   is_parallel_enabled='NO'
+   if [ "${OPTION_PARALLEL}" = 'YES' -a  \
+        "${OPTION_LIST_REMAINING}" = 'NO' -a \
+        "${MULLE_CRAFT_FORCE_SINGLEPHASE}" != 'YES' -a \
+        -z "${OPTION_SINGLE_DEPENDENCY}" ]
+   then
+      is_parallel_enabled='YES'
+   fi
+
+   log_fluff "is_parallel_enabled : ${is_parallel_enabled}"
 
    .foreachline line in ${remaining}
    .do
@@ -1447,10 +1583,7 @@ craft::build::_do_craftorder()
 
       [ -z "${project## }" ] && _internal_fail "empty project fail"
 
-      if [ "${OPTION_PARALLEL}" = 'YES' -a  \
-           "${OPTION_LIST_REMAINING}" = 'NO' -a \
-           "${MULLE_CRAFT_FORCE_SINGLEPHASE}" != 'YES' -a \
-           -z "${OPTION_SINGLE_DEPENDENCY}" ]
+      if [ "${is_parallel_enabled}" = 'YES' ]
       then
          case ",${marks}," in
             *,no-singlephase,*)
@@ -1551,9 +1684,6 @@ craft::build::do_craftorder()
    [ -z "${kitchendir}" ]      && _internal_fail "kitchendir is missing"
 
    [ -z "${DEPENDENCY_DIR}" ]  && fail "DEPENDENCY_DIR is undefined"
-   [ -z "${CONFIGURATIONS}" ]  && _internal_fail "CONFIGURATIONS is empty"
-   [ -z "${SDKS}" ]            && _internal_fail "SDKS is empty"
-   [ -z "${PLATFORMS}" ]       && _internal_fail "PLATFORMS is empty"
    [ -z "${DISPENSE_STYLE}" ]  && _internal_fail "DISPENSE_STYLE is empty"
 
    #
@@ -1584,7 +1714,7 @@ craft::build::do_craftorder()
    then
       craft::dependency::end_update 'complete' || exit 1
       _log_verbose "The craftorder file is empty, nothing to build \
-(${craftorderfile#${MULLE_USER_PWD}/})"
+(${craftorderfile#"${MULLE_USER_PWD}/"})"
       return
    fi
 
@@ -1600,27 +1730,30 @@ craft::build::do_craftorder()
    #       Einziges Problem. Ev. hat man zwei verschiedene SDKs, eins für
    #       ARM und eins für x86_64 und was macht man dann ?
    #
+
+   [ -z "${MULLE_CRAFT_CONFIGURATIONS}" ]  && _internal_fail "MULLE_CRAFT_CONFIGURATIONS is empty"
+   [ -z "${MULLE_CRAFT_SDKS}" ]            && _internal_fail "MULLE_CRAFT_SDKS is empty"
+   [ -z "${MULLE_CRAFT_PLATFORMS}" ]       && _internal_fail "MULLE_CRAFT_PLATFORMS is empty"
+
    local configuration
    local platform
    local sdk
 
-   shell_disable_glob; IFS=':'
-   for platform in ${PLATFORMS}
-   do
-      craft::build::assert_sane_name "${platform}" " as platform name"
-      for sdk in ${SDKS}
-      do
+   .foreachpath platform in ${MULLE_CRAFT_PLATFORMS}
+   .do
+      craft::build::assert_sane_name "${platform}" " as platform name (use ':' as separator)"
+      .foreachpath sdk in ${MULLE_CRAFT_SDKS}
+      .do
          local match_version
 
-         craft::build::assert_sane_name "${sdk}" " as sdk name"
+         craft::build::assert_sane_name "${sdk}" " as sdk name (use ':' as separator)"
 
          craft::qualifier::r_determine_platform_sdk_version "${platform}" "${sdk}" "${version}"
          match_version="${RVAL}"
 
-         for configuration in ${CONFIGURATIONS}
-         do
-            shell_enable_glob; IFS="${DEFAULT_IFS}"
-            craft::build::assert_sane_name "${configuration}" " as configuration name"
+         .foreachpath configuration in ${MULLE_CRAFT_CONFIGURATIONS}
+         .do
+            craft::build::assert_sane_name "${configuration}" " as configuration name (use ':' as separator)"
 
             local filtered
 
@@ -1642,94 +1775,149 @@ craft::build::do_craftorder()
             then
                return 1
             fi
-            shell_disable_glob; IFS=':'
-         done
-      done
-   done
-   shell_enable_glob; IFS="${DEFAULT_IFS}"
+         .done
+      .done
+   .done
 
    craft::dependency::end_update 'complete' || exit 1
 }
 
 
-craft::build::do_mainproject()
+craft::build::r_mainproject_definition_dirs()
 {
-   log_entry "craft::build::do_mainproject" "$@"
+   log_entry "craft::build::r_mainproject_definition_dirs" "$@"
 
-   local name
+   local sdk="$1"
+   local platform="$2"
+   local configuration="$3"
+   local style="$4"
+   local name="$5"
+   local projectdir="$6"
 
-   name="${PROJECT_NAME}"
-   if [ -z "${PROJECT_NAME}" ]
-   then
-      r_basename "${PWD}"
-      name="${RVAL}"
-   fi
+   local extension
 
-   log_verbose "Craft main project ${C_MAGENTA}${C_BOLD}${name}${C_VERBOSE}"
+   craft::build::r_config_extensions "${name}"
+   extensions="${RVAL}"
 
-   local sdk="${SDKS%%,*}"
-   local platform="${PLATFORMS%%,*}"
-   local configuration="${CONFIGURATIONS%%,*}"
-   local style="${DISPENSE_STYLE:-none}"
+   # should use INFO_DIRS here ?
+   local definitiondirs
 
-   sdk="${sdk:-Default}"
-   platform="${platform:-${MULLE_UNAME}}"
-   configuration="${configuration:-Debug}"
+   # default values provided by dependency/share/mulle-craft/definition
+   # will run once for empty extensions, which is what we want
+   .foreachpath extension in ${extensions}
+   .do
+      craft::craftinfo::r_find_dependency_item "" \
+                                               "${OPTION_PLATFORM_CRAFTINFO}" \
+                                               "${sdk}" \
+                                               "${platform}" \
+                                               "${configuration}" \
+                                               "${style}"  \
+                                               "definition${extension}"
 
-
-   local definition_dir
-
-   definition_dir="${INFO_DIR}"
-   if [ -z "${definition_dir}" ]
-   then
-      craft::craftinfo::r_find_project_item "${name}" \
-                                            "${PWD}" \
-                                            "${OPTION_PLATFORM_CRAFTINFO}" \
-                                            "${platform}" \
-                                            "definition"
       case $? in
-         0|2)
+         0)
+            log_debug "Adding \"${RVAL}\" to definitiondirs"
+            r_add_line "${definitiondirs}" "${RVAL}"
+            definitiondirs="${RVAL}"
+         ;;
+
+         2)
          ;;
 
          *)
             exit 1
          ;;
       esac
-      definition_dir="${RVAL}"
-   fi
+   .done
 
-#   local craftinfodir
-#
-#   craft::path::r_determine_craftinfo_dir "${name}" \
-#                             "${PWD}" \
-#                             "mainproject" \
-#                             "${OPTION_PLATFORM_CRAFTINFO}" \
-#                             "${OPTION_LOCAL_CRAFTINFO}" \
-#                             "${sdk}" \
-#                             "${platform}" \
-#                             "${configuration}" \
-#                             "auto"
-#   case $? in
-#      0|2)
-#      ;;
-#
-#      *)
-#         exit 1
-#      ;;
-#   esac
-#   craftinfodir="${RVAL}"
+   #
+   # override with local info
+   #
+   .foreachpath extension in ${extensions}
+   .do
+      craft::craftinfo::r_find_project_item "${name}" \
+                                            "${projectdir}" \
+                                            "${OPTION_PLATFORM_CRAFTINFO}" \
+                                            "${sdk}" \
+                                            "${platform}" \
+                                            "definition${extension}"
 
-   # always set --info-dir
-   if [ ! -z "${definition_dir}" ]
+      case $? in
+         0)
+            log_debug "Adding \"${RVAL}\" to definitiondirs"
+            r_add_line "${definitiondirs}" "${RVAL}"
+            definitiondirs="${RVAL}"
+         ;;
+
+         2)
+         ;;
+
+         *)
+            exit 1
+         ;;
+      esac
+   .done
+
+   RVAL="${definitiondirs}"
+}
+
+
+craft::build::build_mainproject()
+{
+   log_entry "craft::build::build_mainproject" "$@"
+
+   local sdk="$1"
+   local platform="$2"
+   local configuration="$3"
+   local style="$4"
+   local name="$5"
+   local projectdir="$6"
+
+   shift 6
+
+   local definitiondirs
+
+   definitiondirs="${INFO_DIRS}"
+   if [ -z "${definitiondirs}" ]
    then
-      r_concat "${OPTIONS_MULLE_MAKE_PROJECT}" "--definition-dir '${definition_dir}'"
-      OPTIONS_MULLE_MAKE_PROJECT="${RVAL}"
-   else
-      r_concat "${OPTIONS_MULLE_MAKE_PROJECT}" "--definition-dir 'NONE'"
-      OPTIONS_MULLE_MAKE_PROJECT="${RVAL}"
+      craft::build::r_mainproject_definition_dirs "${sdk}" \
+                                                  "${platform}" \
+                                                  "${configuration}" \
+                                                  "${style}" \
+                                                  "${name}" \
+                                                  "${projectdir}"
+      definitiondirs="${RVAL}"
    fi
 
+   local options
 
+   options="${OPTIONS_MULLE_MAKE_PROJECT}"
+
+   # always set --definition-dir
+   if [ -z "${definitiondirs}" ]
+   then
+      r_concat "${options}" "--definition-dir 'NONE'" # not sure why
+      options="${RVAL}"
+   else
+      local definitiondir
+
+      .foreachline definitiondir in ${definitiondirs}
+      .do
+         r_concat "${options}" "--definition-dir '${definitiondir}'"
+         options="${RVAL}"
+      .done
+   fi
+
+   # we need mostly binpath here
+   local _includepath
+   local _frameworkspath
+   local _libpath
+   local _binpath
+
+   craft::build::__set_various_paths "${sdk}" \
+                                     "${platform}" \
+                                     "${configuration}" \
+                                     "${style}"
 
    #
    # find proper build and log directory (always relax)
@@ -1739,6 +1927,7 @@ craft::build::do_mainproject()
    craft::path::r_mainproject_kitchendir "${sdk}" \
                                          "${platform}" \
                                          "${configuration}" \
+                                         "${style}" \
                                          "${KITCHEN_DIR}"
    kitchendir="${RVAL}"
 
@@ -1759,7 +1948,7 @@ craft::build::do_mainproject()
    remove_file_if_present "${kitchendir}/.status"
 
    redirect_exekutor "${kitchendir}/.project" printf "%s\n" "${name}" \
-   || ail "Could not write into ${kitchendir}"
+   || fail "Could not write into ${kitchendir}"
 
    # use KITCHEN_DIR not kitchendir
    redirect_exekutor "${KITCHEN_DIR}/.mulle-craft-last" \
@@ -1768,46 +1957,76 @@ craft::build::do_mainproject()
 
    if [ ! -z "${PROJECT_LANGUAGE}" ]
    then
-      r_concat "${OPTIONS_MULLE_MAKE_PROJECT}" "--language '${PROJECT_LANGUAGE}'"
-      OPTIONS_MULLE_MAKE_PROJECT="${RVAL}"
+      r_concat "${options}" "--language '${PROJECT_LANGUAGE}'"
+      options="${RVAL}"
+   fi
+   if [ ! -z "${PROJECT_DIALECT}" ]
+   then
+      r_concat "${options}" "--dialect '${PROJECT_DIALECT}'"
+      options="${RVAL}"
    fi
 
-   r_concat "${OPTIONS_MULLE_MAKE_PROJECT}" "--build-dir '${kitchendir}'"
-   OPTIONS_MULLE_MAKE_PROJECT="${RVAL}"
+   r_concat "${options}" "--build-dir '${kitchendir}'"
+   options="${RVAL}"
 
-   r_concat "${OPTIONS_MULLE_MAKE_PROJECT}" "--log-dir '${logdir}'"
-   OPTIONS_MULLE_MAKE_PROJECT="${RVAL}"
+   r_concat "${options}" "--log-dir '${logdir}'"
+   options="${RVAL}"
+
+   if [ "${_binpath}" != "${PATH}" ]
+   then
+      r_concat "${options}" "--path '${_binpath}'"
+      options="${RVAL}"
+   fi
 
    # ugly hackage
+   if [ ! -z "${OPTION_TARGETS}" ]
+   then
+      r_concat "${options}" "--targets '${OPTION_TARGETS}'"
+      options="${RVAL}"
+   fi
    if [ ! -z "${configuration}" ]
    then
-      r_concat "${OPTIONS_MULLE_MAKE_PROJECT}" "--configuration '${configuration}'"
-      OPTIONS_MULLE_MAKE_PROJECT="${RVAL}"
+      r_concat "${options}" "--configuration '${configuration}'"
+      options="${RVAL}"
    fi
    if [ "${OPTION_MULLE_TEST}" = 'YES' ]
    then
-      r_concat "${OPTIONS_MULLE_MAKE_PROJECT}" "--mulle-test"
-      OPTIONS_MULLE_MAKE_PROJECT="${RVAL}"
+      r_concat "${options}" "--mulle-test"
+      options="${RVAL}"
    fi
    if [ "${platform}" != "${MULLE_UNAME}" ]
    then
-      r_concat "${OPTIONS_MULLE_MAKE_PROJECT}" "--platform '${platform}'"
-      OPTIONS_MULLE_MAKE_PROJECT="${RVAL}"
+      r_concat "${options}" "--platform '${platform}'"
+      options="${RVAL}"
    fi
    if [ "${sdk}" != 'Default' ]
    then
-      r_concat "${OPTIONS_MULLE_MAKE_PROJECT}" "--sdk '${sdk}'"
-      OPTIONS_MULLE_MAKE_PROJECT="${RVAL}"
+      r_concat "${options}" "--sdk '${sdk}'"
+      options="${RVAL}"
    fi
-   if [ "${OPTION_ALLOW_SCRIPT}" = 'YES' ]
-   then
-      r_concat "${OPTIONS_MULLE_MAKE_PROJECT}" "--allow-script"
-      OPTIONS_MULLE_MAKE_PROJECT="${RVAL}"
-   fi
+
+   case "${OPTION_ALLOW_SCRIPTS}" in
+      'YES')
+         r_concat "${options}" "--allow-script"
+         options="${RVAL}"
+      ;;
+
+      ""|'NO')
+      ;;
+
+      *)
+         .foreachitem script in ${OPTION_ALLOW_SCRIPTS}
+         .do
+            r_concat "${options}" "--allow-build-script '${script}'"
+            options="${RVAL}"
+         .done
+      ;;
+   esac
+
    if [ "${OPTION_PARALLEL_MAKE}" = 'NO' ]
    then
-      r_concat "${OPTIONS_MULLE_MAKE_PROJECT}" "--serial"
-      OPTIONS_MULLE_MAKE_PROJECT="${RVAL}"
+      r_concat "${options}" "--serial"
+      options="${RVAL}"
    fi
 
    local sdk_path
@@ -1815,11 +2034,11 @@ craft::build::do_mainproject()
 
    craft::path::r_get_mulle_sdk_path "${sdk}" "${platform}" "${style}"
    sdk_path="${RVAL}"
-   
+
    if [ ! -z "${sdk_path}" ]
    then
-      r_concat "${OPTIONS_MULLE_MAKE_PROJECT}" "-DMULLE_SDK_PATH='${sdk_path}'"
-      OPTIONS_MULLE_MAKE_PROJECT="${RVAL}"
+      r_concat "${options}" "-DMULLE_SDK_PATH='${sdk_path}'"
+      options="${RVAL}"
    fi
 
    # MEMO: do this properly with escaping of '
@@ -1847,10 +2066,10 @@ craft::build::do_mainproject()
    local rval
 
    # never install the project, use mulle-make for that
-   eval_exekutor "'${MULLE_MAKE}'" \
+   eval_rexekutor "'${MULLE_MAKE}'" \
                         "${MULLE_TECHNICAL_FLAGS}" \
                      "build" \
-                        "${OPTIONS_MULLE_MAKE_PROJECT}" \
+                        "${options}" \
                         "${auxargs}"
    rval=$?
 
@@ -1880,6 +2099,79 @@ craft::build::do_mainproject()
 }
 
 
+craft::build::do_mainproject()
+{
+   log_entry "craft::build::do_mainproject" "$@"
+
+   local name
+
+   name="${PROJECT_NAME}"
+   if [ -z "${PROJECT_NAME}" ]
+   then
+      r_basename "${PWD}"
+      name="${RVAL}"
+   fi
+
+   [ -z "${MULLE_CRAFT_CONFIGURATIONS}" ]  && _internal_fail "MULLE_CRAFT_CONFIGURATIONS is empty"
+   [ -z "${MULLE_CRAFT_SDKS}" ]            && _internal_fail "MULLE_CRAFT_SDKS is empty"
+   [ -z "${MULLE_CRAFT_PLATFORMS}" ]       && _internal_fail "MULLE_CRAFT_PLATFORMS is empty"
+
+   local configuration
+   local platform
+   local sdk
+
+   include "craft::qualifier"
+
+   .foreachpath platform in ${MULLE_CRAFT_PLATFORMS}
+   .do
+      craft::build::assert_sane_name "${platform}" " as platform name (use ':' as separator)"
+
+      .foreachpath sdk in ${MULLE_CRAFT_SDKS}
+      .do
+         local match_version
+
+         craft::build::assert_sane_name "${sdk}" " as sdk name (use ':' as separator)"
+
+         craft::qualifier::r_determine_platform_sdk_version "${platform}" "${sdk}" "${version}"
+         match_version="${RVAL}"
+
+         .foreachpath configuration in ${MULLE_CRAFT_CONFIGURATIONS}
+         .do
+            craft::build::assert_sane_name "${configuration}" " as configuration name (use ':' as separator)"
+
+            if [ "${MULLE_FLAG_LOG_VERBOSE}" = 'YES' ]
+            then
+               local blurb
+
+               blurb="Craft main project ${C_MAGENTA}${C_BOLD}${name}${C_VERBOSE} \
+as a ${C_MAGENTA}${C_BOLD}${configuration}${C_VERBOSE} build"
+               if [ "${platform}" != "Default" ]
+               then
+                  blurb="${blurb} for ${C_MAGENTA}${C_BOLD}${platform}${C_VERBOSE}"
+               fi
+               if [ "${sdk}" != "Default" ]
+               then
+                  blurb="${blurb} with ${C_MAGENTA}${C_BOLD}${sdk}${C_VERBOSE}"
+               fi
+               log_verbose "${blurb}"
+            fi
+
+            if ! craft::build::build_mainproject "${sdk}" \
+                                                 "${platform}" \
+                                                 "${configuration}" \
+                                                 "${DISPENSE_STYLE:-auto}" \
+                                                 "${name}" \
+                                                 "" \
+                                                 "$@"
+            then
+               return 1
+            fi
+         .done
+      .done
+   .done
+}
+
+
 #
 # mulle-craft isn't ruled so much by command line arguments
 # but uses mostly ENVIRONMENT variables
@@ -1889,7 +2181,7 @@ craft::build::common()
 {
    log_entry "craft::build::common" "$@"
 
-   local OPTION_ALLOW_SCRIPT="${MULLE_CRAFT_USE_SCRIPT:-DEFAULT}"
+   local OPTION_ALLOW_SCRIPTS="${MULLE_CRAFT_USE_SCRIPTS:-${MULLE_CRAFT_USE_SCRIPT:-}}"
    local OPTION_BUILD_DEPENDENCY="DEFAULT"
    local OPTION_CLEAN_TMP='YES'
    local OPTION_DONEFILES='YES'
@@ -1910,7 +2202,7 @@ craft::build::common()
    local OPTION_SINGLE_DEPENDENCY
    local OPTION_VERSION=DEFAULT
    local OPTIONS_MULLE_MAKE_PROJECT=
-
+   local OPTION_TARGETS=
    local OPTION_CALLBACK
 
    # header install phase currently not installing for some reason
@@ -1955,12 +2247,28 @@ craft::build::common()
          ;;
 
          # these are dependency within craftorder, craftorder has also subproj
-         --allow-script)
-            OPTION_ALLOW_SCRIPT='YES'
+         --allow-all-scripts|--allow-script)
+            OPTION_ALLOW_SCRIPTS='YES'
+         ;;
+
+         --allow-build-script)
+            [ $# -eq 1 ] && craft::build::usage "Missing argument to \"$1\""
+            shift
+
+            if [ "${OPTION_ALLOW_SCRIPTS}" != 'YES' ]
+            then
+               if [ "${OPTION_ALLOW_SCRIPTS}" = 'NO' ]
+               then
+                  OPTION_ALLOW_SCRIPTS="${RVAL}"
+               else
+                  r_comma_concat "${OPTION_ALLOW_SCRIPTS}" "$1"
+                  OPTION_ALLOW_SCRIPTS="${RVAL}"
+               fi
+            fi
          ;;
 
          --no-allow-script)
-            OPTION_ALLOW_SCRIPT='NO'
+            OPTION_ALLOW_SCRIPTS='NO'
          ;;
 
          --dependency)
@@ -2062,7 +2370,7 @@ craft::build::common()
             [ $# -eq 1 ] && craft::build::usage "Missing argument to \"$1\""
             shift
 
-            CONFIGURATIONS="$1"
+            MULLE_CRAFT_CONFIGURATIONS="$1"
          ;;
 
          --preferred-library-style|--library-style)
@@ -2073,11 +2381,11 @@ craft::build::common()
          ;;
 
          --debug)
-            CONFIGURATIONS="Debug"
+            MULLE_CRAFT_CONFIGURATIONS="Debug"
          ;;
 
          --release)
-            CONFIGURATIONS="Release"
+            MULLE_CRAFT_CONFIGURATIONS="Release"
          ;;
 
          --mulle-test)
@@ -2088,14 +2396,14 @@ craft::build::common()
             [ $# -eq 1 ] && craft::build::usage "Missing argument to \"$1\""
             shift
 
-            SDKS="$1"
+            MULLE_CRAFT_SDKS="$1"
          ;;
 
          --platform|--platforms)
             [ $# -eq 1 ] && craft::build::usage "Missing argument to \"$1\""
             shift
 
-            PLATFORMS="$1"
+            MULLE_CRAFT_PLATFORMS="$1"
          ;;
 
          --style|--dispense-style|--dependency-style)
@@ -2105,6 +2413,14 @@ craft::build::common()
             DISPENSE_STYLE="$1"
          ;;
 
+         --target|--targets)
+            [ $# -eq 1 ] && craft::build::usage "Missing argument to \"$1\""
+            shift
+
+            OPTION_TARGETS="$1"
+         ;;
+
+
          --version)
             [ $# -eq 1 ] && craft::build::usage "Missing argument to \"$1\""
             shift
@@ -2112,6 +2428,10 @@ craft::build::common()
             OPTION_VERSION="$1"
          ;;
 
+
+         \'-*)
+            fail "Single quoted option is an escaping fail"
+         ;;
 
          # pass remaining stuff to mulle-make
          --)
@@ -2127,14 +2447,13 @@ craft::build::common()
       shift
    done
 
-
    [ -z "${KITCHEN_DIR}" ] && _internal_fail "KITCHEN_DIR not set"
    [ -z "${MULLE_UNAME}" ] && _internal_fail "MULLE_UNAME not set"
 
-   DISPENSE_STYLE="${DISPENSE_STYLE:-none}"
-   CONFIGURATIONS="${CONFIGURATIONS:-Debug}"
-   SDKS="${SDKS:-Default}"
-   PLATFORMS="${PLATFORMS:-Default}"
+   DISPENSE_STYLE="${DISPENSE_STYLE:-auto}"
+   MULLE_CRAFT_CONFIGURATIONS="${MULLE_CRAFT_CONFIGURATIONS:-Debug}"
+   MULLE_CRAFT_SDKS="${MULLE_CRAFT_SDKS:-Default}"
+   MULLE_CRAFT_PLATFORMS="${MULLE_CRAFT_PLATFORMS:-Default}"
 
    local lastenv
    local currentenv
@@ -2166,11 +2485,18 @@ craft::build::common()
 ${currentenv}"
    fi
 
+   log_setting "DISPENSE_STYLE             : \"${DISPENSE_STYLE}\""
+   log_setting "MULLE_CRAFT_CONFIGURATIONS : \"${MULLE_CRAFT_CONFIGURATIONS}\""
+   log_setting "MULLE_CRAFT_SDKS           : \"${MULLE_CRAFT_SDKS}\""
+   log_setting "MULLE_CRAFT_PLATFORMS      : \"${MULLE_CRAFT_PLATFORMS}\""
+   log_setting "CRAFTORDER_FILE            : \"${CRAFTORDER_FILE}\""
+
    include "craft::style"
    include "craft::path"
    include "craft::craftinfo"
    include "craft::searchpath"
-
+   include "craft::qualifier"
+   include "craft::dependency"
 
    if [ "${OPTION_USE_CRAFTORDER}" = 'YES' ]
    then
@@ -2188,13 +2514,10 @@ ${currentenv}"
          fail "Missing craftorder file \"${CRAFTORDER_FILE}\""
       fi
 
-      include "craft::qualifier"
-      include "craft::dependency"
-
       craft::build::do_craftorder "${CRAFTORDER_FILE}" \
-                          "${CRAFTORDER_KITCHEN_DIR}" \
-                          "${OPTION_VERSION}" \
-                          "$@"
+                                  "${CRAFTORDER_KITCHEN_DIR}" \
+                                  "${OPTION_VERSION}" \
+                                  "$@"
       return $?
    fi
 

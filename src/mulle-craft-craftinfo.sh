@@ -65,18 +65,22 @@ EOF
 #
 # basically expands searchpath with "${directory}/definition" to
 # ${directory}/definition.linux:${directory}/definiton"
-#
+# and now to
+# ${directory}/definition.musl.linux:${directory}/definition.linux:{directory}/definiton.musl.ALL:${directory}/definiton"
+
 craft::craftinfo::r_find_item()
 {
    log_entry "craft::craftinfo::r_find_item" "$@"
 
    local directory="$1"
-   local platform="$2"
-   local allowplatform="$3"
-   local itemname="$4"
+   local sdk="$2"
+   local platform="$3"
+   local allowplatform="$4"
+   local itemname="$5"
 
    [ -z "${directory}" ] && _internal_fail "empty directory"
    [ -z "${itemname}" ]  && _internal_fail "empty itemname"
+   [ -z "${sdk}" ]       && _internal_fail "empty SDK"
 
    if [ "${allowplatform}" != 'NO' ]   # empty is OK
    then
@@ -87,16 +91,38 @@ craft::craftinfo::r_find_item()
          platform="${MULLE_UNAME}"
       fi
 
-      RVAL="${directory}/${itemname}.${platform}"
-      if [ -e "${RVAL}" ]
+      if [ "${sdk}" != 'Default' ]
       then
+         RVAL="${directory}/${itemname}.${sdk}.${platform}"
+         if rexekutor [ -e "${RVAL}" ]
+         then
+            log_fluff "\"${RVAL#"${MULLE_USER_PWD}/"}\" found"
+            return
+         fi
+      else
+         RVAL="${directory}/${itemname}.${platform}"
+         if rexekutor [ -e "${RVAL}" ]
+         then
+            log_fluff "\"${RVAL#"${MULLE_USER_PWD}/"}\" found"
+            return
+         fi
+      fi
+   fi
+
+   if [ "${sdk}" != 'Default' ]
+   then
+      RVAL="${directory}/${itemname}.${sdk}.ALL"
+      if rexekutor [ -e "${RVAL}" ]
+      then
+         log_fluff "\"${RVAL#"${MULLE_USER_PWD}/"}\" found"
          return
       fi
    fi
 
    RVAL="${directory}/${itemname}"
-   if [ -e "${RVAL}" ]
+   if rexekutor [ -e "${RVAL}" ]
    then
+      log_fluff "\"${RVAL#"${MULLE_USER_PWD}/"}\" found"
       return
    fi
    RVAL=""
@@ -113,7 +139,7 @@ craft::craftinfo::r_find_dependency_dir()
 
    [ $# -eq 6 ] || _internal_fail "api error"
 
-   local projectname="${1:-unknown}"
+   local projectname="$1"   # can be empty now for "root"
    local dependencydir="${2:-dependency}"
    local sdk="${3:-Default}"
    local platform="${4:-Default}"
@@ -135,7 +161,7 @@ craft::craftinfo::r_find_dependency_dir()
    .foreachpath pathitem in ${CRAFTINFO_PATH}
    .do
       r_filepath_concat "${pathitem}" "${projectname}"
-      if [ -d "${RVAL}" ]
+      if rexekutor [ -d "${RVAL}" ]
       then
          return 0
       fi
@@ -149,7 +175,7 @@ craft::craftinfo::r_find_dependency_dir()
       depsubdir="${RVAL}"
 
       r_filepath_concat "${depsubdir}" "share" "mulle-craft" "${projectname}"
-      if [ -d "${RVAL}" ]
+      if rexekutor [ -d "${RVAL}" ]
       then
          return 0
       fi
@@ -157,7 +183,7 @@ craft::craftinfo::r_find_dependency_dir()
 
    # fallback on default
    r_filepath_concat "${dependencydir}" "share" "mulle-craft" "${projectname}"
-   if [ -d "${RVAL}" ]
+   if rexekutor [ -d "${RVAL}" ]
    then
       return 0
    fi
@@ -177,7 +203,7 @@ craft::craftinfo::r_find_dependency_item()
    #
    [ $# -eq 7 ] || _internal_fail "api error"
 
-   local name="${1:-unknown}"
+   local name="$1"
    local allowplatform="${2:-YES}"
    local sdk="${3:-Default}"
    local platform="${4:-Default}"
@@ -185,13 +211,11 @@ craft::craftinfo::r_find_dependency_item()
    local style="${6:-none}"
    local itemname="${7:-definition}"
 
-
    # projectname
    local projectname
 
    r_basename "${name}"
    projectname="${RVAL}"
-   [ -z "${projectname}" ] && _internal_fail "projectname is empty"
 
    local rval
 
@@ -202,11 +226,16 @@ craft::craftinfo::r_find_dependency_item()
                                            "${configuration}" \
                                            "${style}"
    rval=$?
-   [ $rval -ne 0 ] && return $rval
+   if [ $rval -ne 0 ]
+   then
+      log_debug "No ${itemname} for \"${name}\" in \"${DEPENDENCY_DIR}\" found"
+      return $rval
+   fi
 
    directory="${RVAL}"
 
    if craft::craftinfo::r_find_item "${directory}" \
+                                    "${sdk}" \
                                     "${platform}" \
                                     "${allowplatform}" \
                                     "${itemname}"
@@ -214,7 +243,7 @@ craft::craftinfo::r_find_dependency_item()
       return 0
    fi
 
-   log_fluff "No ${itemname} for \"${name}\" found"
+   log_debug "No ${itemname} for \"${name}\" in \"${DEPENDENCY_DIR}\" found"
    RVAL=""
    return 2
 }
@@ -251,8 +280,9 @@ craft::craftinfo::r_find_project_item()
    local name="${1:-unknown}"
    local projectdir="${2:-${PWD}}"
    local allowplatform="${3:-YES}"
-   local platform="${4:-Default}"
-   local itemname="${5:-definition}"
+   local sdk="${4:-Default}"
+   local platform="${5:-Default}"
+   local itemname="${6:-definition}"
 
    local directory
 
@@ -261,6 +291,7 @@ craft::craftinfo::r_find_project_item()
       directory="${RVAL}"
 
       if craft::craftinfo::r_find_item "${directory}" \
+                                       "${sdk}" \
                                        "${platform}" \
                                        "${allowplatform}" \
                                        "${itemname}"
@@ -269,7 +300,7 @@ craft::craftinfo::r_find_project_item()
       fi
    fi
 
-   log_fluff "No ${itemname} for \"${name}\" found"
+   log_debug "No ${itemname} for \"${name}\" in project found"
 
    RVAL=""
    return 2
@@ -406,6 +437,7 @@ craft::craftinfo::main()
    craft::craftinfo::r_find_project_item "${name}" \
                                          "${OPTION_PROJECT_DIR}" \
                                          "${OPTION_PLATFORM_CRAFTINFO}" \
+                                         "${OPTION_SDK}" \
                                          "${OPTION_PLATFORM}" \
                                          "${OPTION_ITEM}"
    rval=$?

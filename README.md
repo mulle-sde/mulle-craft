@@ -36,20 +36,20 @@ Essentially, `mulle-craft` is a shortcut for typing:
 # Build the dependencies
 for project in `mulle-sourcetree craftorder`
 do
-   for sdk in ${SDKS}
+   for sdk in ${MULLE_CRAFT_SDKS}
    do
-      for platform in ${PLATFORMS}
+      for platform in ${MULLE_CRAFT_PLATFORMS}
       do
-         for configuration in ${CONFIGURATIONS}
+         for configuration in ${MULLE_CRAFT_CONFIGURATIONS}
          do
-            mulle-make install --configuration "${configuration}" \
-                               --sdk "${sdk}" \
-                               --definition-dir ".mulle/share/craft/definition" \
-                               --aux-definition-dir "dependency/share/mulle-craft/${project}/definition" \
+            mulle-make install --sdk "${sdk}" \
                                --platform "${platform}" \
+                               --configuration "${configuration}" \
+                               --definition-dir ".mulle/share/craft/definition" \
+                               --definition-dir "dependency/${sdk}-${platform}/share/mulle-craft/${project}/definition" \
                                --prefix "${tmpdir}" \
                                "${project}"
-            mulle-dispense "${tmpdir}" "${DEPENDENCY_DIR}/${sdk}-${platform}/${configuration}
+            mulle-dispense "${tmpdir}" "dependency/${sdk}-${platform}/${configuration}"
          done
       done
    done

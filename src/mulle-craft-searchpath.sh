@@ -83,10 +83,10 @@ craft::searchpath::main()
    local sdks
    local style
 
-   configurations="${CONFIGURATIONS:-Debug:Release}"
-   sdks="${SDKS:-Default}"
-   platforms="${PLATFORMS:-${MULLE_UNAME}}"
-   style="${MULLE_CRAFT_DISPENSE_STYLE:-none}"
+   configurations="${MULLE_CRAFT_CONFIGURATIONS:-Debug:Release}"
+   sdks="${MULLE_CRAFT_SDKS:-Default}"
+   platforms="${MULLE_CRAFT_PLATFORMS:-${MULLE_UNAME}}"
+   style="${MULLE_CRAFT_DISPENSE_STYLE:-auto}"
 
    while [ $# -ne 0 ]
    do
