@@ -309,7 +309,7 @@ craft::log::craftorders()
 
    include "craft::path"
 
-   craft::path::_evaluate_variables "${name}" \
+   craft::path::__evaluate_variables "${name}" \
                                     "${sdk}" \
                                     "${platform}" \
                                     "${configuration}" \
@@ -385,10 +385,10 @@ craft::log::project()
    shell_disable_nullglob
    IFS="${DEFAULT_IFS}"
 
+   local i
+
    if [ ! -z "${logfiles}" ]
    then
-      local i
-
       .foreachline i in ${logfiles}
       .do
          log_info "${C_RESET_BOLD}${i}:"

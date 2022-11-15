@@ -1273,14 +1273,8 @@ craft::build::handle_parallel()
       local project
       local marks
 
-      shell_disable_glob; IFS=$'\n'
-      for line in ${parallel}
-      do
-         shell_enable_glob; IFS="${DEFAULT_IFS}"
-
-         local project
-         local marks
-
+      .foreachline line in ${parallel}
+      .do
          IFS=";" read -r project marks <<< "${line}"
 
          # need a project and not empty spaces
@@ -1323,7 +1317,7 @@ craft::build::handle_parallel()
                                       "${donefile}" \
                                       "$@"
          fi
-      done
+      .done
 
       shell_enable_glob; IFS="${DEFAULT_IFS}"
 
@@ -1349,15 +1343,13 @@ craft::build::handle_parallel()
 
          local line
 
-         shell_disable_glob; IFS=$'\n'
-         for line in ${failures}
-         do
+         .foreachline line in ${failures}
+         .do
             project="${line%;*}"      # project;phase (remove ;rval)
             phase="${project#*;}"
             project="${project%;*}"
             log_error "Parallel build of \"${project}\" failed in phase \"${phase}\""
-         done
-         shell_enable_glob; IFS="${DEFAULT_IFS}"
+         .done
 
          remove_file_if_present "${statusfile}"
 
@@ -2120,6 +2112,9 @@ craft::build::do_mainproject()
    local platform
    local sdk
 
+   local match_version
+   local blurb
+
    include "craft::qualifier"
 
    .foreachpath platform in ${MULLE_CRAFT_PLATFORMS}
@@ -2128,8 +2123,6 @@ craft::build::do_mainproject()
 
       .foreachpath sdk in ${MULLE_CRAFT_SDKS}
       .do
-         local match_version
-
          craft::build::assert_sane_name "${sdk}" " as sdk name (use ':' as separator)"
 
          craft::qualifier::r_determine_platform_sdk_version "${platform}" "${sdk}" "${version}"
@@ -2141,8 +2134,6 @@ craft::build::do_mainproject()
 
             if [ "${MULLE_FLAG_LOG_VERBOSE}" = 'YES' ]
             then
-               local blurb
-
                blurb="Craft main project ${C_MAGENTA}${C_BOLD}${name}${C_VERBOSE} \
 as a ${C_MAGENTA}${C_BOLD}${configuration}${C_VERBOSE} build"
                if [ "${platform}" != "Default" ]

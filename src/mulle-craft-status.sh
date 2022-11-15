@@ -67,12 +67,11 @@ craft::status::r_get_names_from_file()
 
    local line
    local names
+   local project
+   local marks
 
    .foreachline line in ${lines}
    .do
-      local project
-      local marks
-
       IFS=";" read project marks <<< "${line}"
 
       case ",${marks}," in
@@ -167,7 +166,7 @@ craft::status::output_names_with_status()
          _kitchendir="${RVAL}"
          _configuration="${configuration}"
       else
-         craft::path::_evaluate_variables "${name}" \
+         craft::path::__evaluate_variables "${name}" \
                                           "${sdk}" \
                                           "${platform}" \
                                           "${configuration}" \

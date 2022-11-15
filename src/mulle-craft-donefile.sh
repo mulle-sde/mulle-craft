@@ -125,8 +125,6 @@ craft::donefile::__have_donefiles()
    # actual buildir because that's to be determined later
    # at least for now
    #
-   local have_a_donefile
-
    craft::donefile::r_shared_donefile "${sdk}" "${platform}" "${configuration}"
    _shared_donefile="${RVAL}"
 

@@ -125,10 +125,10 @@ craft::dependency::_install_tarballs()
       r_filepath_concat "${DEPENDENCY_DIR}" "${RVAL}"
       directory="${RVAL}"
 
+      local dst_dir
+
       .foreachpath tarball in ${tarballs}
       .do
-         local dst_dir
-
          dst_dir="${directory}"
 
          # little hack for convenience..
