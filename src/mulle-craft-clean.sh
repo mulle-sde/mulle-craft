@@ -142,16 +142,8 @@ craft::clean::main()
       return $?
    fi
 
-   if [ -z "${MULLE_CRAFT_STYLE_SH}" ]
-   then
-      # shellcheck source=src/mulle-craft-style.sh
-      . "${MULLE_CRAFT_LIBEXEC_DIR}/mulle-craft-style.sh"
-   fi
-   if [ -z "${MULLE_CRAFT_PATH_SH}" ]
-   then
-      # shellcheck source=src/mulle-craft-path.sh
-      . "${MULLE_CRAFT_LIBEXEC_DIR}/mulle-craft-path.sh"
-   fi
+   include "craft::style"
+   include "craft::path"
 
    # centralize this into mulle-craft-environment.sh
 
@@ -245,14 +237,11 @@ craft::clean::main()
             r_escaped_sed_pattern "${cleantarget}"
             escaped="${RVAL}"
 
-            for donefile in "${DEPENDENCY_DIR}/etc"/craftorder-*
-            do
+            .foreachfile donefile in "${DEPENDENCY_DIR}/etc"/craftorder-*
+            .do
                if [ -f "${donefile}" ]
                then
-                  if [ -z "${MULLE_CRAFT_DEPENDENCY_SH}" ]
-                  then
-                     . "${MULLE_CRAFT_LIBEXEC_DIR}/mulle-craft-dependency.sh"
-                  fi
+                  include "craft::dependency"
 
                   # need to unprotect dependency_dir
                   craft::dependency::unprotect
@@ -268,7 +257,7 @@ craft::clean::main()
 
                   craft::dependency::protect
                fi
-            done
+            .done
 
             log_debug "Done cleaning"
          ;;

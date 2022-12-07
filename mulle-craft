@@ -36,7 +36,7 @@
 [ "${TRACE}" = 'YES' -o "${MULLE_CRAFT_TRACE}" = 'YES' ] && set -x && : "$0" "$@"
 
 
-MULLE_EXECUTABLE_VERSION=2.0.0
+MULLE_EXECUTABLE_VERSION=3.0.0
 
 #
 # Determine location of own libexec directory. Which is `src` in development
@@ -194,22 +194,6 @@ craft::setup_environment()
 
 craft::main()
 {
-   local MULLE_FLAG_MAGNUM_FORCE='NO'
-   local MULLE_FLAG_IGNORE_GRAVEYARD='NO'
-
-   # technical flags
-   local MULLE_TRACE
-   local MULLE_FLAG_EXEKUTOR_DRY_RUN='NO'
-   local MULLE_FLAG_LOG_LOCAL='NO'
-   local MULLE_FLAG_LOG_DEBUG='NO'
-   local MULLE_FLAG_LOG_EXEKUTOR='NO'
-   local MULLE_FLAG_LOG_FLUFF='NO'
-   local MULLE_FLAG_LOG_SCRIPTS='NO'
-   local MULLE_FLAG_LOG_SETTINGS='NO'
-   local MULLE_FLAG_LOG_VERBOSE='NO'
-   local MULLE_FLAG_LOG_MERGE='NO'
-   local MULLE_TRACE_POSTPONE='NO'
-
    local MULLE_FLAG_MOTD="DEFAULT"
    local FLAG_OUTSIDE_ENV='NO'
    local TEST_ENVIRONMENT='NO'

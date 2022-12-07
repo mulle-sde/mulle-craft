@@ -193,19 +193,6 @@ craft::qualifier::r_craftorder_qualifier()
 }
 
 
-craft::qualifier::include_nodemarks_if_needed()
-{
-   if ! [ ${MULLE_SOURCETREE_NODEMARKS_SH+x} ]
-   then
-      if ! [ ${MULLE_SOURCETREE_LIBEXEC_DIR+x} ]
-      then
-         MULLE_SOURCETREE_LIBEXEC_DIR="`"${MULLE_SOURCETREE:-mulle-sourcetree}" libexec-dir`"
-      fi
-      . "${MULLE_SOURCETREE_LIBEXEC_DIR}/mulle-sourcetree-nodemarks.sh" || exit 1
-   fi
-}
-
-
 craft::qualifier::r_filtered_craftorder()
 {
    log_entry "craft::qualifier::r_filtered_craftorder" "$@"
@@ -216,7 +203,7 @@ craft::qualifier::r_filtered_craftorder()
    local configuration="$4"
    local version="$5"
 
-   craft::qualifier::include_nodemarks_if_needed
+   include "sourcetree::nodemarks"
 
    local qualifier
 
@@ -402,7 +389,7 @@ craft::qualifier::main()
 version-max-${OPTION_PLATFORM:-${MULLE_UNAME}} to work and vice versa"
          fi
 
-         craft::qualifier::include_nodemarks_if_needed
+         include "sourcetree::nodemarks"
 
          if sourcetree::nodemarks::filter_with_qualifier "${marks}" "${qualifier}"
          then

@@ -189,16 +189,13 @@ craft::searchpath::main()
       subdir=""
    fi
 
-   local subdir
-
-   local directory
-   local paths
-
    configurations="${configurations}:Release"
 
    local configuration
    local platform
    local sdk
+   local directory
+   local paths
 
    .foreachpath configuration in ${configurations}
    .do

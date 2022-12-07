@@ -310,11 +310,11 @@ craft::log::craftorders()
    include "craft::path"
 
    craft::path::__evaluate_variables "${name}" \
-                                    "${sdk}" \
-                                    "${platform}" \
-                                    "${configuration}" \
-                                    "${style}" \
-                                    "${CRAFTORDER_KITCHEN_DIR#${PWD}/}" \
+                                     "${sdk}" \
+                                     "${platform}" \
+                                     "${configuration}" \
+                                     "${style}" \
+                                      "${CRAFTORDER_KITCHEN_DIR#${PWD}/}" \
                                     "NO"
 
    log_debug "Build directory: ${_kitchendir}"
@@ -322,31 +322,57 @@ craft::log::craftorders()
    # build/.craftorder/Debug/mulle-c11/.log/
    local globpattern
 
-   r_filepath_concat "${_kitchendir}" ".log" "*.${OPTION_TOOL}.log"
+   r_filepath_concat "${_kitchendir}" ".log" "*.${OPTION_TOOL:-*}.log"
    globpattern="${RVAL}"
-#      echo ${globpattern}
 
-   # just ensure globbing is ON!, as its the default
-   shell_enable_nullglob
-   shell_enable_glob
+   log_debug "globpattern: ${globpattern}"
 
    local found
    local i
 
-   for i in ${globpattern}
-   do
-      log_info "${C_RESET_BOLD}${i}:"
-      exekutor "${cmd}" "$@" "${i}"
-      found="YES"
-   done
-
-   shell_disable_nullglob
+   .foreachfile i in ${globpattern}
+   .do
+      if [ -e "${i}" ] # stupid zsh, need to figure it out
+      then
+         log_info "${C_RESET_BOLD}${i}:"
+         exekutor "${cmd}" "$@" "${i}"
+         found="YES"
+      fi
+   .done
 
    if [ -z "${found}" ]
    then
       log_verbose "No craftorder logs match for \"${name}\" (${globpattern})"
    fi
 }
+
+
+craft::log::directories_list_files()
+{
+   local directories
+
+   while :
+   do
+      case "$1" in
+         --)
+            shift
+            break
+         ;;
+
+         *)
+            r_add_line "${directories}" "$1"
+            directories="${RVAL}"
+      esac
+
+      shift
+   done
+
+   .foreachline directory in ${directories}
+   .do
+      dir_list_files "${directory}" "$@"
+   .done
+}
+
 
 
 craft::log::project()
@@ -370,20 +396,13 @@ craft::log::project()
    directory="${KITCHEN_DIR#${PWD}/}"
 
    shell_enable_nullglob
-   shell_is_glob_enabled || _internal_fail "glob is disabled"
+   shell_enable_glob
 
-   if [ -z "${OPTION_TOOL}" ]
-   then
-      log_debug "Log pattern : ${directory}/${configuration}/.log/*.${OPTION_TOOL}.log"
-      logfiles="`dir_list_files "${directory}/${configuration}/.log/" "*.${OPTION_TOOL}.log" `"
-   else
-      log_debug "Log pattern : ${directory}/${configuration}/.log/*.log"
-      logfiles="`dir_list_files "${directory}/${configuration}/.log/" "*.log" `"
-   fi
-   log_debug "Log files   : ${logfiles}"
-
+   log_debug "Log pattern : ${directory}/${configuration}/.log/*.${OPTION_TOOL:-*}.log"
+   logfiles="`craft::log::directories_list_files "${directory}"/${configuration}/".log/" -- "*.${OPTION_TOOL:-*}.log" `"
    shell_disable_nullglob
-   IFS="${DEFAULT_IFS}"
+
+   log_debug "Log files   : ${logfiles}"
 
    local i
 

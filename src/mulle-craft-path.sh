@@ -50,9 +50,7 @@ craft::path::r_mapped_configuration()
 
    local base_identifier
 
-   r_tweaked_de_camel_case "${name}"
-   r_uppercase "${RVAL}"
-   r_identifier "${RVAL}"
+   r_smart_upcase_identifier "${name}"
    base_identifier="${RVAL}"
 
    #
@@ -111,9 +109,7 @@ craft::path::r_config_extension()
 
       local base_identifier
 
-      r_tweaked_de_camel_case "${name}"
-      r_uppercase "${RVAL}"
-      r_identifier "${RVAL}"
+      r_smart_upcase_identifier "${name}"
       base_identifier="${RVAL}"
 
       # figure out the config name of the project, use this as
@@ -360,9 +356,9 @@ craft::path::r_effective_project_kitchendir()
 # local _evaledproject
 # local _name
 #
-craft::path::_evaluate_variables()
+craft::path::__evaluate_variables()
 {
-   log_entry "craft::path::_evaluate_variables" "$@"
+   log_entry "craft::path::__evaluate_variables" "$@"
 
    local project="$1"
    local sdk="$2"

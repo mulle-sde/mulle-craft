@@ -626,36 +626,45 @@ This can lead to problems on darwin, but may solve problems on linux..."
       destination=""
    fi
 
-   local mulle_options_env_key
-
-   r_tweaked_de_camel_case "${name}"
-   r_identifier "${RVAL}"
-   r_uppercase "${RVAL}"
-
-   mulle_options_env_key="MULLE_CRAFT_${RVAL}_MAKE_OPTIONS"
-
-   local mulle_options_env_value
-
-   r_shell_indirect_expand "${mulle_options_env_key}"
-   mulle_options_env_value="${RVAL}"
-
    local auxargs
    local i
 
-   if [ ! -z "${mulle_options_env_value}" ]
-   then
-      _log_verbose "Found ${C_RESET_BOLD}${mulle_options_env_key}${C_VERBOSE} \
-set to ${C_RESET_BOLD}${mulle_options_env_value}${C_VERBOSE}"
+# MEMO: with this code: make options could be injected with environment
+#       variables.
+#       But we have craftinfos for this now, so a) i don't use it
+#       b) its presence makes things needslessly complex
+#
+#   local mulle_options_env_key
+#
+#   include "case"
+#
+#   r_smart_upcase_identifier "${name}"
+#   mulle_options_env_key="MULLE_CRAFT_${RVAL}_MAKE_OPTIONS"
+#
+#   local mulle_options_env_value
+#
+#   r_shell_indirect_expand "${mulle_options_env_key}"
+#   mulle_options_env_value="${RVAL}"
+#
+#
+#   if [ ! -z "${mulle_options_env_value}" ]
+#   then
+#      _log_verbose "Found ${C_RESET_BOLD}${mulle_options_env_key}${C_VERBOSE} \
+#set to ${C_RESET_BOLD}${mulle_options_env_value}${C_VERBOSE}"
+#
+#      for i in ${mulle_options_env_value}
+#      do
+#         r_concat "${auxargs}" "'${i}'"
+#         auxargs="${RVAL}"
+#      done
+#   else
+#      log_fluff "Environment variable ${mulle_options_env_key} is not set."
+#   fi
 
-      for i in ${mulle_options_env_value}
-      do
-         r_concat "${auxargs}" "'${i}'"
-         auxargs="${RVAL}"
-      done
-   else
-      log_fluff "Environment variable ${mulle_options_env_key} is not set."
-   fi
-
+   #
+   # The possiblity to add aux args via the commandline, is probably
+   # occasionally useful though for one time builds
+   #
    for i in "$@"
    do
       r_concat "${auxargs}" "'${i}'"
@@ -736,7 +745,7 @@ craft::build::build_dependency_directly()
    local style="$8"
 #   local phase="$9"
 
-   if [ -z "${PARALLEL}" ]
+   if [ -z "${PARALLEL_PHASE}" ]
    then
       craft::dependency::begin_update "${style}" || return 1
    fi
@@ -758,7 +767,7 @@ craft::build::build_dependency_directly()
    fi
 
 
-   if [ -z "${PARALLEL}" ]
+   if [ -z "${PARALLEL_PHASE}" ]
    then
       if [ $rval != 1 ]
       then
@@ -838,7 +847,7 @@ craft::build::build_dependency_with_dispense()
       ;;
    esac
 
-   case "${PARALLEL}" in
+   case "${PARALLEL_PHASE}" in
       "")
          craft::dependency::begin_update "${style}" || return 1
       ;;
@@ -896,7 +905,7 @@ craft::build::build_dependency_with_dispense()
 
    rmdir_safer "${tmpdependency_dir}"
 
-   if [ -z "${PARALLEL}" ]
+   if [ -z "${PARALLEL_PHASE}" ]
    then
       if [ $rval != 1 ]
       then
@@ -1025,12 +1034,12 @@ craft::build::handle()
    # get actual _kitchendir
    #
 
-   craft::path::_evaluate_variables "${project}" \
-                                    "${sdk}" \
-                                    "${platform}" \
-                                    "${configuration}" \
-                                    "${style}" \
-                                    "${kitchendir}"
+   craft::path::__evaluate_variables "${project}" \
+                                     "${sdk}" \
+                                     "${platform}" \
+                                     "${configuration}" \
+                                     "${style}" \
+                                     "${kitchendir}"
 
    if [ "${OPTION_LIST_REMAINING}" = 'YES' ]
    then
@@ -1208,13 +1217,7 @@ craft::build::handle_parallel()
    [ -z "${style}" ]         && _internal_fail "style is empty"
    [ -z "${kitchendir}" ]    && _internal_fail "kitchendir is empty"
 
-   local line
-   local parallel
    local statusfile
-
-   local phase
-   local PARALLEL
-   local cmd
 
    _r_make_tmp_in_dir "${KITCHEN_DIR}" ".build-status" "f" || exit 1
    statusfile="${RVAL}"
@@ -1244,12 +1247,20 @@ craft::build::handle_parallel()
 
    log_setting "parallel : ${parallel}"
 
+   local project
+   local marks
+   local phase 
+   local failures
+   local line
+   local PARALLEL_PHASE
+   local cmd
+
    shell_disable_glob
    for phase in ${OPTION_PHASES}
    do
       log_verbose "Starting phase ${phase}"
 
-      PARALLEL="${phase}"
+      PARALLEL_PHASE="${phase}"
 
       case "${phase}" in
          'Header'|'Headers')
@@ -1269,9 +1280,6 @@ craft::build::handle_parallel()
             fail "Unknown phase \"${phase}\", need one of: Header,Compile,Link"
          ;;
       esac
-
-      local project
-      local marks
 
       .foreachline line in ${parallel}
       .do
@@ -1333,15 +1341,12 @@ craft::build::handle_parallel()
          log_setting "Return values: `cat "${statusfile}"`"
       fi
 
-      local failures
-
       failures="`cat "${statusfile}"`"
 
       if [ ! -z "${failures}" ]
       then
          log_fluff "Errors detected in \"${statusfile}\": ${failures}"
 
-         local line
 
          .foreachline line in ${failures}
          .do
@@ -1730,14 +1735,14 @@ craft::build::do_craftorder()
    local configuration
    local platform
    local sdk
+   local filtered
+   local match_version
 
    .foreachpath platform in ${MULLE_CRAFT_PLATFORMS}
    .do
       craft::build::assert_sane_name "${platform}" " as platform name (use ':' as separator)"
       .foreachpath sdk in ${MULLE_CRAFT_SDKS}
       .do
-         local match_version
-
          craft::build::assert_sane_name "${sdk}" " as sdk name (use ':' as separator)"
 
          craft::qualifier::r_determine_platform_sdk_version "${platform}" "${sdk}" "${version}"
@@ -1746,8 +1751,6 @@ craft::build::do_craftorder()
          .foreachpath configuration in ${MULLE_CRAFT_CONFIGURATIONS}
          .do
             craft::build::assert_sane_name "${configuration}" " as configuration name (use ':' as separator)"
-
-            local filtered
 
             craft::qualifier::r_filtered_craftorder "${craftorder}" \
                                                     "${sdk}" \
