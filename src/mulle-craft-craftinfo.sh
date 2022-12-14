@@ -125,7 +125,9 @@ craft::craftinfo::r_find_item()
       log_fluff "\"${RVAL#"${MULLE_USER_PWD}/"}\" found"
       return
    fi
+
    RVAL=""
+   return 2
 }
 
 

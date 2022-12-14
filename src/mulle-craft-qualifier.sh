@@ -108,9 +108,6 @@ craft::qualifier::r_craftorder_qualifier()
    local configuration="${3:-Debug}"
    local version="$4"
 
-   local clause
-   local qualifier
-
    r_lowercase "${sdk}"
    sdk="${RVAL}"
 
@@ -128,9 +125,13 @@ craft::qualifier::r_craftorder_qualifier()
       platform="${MULLE_UNAME}"
    fi
 
+   local clause
+
    # default is not really matchable, as we don't know what it is, yet
    # query is needed to avoid pulling in musl or cosmopolitan here
    clause="ENABLES craft-sdk-${sdk}"
+
+   local qualifier
 
    r_concat "${qualifier}" "${clause}" $'\n'"AND "
    qualifier="${RVAL}"
@@ -223,11 +224,8 @@ craft::qualifier::r_filtered_craftorder()
    local marks
 
    result=
-   shell_disable_glob; IFS=$'\n'
-   for line in ${craftorder}
-   do
-      shell_enable_glob; IFS="${DEFAULT_IFS}"
-
+   .foreachline line in ${craftorder}
+   .do
       marks="${line#*;}"
 
       if sourcetree::nodemarks::filter_with_qualifier "${marks}" "${qualifier}"
@@ -235,8 +233,7 @@ craft::qualifier::r_filtered_craftorder()
          r_add_line "${result}" "${line}"
          result="${RVAL}"
       fi
-   done
-   shell_enable_glob; IFS="${DEFAULT_IFS}"
+   .done
 
    RVAL="${result}"
 }
