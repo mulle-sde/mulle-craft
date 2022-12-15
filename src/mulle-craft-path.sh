@@ -50,7 +50,7 @@ craft::path::r_mapped_configuration()
 
    local base_identifier
 
-   r_smart_upcase_identifier "${name}"
+   r_smart_file_upcase_identifier "${name}"
    base_identifier="${RVAL}"
 
    #
@@ -109,7 +109,7 @@ craft::path::r_config_extension()
 
       local base_identifier
 
-      r_smart_upcase_identifier "${name}"
+      r_smart_file_upcase_identifier "${name}"
       base_identifier="${RVAL}"
 
       # figure out the config name of the project, use this as
@@ -269,6 +269,7 @@ craft::path::r_build_directory_name()
 
    r_basename "$1"         # just filename
    RVAL="${RVAL%%.*}"      # remove file extensions
+   RVAL="${RVAL//-/__}"       # turn '-' into '__' to avoid MulleScion/mulle-scion clash
    r_identifier "${RVAL}"  # make identifier (bad chars -> '_')
    RVAL="${RVAL%%_}"       # remove trailing '_'
    RVAL="${RVAL##_}"       # remove leading '_'
