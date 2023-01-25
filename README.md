@@ -32,7 +32,7 @@ Executable    | Description
 
 Essentially, `mulle-craft` is a shortcut for typing:
 
-```
+``` bash
 # Build the dependencies
 for project in `mulle-sourcetree craftorder`
 do
@@ -129,12 +129,47 @@ Here the contents of the "Release" folders are moved upwards and the "Release"
 folder itself is deleted.
 
 
+### Marks used in craftorder builds
+
+A craftorder file contains the project to craft and a list of
+[marks](https://github.com/mulle-sde/mulle-sourcetree) that determine _how_ to
+craft it:
+
+These are the marks understood by mulle-craft:
+
+| Mark                           | Description                                               |
+|--------------------------------|-----------------------------------------------------------|
+| `no-craft-configuration-<c>`   | Ignore dependency for this configuration.                 |
+| `no-craft-os-<os>`             | Ignore dependency when the host run this OS.              |
+| `no-craft-platform-<os>`       | Ignore dependency for this platform.                      |
+| `no-craft-sdk-<sdk>`           | Ignore dependency for this sdk.                           |
+| `no-dependency`                | Dont't build this if `--no-dependency` was specified. (1) |
+| `no-dynamic-link`              | Call mulle-make with `--library-style static`.            |
+| `no-inplace`                   | Call mulle-dispense after the build.                      |
+| `no-mainproject`               | Marks a subproject.                                   (1) |
+| `no-memo`                      | Ignore build result value (only used by subprojects). (1) |
+| `no-require-configuration-<c>` | Ignore if missing for this configuration (e.g. Release).  |
+| `no-require-os-<os>`           | Ignore if missing and host runs this particular OS.       |
+| `no-require-platform-<os>`     | Ignore if missing and destination platform is this OS.    |
+| `no-require-sdk-<sdk>`         | Ignore if missing and sdk is this SDK.                    |
+| `no-require`                   | Ignore if missing.                                        |
+| `no-rootheader`                | Call mulle-dispense with `--header-dir 'include/${name}'`.|
+| `no-static-link`               | Call mulle-make with `--library-style dynamic`.           |
+| `only-liftheaders`             | Call mulle-dispense with `--lift-headers`.                |
+| `only-standalone`              | Call mulle-make with `--library-style standalone`.    (2) |
+| `version-max-<version>`        | Maximum version of the SDK allowed.                   (3) |
+| `version-min-<version>`        | Minimum version of the SDK needed.                    (3) |
+
+
+> (1) Used by subproject builds only. These marks are generally not useful.
+> (2) Standalone shared library builds are (currently?) not used anymore.
+> (3) Functionality is present, but it's unused so far.
+
 
 ## Install
 
 See [mulle-sde-developer](//github.com/mulle-sde/mulle-sde-developer) how
 to install mulle-sde.
-
 
 
 ## GitHub and Mulle kybernetiK

@@ -68,10 +68,10 @@ main()
 
    local filename
 
-   filename="${directory}/build/.craftorder/SDK_A-PLATFORM_1/Release/foreign_project/CMakeCache.txt"
+   filename="${directory}/build/.craftorder/SDK_A-PLATFORM_1/Release/foreign__project/CMakeCache.txt"
    [ -f "${filename}" ] || _internal_fail "expected file \"${filename}\" missing"
 
-   filename="${directory}/build/.craftorder/SDK_B-PLATFORM_2/Debug/foreign_project/CMakeCache.txt"
+   filename="${directory}/build/.craftorder/SDK_B-PLATFORM_2/Debug/foreign__project/CMakeCache.txt"
    [ -f "${filename}" ] || _internal_fail "expected file \"${filename}\" missing"
 
    log_verbose "----- #1 PASSED -----"
@@ -85,7 +85,7 @@ main()
    log_verbose "----- #2 PASSED -----"
 
    log_info "----- ALL PASSED -----"
-
+   cd ..
    rmdir_safer "${directory}"
 }
 

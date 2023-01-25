@@ -1,0 +1,139 @@
+#! /bin/sh
+
+[ "${TRACE}" = 'YES' ] && set -x && : "$0" "$@"
+
+###   ###   ###   ###   ###   ###   ###   ###   ###   ###   ###   ###   ###
+MULLE_BASHFUNCTIONS_LIBEXEC_DIR="`mulle-bashfunctions libexec-dir`" || exit 1
+export MULLE_BASHFUNCTIONS_LIBEXEC_DIR
+. "${MULLE_BASHFUNCTIONS_LIBEXEC_DIR}/mulle-boot.sh" || exit 1
+. "${MULLE_BASHFUNCTIONS_LIBEXEC_DIR}/mulle-bashfunctions.sh" || exit 1
+###   ###   ###   ###   ###   ###   ###   ###   ###   ###   ###   ###   ###
+
+
+run_mulle_craft()
+{
+   log_fluff "####################################"
+   log_fluff ${MULLE_CRAFT} ${MULLE_CRAFT_FLAGS} "$@"
+   log_fluff "####################################"
+
+   exekutor "${MULLE_CRAFT}" ${MULLE_CRAFT_FLAGS} "$@"
+}
+
+
+expect_content()
+{
+   local platform="$1"
+   local expect="$2"
+   local output="$3"
+
+   if [ -f "${expect}.${platform}" ]
+   then
+      expect="${expect}.${platform}"
+   fi
+
+   if [ ! -f "${expect}" ]
+   then
+      _internal_fail "\"${expect}\" is missing from test"
+   fi
+
+   local diffs
+
+   diffs="`diff -b <( printf "%s\n" "${output}" ) "${expect}"`"
+   if [ $? -ne 0 ]
+   then
+      log_error "Unexpected output generated"
+      cat <<EOF >&2
+----------------
+Output:
+----------------
+${output}
+----------------
+Expected: ($expect)
+----------------
+`cat "${expect}"`
+----------------
+Diff:
+----------------
+${diffs}
+----------------
+EOF
+      exit 1
+   fi
+}
+
+
+main()
+{
+   MULLE_CRAFT_FLAGS="$@"
+
+   _options_mini_main "$@" && set -x
+
+   local styles
+
+   styles="`mulle-craft style show`"
+
+   local configurations="\
+Release
+Debug"
+
+   local platforms="\
+linux
+macos"
+
+   local sdks="\
+musl
+Default"
+
+   local style
+   local configuration
+   local sdk
+   local platform
+   local i
+
+   # make test assume we are on linux
+
+   MULLE_UNAME=linux
+   export MULLE_UNAME # must export again to make change (!)
+   MULLE_HOSTNAME=localhost
+   export MULLE_HOSTNAME   # avoid errors on solaris
+
+   i=1
+   .foreachline platform in ${platforms}
+   .do
+      RVAL=""
+      .foreachline sdk in ${sdks}
+      .do
+         .foreachline configuration in ${configurations}
+         .do
+            .foreachline style in ${styles}
+            .do
+               r_add_line "${RVAL}" "${platform}/${sdk}/${configuration}/${style}=`run_mulle_craft style \
+                                                     --style "${style}" \
+                                                     --configuration "${configuration}" \
+                                                     --platform "${platform}" \
+                                                     --sdk "${sdk}"  \
+                                                     list`"
+            .done
+         .done
+      .done
+
+      expect_content "${platform}" "expect" "${RVAL}"
+      log_verbose "----- $i PASSED -----"
+      i=$((i + 1))
+   .done
+
+   log_info "----- ALL PASSED -----"
+}
+
+
+
+init()
+{
+   MULLE_CRAFT="${MULLE_CRAFT:-${PWD}/../../mulle-craft}"
+}
+
+
+
+init "$@"
+main "$@"
+

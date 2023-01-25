@@ -175,9 +175,9 @@ craft::status::output_names_with_status()
                                           "NO"
       fi
 
-      phase="`egrep -v '^#' "${_kitchendir}/.phase" 2> /dev/null`"
-      project="`egrep -v '^#' "${_kitchendir}/.project" 2> /dev/null`"
-      rval="`egrep -v '^#' "${_kitchendir}/.status" 2> /dev/null`"
+      phase="`grep -E -v '^#' "${_kitchendir}/.phase" 2> /dev/null`"
+      project="`grep -E -v '^#' "${_kitchendir}/.project" 2> /dev/null`"
+      rval="`grep -E -v '^#' "${_kitchendir}/.status" 2> /dev/null`"
 
       log_setting "_kitchendir    : ${_kitchendir}"
       log_setting "_configuration : ${_configuration}"
@@ -431,7 +431,7 @@ craft::status::main()
       log_info "Craft status of ${C_RESET_BOLD}${ADDICTION_DIR#"${MULLE_USER_PWD}/"}"
 
       # we can only figure out if the state is complete
-      state="`egrep -v '^#' "${ADDICTION_DIR}/.state" `"
+      state="`grep -E -v '^#' "${ADDICTION_DIR}/.state" `"
 
       case "${state}" in
          complete)
@@ -460,7 +460,7 @@ craft::status::main()
 
       local triple
 
-      triple="`egrep -v '^#' "${KITCHEN_DIR}/.mulle-craft-last" `"
+      triple="`grep -E -v '^#' "${KITCHEN_DIR}/.mulle-craft-last" `"
 
       local _configuration
       local _sdk

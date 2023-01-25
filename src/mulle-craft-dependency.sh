@@ -112,6 +112,12 @@ craft::dependency::_install_tarballs()
       tarflags="-v"
    fi
 
+   case "${MULLE_UNAME}" in
+      sunos)
+         TAR="${TAR:-gtar}"
+      ;;
+   esac
+
    include "craft::style"
 
    (
@@ -165,7 +171,7 @@ craft::dependency::get_state()
 {
    [ -z "${DEPENDENCY_DIR}" ] && _internal_fail "DEPENDENCY_DIR not set"
 
-   if ! rexekutor egrep -v '^#' "${DEPENDENCY_DIR}/.state" 2> /dev/null
+   if ! rexekutor grep -E -v '^#' "${DEPENDENCY_DIR}/.state" 2> /dev/null
    then
       echo "clean"
    fi
@@ -314,7 +320,7 @@ craft::dependency::unprotect()
    fi
 
    case "${MULLE_UNAME}" in
-      windows|mingw)
+      'windows'|'mingw'|'msys')
           log_fluff "Skipping unprotect on ${MULLE_UNAME}"
       ;;
 
@@ -439,7 +445,7 @@ craft::dependency::end_update()
       if [ "${OPTION_PROTECT_DEPENDENCY}" = 'YES' ]
       then
          case "${MULLE_UNAME}" in  
-            windows|mingw)
+            'windows'|'mingw'|'msys')
                 log_fluff "Skipping protect on ${MULLE_UNAME}"
             ;;
 

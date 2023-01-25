@@ -65,7 +65,7 @@ Project:
 
 Commands:
    list                : list available build logs
-   <tool> ...          : use cat, egrep ack to execute on the logfiles
+   <tool> ...          : use cat, grep -E ack to execute on the logfiles
 
 EOF
   exit 1
@@ -107,7 +107,7 @@ craft::log::project_log_dirs()
       r_escaped_sed_pattern "${CRAFTORDER_KITCHEN_DIR}"
       sed_escaped_value="${RVAL}"
       rexekutor find -H "${KITCHEN_DIR}" -type d -name .log | \
-      rexekutor egrep -v "^${sed_escaped_value}"
+      rexekutor grep -E -v "^${sed_escaped_value}"
    else
       rexekutor find -H "${KITCHEN_DIR}" -type d -name .log
    fi
@@ -268,12 +268,16 @@ craft::log::craftorders()
 
    shift 2
 
+   local lastvalues
+
+   if [ -f "${CRAFTORDER_KITCHEN_DIR}/.mulle-craft-last" ]
+   then
+      lastvalues="`rexekutor grep -E -v '^#' "${CRAFTORDER_KITCHEN_DIR}/.mulle-craft-last"`"
+   fi
+
    local lastsdk
    local lastplatform
    local lastconfiguration
-   local lastvalues
-
-   lastvalues="`rexekutor egrep -s -v '^#' "${CRAFTORDER_KITCHEN_DIR}/.mulle-craft-last"`"
 
    lastsdk="${lastvalues%%;*}"
    lastplatform="${lastvalues%;*}"

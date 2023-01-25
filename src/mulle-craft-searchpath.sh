@@ -213,8 +213,10 @@ craft::searchpath::main()
             r_filepath_concat "${RVAL}" "${subdir}"
             r_absolutepath "${RVAL}"
 
-            if [ "${OPTION_IF_EXISTS}" = 'NO' ] || [  -d "${RVAL}" ]
+            if [ "${OPTION_IF_EXISTS}" = 'YES' ] && [ ! -d "${RVAL}" ]
             then
+               log_verbose "Directory \"${RVAL}\" is not in the searchpath because it doesn't exist"
+            else
                r_add_unique_line "${paths}" "${RVAL}"
                paths="${RVAL}"
             fi
@@ -225,8 +227,10 @@ craft::searchpath::main()
    r_filepath_concat "${ADDICTION_DIR}" "${subdir}"
    r_absolutepath "${RVAL}"
 
-   if [ "${OPTION_IF_EXISTS}" = 'NO' ] || [  -d "${RVAL}" ]
+   if [ "${OPTION_IF_EXISTS}" = 'YES' ] && [ ! -d "${RVAL}" ]
    then
+      log_verbose "Directory \"${RVAL}\" is not in the searchpath because it doesn't exist"
+   else
       r_add_unique_line "${paths}" "${RVAL}"
       paths="${RVAL}"
    fi

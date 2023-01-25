@@ -2,6 +2,8 @@
 #
 # (c) 2015, coded by Nat!, Mulle KybernetiK
 #
+[ "${TRACE}" = 'YES' ] && set -x && : "$0" "$@"
+
 if [ "${MULLE_NO_COLOR}" != 'YES' ]
 then
    # Escape sequence and resets
@@ -152,7 +154,7 @@ main()
 
    if [ -z "${prefix}" ] || [ -z "${mode}" ]
    then
-      installer_fail "usage: install.sh [prefix] [mode]"
+      installer_fail "usage: installer [prefix] [mode]"
    fi
 
    r_installer_install_prefix "${prefix}"

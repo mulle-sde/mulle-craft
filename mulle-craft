@@ -36,7 +36,7 @@
 [ "${TRACE}" = 'YES' -o "${MULLE_CRAFT_TRACE}" = 'YES' ] && set -x && : "$0" "$@"
 
 
-MULLE_EXECUTABLE_VERSION=3.0.0
+MULLE_EXECUTABLE_VERSION=3.0.1
 
 #
 # Determine location of own libexec directory. Which is `src` in development
@@ -113,7 +113,6 @@ EOF
 
 craft::setup_environment()
 {
-
    case "${MULLE_VIRTUAL_ROOT}" in
       "")
          MULLE_VIRTUAL_ROOT="`pwd -P`"
@@ -302,7 +301,7 @@ craft::main()
    [ $# -eq 0 ] || shift
 
    case "${cmd}" in
-      qualifier)
+      qualifier|style)
       ;;
 
       *-dir|search|craftinfo-search|searchpath)

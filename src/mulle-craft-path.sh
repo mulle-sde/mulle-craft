@@ -127,12 +127,15 @@ craft::path::r_config_extension()
          value=""
       ;;
 
+      "")
+      ;;
+
       *)
          value=".${value}"
+         log_verbose "Definition and craftinfo extension is \"${value}\""
       ;;
    esac
 
-   log_verbose "Definition and craftinfo extension is \"${value}\""
    RVAL="${value}"
 }
 
@@ -195,13 +198,19 @@ craft::path::r_get_mulle_sdk_path()
 
    local sdk="$1"
    local platform="$2"
-   local style="$3"
+   local configuration="$3"
+   local style="$4"
 
    local sdk_platform
 
+   #
+   # The MULLE_SDK_PATH does not contain the configuration (!)
+   #
    include "craft::style"
 
-   craft::style::r_get_sdk_platform_string "${sdk}" "${platform}" "${style}"
+   craft::style::r_get_sdk_platform_string "${sdk}" \
+                                           "${platform}" \
+                                           "${style}"
    sdk_platform="${RVAL}"
 
    local addiction_dir
@@ -333,7 +342,8 @@ craft::path::r_effective_project_kitchendir()
 
       while [ -d "${kitchendir}" ]
       do
-         randomstring="`uuidgen | cut -c'1-6'`"
+         r_uuidgen
+         randomstring="${RVAL:0:6}"
          r_filepath_concat "${parentkitchendir}" "${directory}-${randomstring}"
          kitchendir="${RVAL}"
       done

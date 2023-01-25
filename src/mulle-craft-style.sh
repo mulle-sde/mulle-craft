@@ -74,7 +74,7 @@ EOF
 
 craft::style::r_get_sdk_platform_string()
 {
-#  log_entry "craft::style::r_get_sdk_platform_string" "$@"
+   log_entry "craft::style::r_get_sdk_platform_string" "$@"
 
    local sdk="$1"
    local platform="$2"
@@ -156,7 +156,7 @@ craft::style::r_get_sdk_platform_string()
 #
 craft::style::r_get_sdk_platform_configuration_string()
 {
-#   log_entry "craft::style::r_get_sdk_platform_configuration_string" "$@"
+   log_entry "craft::style::r_get_sdk_platform_configuration_string" "$@"
 
    local sdk="$1"
    local platform="$2"
@@ -166,7 +166,7 @@ craft::style::r_get_sdk_platform_configuration_string()
    craft::style::r_get_sdk_platform_string "${sdk}" "${platform}" "${style}"
    case "${style}" in
       i-tight)
-         r_filepath_concat "${configuration}-${RVAL}"
+         r_concat "${configuration}" "${RVAL}" '-'
       ;;
 
       i-strict|i-relax)
@@ -181,7 +181,7 @@ craft::style::r_get_sdk_platform_configuration_string()
       ;;
 
       tight)
-         r_filepath_concat "${RVAL}-${configuration}"
+         r_concat "${RVAL}" "${configuration}" '-'
       ;;
 
       strict|relax)

@@ -209,7 +209,7 @@ craft::clean::main()
 #
 #            log_fluff "Available clean targets: `sort -u <<< "${targets}"`"
 #
-#            if ! rexekutor fgrep -x -s -q "${cleantarget}" <<< "${targets}"
+#            if ! rexekutor grep -F -x -s -q "${cleantarget}" <<< "${targets}"
 #            then
 #               fail "Unknown clean target \"${cleantarget}\".
 #${C_VERBOSE}
@@ -249,8 +249,8 @@ craft::clean::main()
                      inplace_sed -n -e "/^${escaped};/q;p" "${donefile}"
                      inplace_sed -n -e "/^.*\/${escaped};/q;p" "${donefile}"
 
-                     # an empty donefile is bad for fgrep
-                     if [ -z "`egrep -v '^#' "${donefile}"`" ]
+                     # an empty donefile is bad for grep -F
+                     if [ -z "`grep -E -v '^#' "${donefile}"`" ]
                      then
                         remove_file_if_present "${donefile}"
                      fi

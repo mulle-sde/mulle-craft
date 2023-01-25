@@ -57,7 +57,7 @@ expect_content()
       # fix for mingw
       if [ `wc -l <<< "${diffs}"` -eq 2 ]
       then
-         if egrep -q 'CMAKE_LINKER:PATH=' <<< "${diffs}"
+         if grep -E -q 'CMAKE_LINKER:PATH=' <<< "${diffs}"
          then
             return 0
          fi
@@ -65,7 +65,7 @@ expect_content()
 
       if [ "${MULLE_UNAME}" = darwin ]
       then
-         if [ -z "`egrep -v -e '-isysroot' <<< "${diffs}"`" ]
+         if [ -z "`grep -E -v -e '-isysroot' <<< "${diffs}"`" ]
          then
             return 0
          fi
@@ -141,7 +141,7 @@ main()
    log_verbose "----- #2 PASSED -----"
 
    log_info "----- ALL PASSED -----"
-
+   cd ..
    rmdir_safer "${directory}"
 }
 

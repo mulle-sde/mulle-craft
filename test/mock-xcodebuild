@@ -68,7 +68,7 @@ main()
    local filename
 
    # remove mock- prefix , convert to uppercase, append _REDIRECT_FILE
-   envvar="`basename -- "$0" | sed 's/^mock-\(.*\)/\1/' | tr 'a-z-' 'A-Z_'`_REDIRECT_FILE"
+   envvar="`basename -- "$0" | sed 's/^mock-\(.*\)/\1/' | tr '[:lower:]-' '[:upper:]_'`_REDIRECT_FILE"
 
    if [ ${ZSH_VERSION+x} ]
    then

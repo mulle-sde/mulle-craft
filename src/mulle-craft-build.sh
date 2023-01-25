@@ -256,20 +256,6 @@ craft::build::__set_various_paths()
 }
 
 
-craft::build::r_config_extensions()
-{
-   local name="$1"
-
-   craft::path::r_config_extension "${name}"
-
-   RVAL=":${RVAL}"
-   if [ "${RVAL}" = ':' ]
-   then
-      RVAL=""
-   fi
-}
-
-
 craft::build::r_project_definitiondirs()
 {
    log_entry "craft::build::build_project" "$@"
@@ -293,15 +279,15 @@ craft::build::r_project_definitiondirs()
 
    if [ -z "${definitiondirs}" ]
    then
-      local extensions
+      local extra_extension
 
-      craft::build::r_config_extensions "${name}"
-      extensions="${RVAL}"
+      craft::path::r_config_extension "${name}"
+      extra_extension="${RVAL}"
 
       local extension
 
       # will run once for empty extensions, which is what we want
-      .foreachpath extension in ${extensions}
+      .foreachpath extension in "" ${extra_extension}
       .do
          # default values provided by dependency/share/mulle-craft/definition
          craft::craftinfo::r_find_dependency_item "" \
@@ -612,7 +598,7 @@ This can lead to problems on darwin, but may solve problems on linux..."
 
    local sdk_path
 
-   craft::path::r_get_mulle_sdk_path "${sdk}" "${platform}" "auto"
+   craft::path::r_get_mulle_sdk_path "${sdk}" "${platform}"  "${configuration}" "auto"
    sdk_path="${RVAL}"
 
    if [ ! -z "${sdk_path}" ]
@@ -680,8 +666,8 @@ This can lead to problems on darwin, but may solve problems on linux..."
       ;;
    esac
 
-   log_setting "flags:                 ${flags}"
    log_setting "MULLE_TECHNICAL_FLAGS: ${MULLE_TECHNICAL_FLAGS}"
+   log_setting "flags:                 ${flags}"
    log_setting "args:                  ${args}"
    log_setting "auxargs:               ${auxargs}"
    log_setting "mulle_flags_env_key:   ${mulle_flags_env_key}"
@@ -695,7 +681,7 @@ This can lead to problems on darwin, but may solve problems on linux..."
       MULLE_FLAG_LOG_EXEKUTOR="YES"
    fi
 
-   # use rexekutor becauee mulle-make gets the technical flags
+   # use rexekutor because mulle-make gets the technical flags
    eval_rexekutor "${environment}" \
                      "'${MULLE_MAKE}'" \
                         "${flags}" \
@@ -1234,7 +1220,7 @@ craft::build::handle_parallel()
    if [ "${parallel_link}" = 'YES' ]
    then
       # look for a line not having no-singlephase-link
-      if rexekutor egrep -v -s '[;,]no-singlephase-link[;,]|[;,]no-singlephase-link$' <<< "${parallel}"
+      if rexekutor grep -E -v '[;,]no-singlephase-link[;,]|[;,]no-singlephase-link$' <<< "${parallel}"
       then
          log_fluff "Not all parallel builds are marked as no-singlephase-link, use sequential link"
          parallel_link='NO'
@@ -1395,7 +1381,7 @@ craft::build::r_remaining_craftorder_lines()
    then
       local remaining_after_shared
 
-      remaining_after_shared="`rexekutor fgrep -x -v -f "${shared_donefile}" <<< "${remaining}"`"
+      remaining_after_shared="`rexekutor grep -F -x -v -f "${shared_donefile}" <<< "${remaining}"`"
       if [ "${remaining_after_shared}" != "${remaining}" ]
       then
          if [ "${MULLE_FLAG_LOG_SETTINGS}" = 'YES' ]
@@ -1422,7 +1408,7 @@ ${remaining_after_shared}
       local remaining_after_single
 
       r_escaped_grep_pattern "${OPTION_SINGLE_DEPENDENCY}"
-      remaining_after_single="`egrep "^[^;]*${RVAL};|\}/${RVAL};" <<< "${remaining}" `"
+      remaining_after_single="`grep -E "^[^;]*${RVAL};|\}/${RVAL};" <<< "${remaining}" `"
       log_debug "Filtered by name: ${remaining_after_single}"
       if [ -z "${remaining_after_single}" ]
       then
@@ -1453,7 +1439,7 @@ ${remaining_after_single}
       else
          local remaining_after_donefile
 
-         remaining_after_donefile="`rexekutor fgrep -x -v -f "${donefile}" <<< "${remaining}"`"
+         remaining_after_donefile="`rexekutor grep -F -x -v -f "${donefile}" <<< "${remaining}"`"
          if [ "${remaining_after_donefile}" != "${remaining}" ]
          then
             if [ "${MULLE_FLAG_LOG_SETTINGS}" = 'YES' ]
@@ -1697,7 +1683,7 @@ craft::build::do_craftorder()
    local style
 
    style="${DISPENSE_STYLE}"
-   craftorder="`egrep -v '^#' "${craftorderfile}" 2> /dev/null`"
+   craftorder="`grep -E -v '^#' "${craftorderfile}" 2> /dev/null`"
    [ $? -gt 1 ] && fail "Craftorder file \"${craftorderfile}\" is missing"
 
    #
@@ -1789,17 +1775,17 @@ craft::build::r_mainproject_definition_dirs()
    local name="$5"
    local projectdir="$6"
 
-   local extension
+   local extra_extension
 
-   craft::build::r_config_extensions "${name}"
-   extensions="${RVAL}"
+   craft::path::r_config_extension "${name}"
+   extra_extension="${RVAL}"
 
    # should use INFO_DIRS here ?
    local definitiondirs
 
    # default values provided by dependency/share/mulle-craft/definition
    # will run once for empty extensions, which is what we want
-   .foreachpath extension in ${extensions}
+   .foreachpath extension in "" ${extra_extension}
    .do
       craft::craftinfo::r_find_dependency_item "" \
                                                "${OPTION_PLATFORM_CRAFTINFO}" \
@@ -1828,7 +1814,7 @@ craft::build::r_mainproject_definition_dirs()
    #
    # override with local info
    #
-   .foreachpath extension in ${extensions}
+   .foreachpath extension in "" ${extra_extension}
    .do
       craft::craftinfo::r_find_project_item "${name}" \
                                             "${projectdir}" \
@@ -2027,7 +2013,7 @@ craft::build::build_mainproject()
    local sdk_path
 
 
-   craft::path::r_get_mulle_sdk_path "${sdk}" "${platform}" "${style}"
+   craft::path::r_get_mulle_sdk_path "${sdk}" "${platform}" "${configuration}" "${style}"
    sdk_path="${RVAL}"
 
    if [ ! -z "${sdk_path}" ]
@@ -2201,7 +2187,7 @@ craft::build::common()
 
    # header install phase currently not installing for some reason
 #  case "${MULLE_UNAME}" in
-#     windows|mingw*)
+#     windows|mingw)
 #        OPTION_PARALLEL="NO"
 #     ;;
 #  esac
@@ -2449,7 +2435,6 @@ craft::build::common()
    MULLE_CRAFT_SDKS="${MULLE_CRAFT_SDKS:-Default}"
    MULLE_CRAFT_PLATFORMS="${MULLE_CRAFT_PLATFORMS:-Default}"
 
-   local lastenv
    local currentenv
    local filenameenv
 
@@ -2469,7 +2454,13 @@ craft::build::common()
    filenameenv="${KITCHEN_DIR}/.mulle-craft"
    currentenv="${MULLE_UNAME};${MULLE_HOSTNAME};${MULLE_USERNAME}"
 
-   lastenv="`egrep -s -v '^#' "${filenameenv}"`"
+   local lastenv
+
+   if [ -f "${filenameenv}" ]
+   then
+      lastenv="`grep -E -v '^#' "${filenameenv}"`" # solaris cant do -s
+   fi
+
    if [ "${lastenv}" != "${currentenv}" ]
    then
       rmdir_safer "${KITCHEN_DIR}"
