@@ -33,7 +33,7 @@
 #   ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
 #   POSSIBILITY OF SUCH DAMAGE.
 #
-MULLE_CRAFT_STATUS_SH="included"
+MULLE_CRAFT_STATUS_SH='included'
 
 
 craft::status::usage()
@@ -156,7 +156,7 @@ craft::status::output_names_with_status()
       #
 
 
-      if [ "${is_main}" = "YES" ]
+      if [ "${is_main}" = 'YES' ]
       then
          craft::path::r_mainproject_kitchendir "${sdk}" \
                                                "${platform}" \
@@ -172,7 +172,7 @@ craft::status::output_names_with_status()
                                           "${configuration}" \
                                           "relax" \
                                           "${kitchendir}" \
-                                          "NO"
+                                          'NO'
       fi
 
       phase="`grep -E -v '^#' "${_kitchendir}/.phase" 2> /dev/null`"
@@ -331,7 +331,7 @@ craft::status::main()
 {
    log_entry "craft::status::main" "$@"
 
-   local OPTION_COLOR="YES"
+   local OPTION_COLOR='YES'
    local mode
 
    while :
@@ -347,7 +347,7 @@ craft::status::main()
          ;;
 
          --output-no-color)
-            OPTION_COLOR="NO"
+            OPTION_COLOR='NO'
          ;;
 
          --output-terse)

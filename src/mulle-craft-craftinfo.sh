@@ -32,7 +32,7 @@
 #   ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
 #   POSSIBILITY OF SUCH DAMAGE.
 #
-MULLE_CRAFT_CRAFTINFO_SH="included"
+MULLE_CRAFT_CRAFTINFO_SH='included'
 
 
 
@@ -157,6 +157,7 @@ craft::craftinfo::r_find_dependency_dir()
                                                          "${configuration}" \
                                                          "${style}"
    subdir="${RVAL}"
+   log_debug  "subdir : ${subdir}"
 
    local pathitem
 
@@ -176,12 +177,17 @@ craft::craftinfo::r_find_dependency_dir()
       r_filepath_concat "${dependencydir}" "${subdir}"
       depsubdir="${RVAL}"
 
+      log_debug  "depsubdir : ${depsubdir}"
+
+
       r_filepath_concat "${depsubdir}" "share" "mulle-craft" "${projectname}"
       if rexekutor [ -d "${RVAL}" ]
       then
          return 0
       fi
    fi
+
+   log_debug  "dependencydir : ${dependencydir}"
 
    # fallback on default
    r_filepath_concat "${dependencydir}" "share" "mulle-craft" "${projectname}"
@@ -213,6 +219,8 @@ craft::craftinfo::r_find_dependency_item()
    local style="${6:-none}"
    local itemname="${7:-definition}"
 
+   # -z name is actually normal!
+
    # projectname
    local projectname
 
@@ -230,7 +238,7 @@ craft::craftinfo::r_find_dependency_item()
    rval=$?
    if [ $rval -ne 0 ]
    then
-      log_debug "No ${itemname} for \"${name}\" in \"${DEPENDENCY_DIR}\" found"
+      log_debug "No ${itemname} for \"${projectname}\" in \"${DEPENDENCY_DIR}\" found"
       return $rval
    fi
 
@@ -245,11 +253,10 @@ craft::craftinfo::r_find_dependency_item()
       return 0
    fi
 
-   log_debug "No ${itemname} for \"${name}\" in \"${DEPENDENCY_DIR}\" found"
+   log_debug "No ${itemname} for \"${projectname}\" in \"${directory}\" found"
    RVAL=""
    return 2
 }
-
 
 
 craft::craftinfo::r_project_dir()

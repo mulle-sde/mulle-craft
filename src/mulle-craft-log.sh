@@ -32,7 +32,7 @@
 #   ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
 #   POSSIBILITY OF SUCH DAMAGE.
 #
-MULLE_CRAFT_LOG_SH="included"
+MULLE_CRAFT_LOG_SH='included'
 
 
 craft::log::usage()
@@ -319,7 +319,7 @@ craft::log::craftorders()
                                      "${configuration}" \
                                      "${style}" \
                                       "${CRAFTORDER_KITCHEN_DIR#${PWD}/}" \
-                                    "NO"
+                                    'NO'
 
    log_debug "Build directory: ${_kitchendir}"
 
@@ -340,7 +340,7 @@ craft::log::craftorders()
       then
          log_info "${C_RESET_BOLD}${i}:"
          exekutor "${cmd}" "$@" "${i}"
-         found="YES"
+         found='YES'
       fi
    .done
 

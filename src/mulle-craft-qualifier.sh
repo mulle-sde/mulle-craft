@@ -32,7 +32,7 @@
 #   ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
 #   POSSIBILITY OF SUCH DAMAGE.
 #
-MULLE_CRAFT_QUALIFIER_SH="included"
+MULLE_CRAFT_QUALIFIER_SH='included'
 
 
 craft::qualifier::usage()
@@ -267,11 +267,11 @@ craft::qualifier::main()
          ;;
 
          --lf)
-            OPTION_LF="YES"
+            OPTION_LF='YES'
          ;;
 
          --no-lf)
-            OPTION_LF="NO"
+            OPTION_LF='NO'
          ;;
 
          --configuration)
@@ -390,10 +390,10 @@ version-max-${OPTION_PLATFORM:-${MULLE_UNAME}} to work and vice versa"
 
          if sourcetree::nodemarks::filter_with_qualifier "${marks}" "${qualifier}"
          then
-            log_info "YES"
+            log_info 'YES'
             return 0
          fi
-         log_info "NO"
+         log_info 'NO'
          return 1
       ;;
 
@@ -410,7 +410,7 @@ version-max-${OPTION_PLATFORM:-${MULLE_UNAME}} to work and vice versa"
 
    [ $# -eq 0 ] || craft::qualifier::usage "Superflous arguments \"$*\""
 
-   if [ "${OPTION_LF}" = "NO" ]
+   if [ "${OPTION_LF}" = 'NO' ]
    then
       RVAL="${RVAL//$'\n'/ }"
    fi

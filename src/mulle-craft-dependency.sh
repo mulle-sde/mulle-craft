@@ -32,7 +32,7 @@
 #   ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
 #   POSSIBILITY OF SUCH DAMAGE.
 #
-MULLE_CRAFT_DEPENDENCY_SH="included"
+MULLE_CRAFT_DEPENDENCY_SH='included'
 
 
 craft::dependency::install_tarball()
@@ -270,7 +270,7 @@ craft::dependency::write_cachedir_tag()
 
    local dependencydir="$1"
 
-   [ "${MULLE_CACHEDIR_TAG}" != "YES" ] && return
+   [ "${MULLE_CACHEDIR_TAG}" != 'YES' ] && return
 
    # assume one stat is faster than open/write/close
    [ -f "${dependencydir}/CACHEDIR.TAG" ] && return

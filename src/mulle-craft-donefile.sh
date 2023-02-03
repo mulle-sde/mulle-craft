@@ -32,7 +32,7 @@
 #   ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
 #   POSSIBILITY OF SUCH DAMAGE.
 #
-MULLE_CRAFT_DONEFILE_SH="included"
+MULLE_CRAFT_DONEFILE_SH='included'
 
 
 craft::donefile::usage()
@@ -133,7 +133,7 @@ craft::donefile::__have_donefiles()
 
    local have_a_donefile
 
-   have_a_donefile="NO"
+   have_a_donefile='NO'
    if [ -f "${_donefile}" ]
    then
       log_fluff "A donefile \"${_donefile#"${MULLE_USER_PWD}/"}\" is present"

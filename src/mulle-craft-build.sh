@@ -32,7 +32,7 @@
 #   ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
 #   POSSIBILITY OF SUCH DAMAGE.
 #
-MULLE_CRAFT_BUILD_SH="included"
+MULLE_CRAFT_BUILD_SH='included'
 
 
 craft::build::usage()
@@ -258,7 +258,7 @@ craft::build::__set_various_paths()
 
 craft::build::r_project_definitiondirs()
 {
-   log_entry "craft::build::build_project" "$@"
+   log_entry "craft::build::r_project_definitiondirs" "$@"
 
    local project="$1"
    local name="$2"
@@ -277,86 +277,62 @@ craft::build::r_project_definitiondirs()
    # INFO_DIRS is settable as flag in mulle-craft
    definitiondirs="${INFO_DIRS}"
 
-   if [ -z "${definitiondirs}" ]
+   if [ ! -z "${definitiondirs}" ]
    then
-      local extra_extension
+      RVAL="${definitiondirs}"
+      return
+   fi
 
-      craft::path::r_config_extension "${name}"
-      extra_extension="${RVAL}"
+   local extra_extension
 
-      local extension
+   craft::path::r_config_extension "${name}"
+   extra_extension="${RVAL}"
 
-      # will run once for empty extensions, which is what we want
-      .foreachpath extension in "" ${extra_extension}
+   local extension
+
+   # will run once for empty extensions, which is what we want
+   .foreachpath extension in "" "${extra_extension}"
+   .do
+      # default values provided by dependency/share/mulle-craft/definition
+      craft::craftinfo::r_find_dependency_item "" \
+                                               "${allowplatform}" \
+                                               "${sdk}" \
+                                               "${platform}" \
+                                               "${configuration}" \
+                                               "${style}"  \
+                                               "definition${extension}"
+
+      case $? in
+         0)
+            log_fluff "Adding dependency root definition \"${RVAL}\" to definitiondirs"
+            r_add_line "${definitiondirs}" "${RVAL}"
+            definitiondirs="${RVAL}"
+         ;;
+
+         2)
+         ;;
+
+         *)
+            exit 1
+         ;;
+      esac
+   .done
+
+   # overrides of .mulle/share/craft/definition
+   if [ "${OPTION_LOCAL_CRAFTINFO}" = 'YES' ]
+   then
+      .foreachpath extension in "" "${extra_extension}"
       .do
-         # default values provided by dependency/share/mulle-craft/definition
-         craft::craftinfo::r_find_dependency_item "" \
-                                                  "${allowplatform}" \
-                                                  "${sdk}" \
-                                                  "${platform}" \
-                                                  "${configuration}" \
-                                                  "${style}"  \
-                                                  "definition${extension}"
+         craft::craftinfo::r_find_project_item "${name}" \
+                                               "${project}" \
+                                               "${allowplatform}" \
+                                               "${sdk}" \
+                                               "${platform}" \
+                                               "definition${extension}"
 
          case $? in
             0)
-               log_fluff "Adding dependency root definition \"${RVAL}\" to definitiondirs"
-               r_add_line "${definitiondirs}" "${RVAL}"
-               definitiondirs="${RVAL}"
-            ;;
-
-            2)
-            ;;
-
-            *)
-               exit 1
-            ;;
-         esac
-      .done
-
-      # overrides of .mulle/share/craft/definition
-      if [ "${OPTION_LOCAL_CRAFTINFO}" = 'YES' ]
-      then
-         .foreachpath extension in ${extensions}
-         .do
-            craft::craftinfo::r_find_project_item "${name}" \
-                                                  "${project}" \
-                                                  "${allowplatform}" \
-                                                  "${sdk}" \
-                                                  "${platform}" \
-                                                  "definition${extension}"
-
-            case $? in
-               0)
-                  log_fluff "Adding project definition \"${RVAL}\" to definitiondirs"
-                  r_add_line "${definitiondirs}" "${RVAL}"
-                  definitiondirs="${RVAL}"
-               ;;
-
-               2)
-               ;;
-
-               *)
-                  exit 1
-               ;;
-            esac
-         .done
-      fi
-
-      # more overrides of craftinfo in .mulle/share/craft/whatevs/definition
-      .foreachpath extension in ${extensions}
-      .do
-         craft::craftinfo::r_find_dependency_item "${name}" \
-                                                  "${allowplatform}" \
-                                                  "${sdk}" \
-                                                  "${platform}" \
-                                                  "${configuration}" \
-                                                  "${style}"  \
-                                                  "definition${extension}"
-
-         case $? in
-            0)
-               log_fluff "Adding ${name} item \"${RVAL}\" to definitiondirs"
+               log_fluff "Adding project definition \"${RVAL}\" to definitiondirs"
                r_add_line "${definitiondirs}" "${RVAL}"
                definitiondirs="${RVAL}"
             ;;
@@ -370,6 +346,33 @@ craft::build::r_project_definitiondirs()
          esac
       .done
    fi
+
+   # more overrides of craftinfo in .mulle/share/craft/whatevs/definition
+   .foreachpath extension in "" "${extra_extension}"
+   .do
+      craft::craftinfo::r_find_dependency_item "${name}" \
+                                               "${allowplatform}" \
+                                               "${sdk}" \
+                                               "${platform}" \
+                                               "${configuration}" \
+                                               "${style}"  \
+                                               "definition${extension}"
+
+      case $? in
+         0)
+            log_fluff "Adding ${name} item \"${RVAL}\" to definitiondirs"
+            r_add_line "${definitiondirs}" "${RVAL}"
+            definitiondirs="${RVAL}"
+         ;;
+
+         2)
+         ;;
+
+         *)
+            exit 1
+         ;;
+      esac
+   .done
 
    RVAL="${definitiondirs}"
 }
@@ -678,7 +681,7 @@ This can lead to problems on darwin, but may solve problems on linux..."
    old="${MULLE_FLAG_LOG_EXEKUTOR}"
    if [ "${MULLE_FLAG_LOG_VERBOSE}" = 'YES' ]
    then
-      MULLE_FLAG_LOG_EXEKUTOR="YES"
+      MULLE_FLAG_LOG_EXEKUTOR='YES'
    fi
 
    # use rexekutor because mulle-make gets the technical flags
@@ -1208,7 +1211,7 @@ craft::build::handle_parallel()
    _r_make_tmp_in_dir "${KITCHEN_DIR}" ".build-status" "f" || exit 1
    statusfile="${RVAL}"
 
-   local parallel_link="NO"
+   local parallel_link='NO'
 
    #
    # Check if we have something that can not be linked in parallel.
@@ -2041,7 +2044,7 @@ craft::build::build_mainproject()
    old="${MULLE_FLAG_LOG_EXEKUTOR}"
    if [ "${MULLE_FLAG_LOG_VERBOSE}" = 'YES' ]
    then
-      MULLE_FLAG_LOG_EXEKUTOR="YES"
+      MULLE_FLAG_LOG_EXEKUTOR='YES'
    fi
 
    local rval
@@ -2188,7 +2191,7 @@ craft::build::common()
    # header install phase currently not installing for some reason
 #  case "${MULLE_UNAME}" in
 #     windows|mingw)
-#        OPTION_PARALLEL="NO"
+#        OPTION_PARALLEL='NO'
 #     ;;
 #  esac
 

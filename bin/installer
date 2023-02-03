@@ -151,17 +151,19 @@ main()
    [ $# -eq 0 ] || shift
    mode=${1:-755}
    [ $# -eq 0 ] || shift
+   libexecdirname="${1:-libexec}"
+   [ $# -eq 0 ] || shift
 
-   if [ -z "${prefix}" ] || [ -z "${mode}" ]
+   if [ -z "${prefix}" -o "${prefix}" = "--help" ] || [ -z "${mode}" ]
    then
-      installer_fail "usage: installer [prefix] [mode]"
+      installer_fail "usage: installer [prefix] [mode] [libexecdirname]"
    fi
 
    r_installer_install_prefix "${prefix}"
    prefix="${RVAL}"
 
    bin="${prefix}/bin"
-   libexec="${prefix}/libexec/mulle-craft"
+   libexec="${prefix}/${libexecdirname}/mulle-craft"
 
    mkdir -p "${bin}" || installer_fail "could not create ${bin}"
    mkdir -p "${libexec}" || installer_fail "could not create ${libexec}"
