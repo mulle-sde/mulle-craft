@@ -41,18 +41,28 @@ craft::searchpath::usage()
 
     cat <<EOF >&2
 Usage:
-   ${MULLE_USAGE_NAME} searchpath [options] <framework|header|library>
+   ${MULLE_USAGE_NAME} searchpath [options] <type>
 
    Emit a colon separated searchpath for searching libraries, headers,
-   frameworks in the local dependencies and addictions. It does not include
-   system headers. Use mulle-platform for finding the system searchpaths.
+   frameworks, executables in the local dependencies and addictions or
+   the local kitchen. It does not include system headers. Use mulle-platform
+   to determine the system searchpaths.
 
-   Used by build scripts to determine proper search paths.
-
+   Used by build scripts to determine proper search paths. The configuration
    Release is always a fallback for Debug.
 
-   Example output:
+Example:
+      mulle-craft searchpath include
+
+   could yield:
       dependency/Debug/include:dependency/include:addiction/include
+
+Types:
+   framework         : a list of "Frameworks" directories
+   header            : a list of "include" directories
+   library           : a list of "lib" directories
+   binary            : a list of "bin" directories
+   kitchen           : the location of the (uninstalled) build products
 
 Options:
    --if-exists       : only add to searchpath if directory exists
@@ -77,6 +87,7 @@ craft::searchpath::main()
    local OPTION_IF_EXISTS='NO'
    local OPTION_PREFIX_ONLY='NO'
    local OPTION_TEST='NO'
+   local OPTION_KITCHEN='NO'
 
    local configurations
    local platforms
@@ -121,6 +132,10 @@ craft::searchpath::main()
             shift
 
             configurations="$1"
+         ;;
+
+         --kitchen)
+            OPTION_KITCHEN='YES'
          ;;
 
          --platforms)
@@ -179,6 +194,14 @@ craft::searchpath::main()
          subdir="lib"
       ;;
 
+      binary)
+         subdir="bin"
+      ;;
+
+      kitchen)
+         OPTION_KITCHEN='YES'
+      ;;
+
       *)
          craft::searchpath::usage "Unknown type \"$1\""
       ;;
@@ -197,21 +220,35 @@ craft::searchpath::main()
    local directory
    local paths
 
+   [ -z "${KITCHEN_DIR}" ]    && _internal_fail "KITCHEN_DIR is empty"
+   [ -z "${DEPENDENCY_DIR}" ] && _internal_fail "DEPENDENCY_DIR is empty"
+
    .foreachpath configuration in ${configurations}
    .do
       .foreachpath platform in ${platforms}
       .do
          .foreachpath sdk in ${sdks}
          .do
-            craft::style::r_get_sdk_platform_configuration_string "${sdk}" \
-                                                                  "${platform}" \
-                                                                  "${configuration}" \
-                                                                  "${style}"
-            directory="${RVAL}"
+            if [ "${OPTION_KITCHEN}" = 'YES' ]
+            then
+               craft::path::r_mainproject_kitchendir "${sdk}" \
+                                                     "${platform}" \
+                                                     "${configuration}" \
+                                                     "${style}" \
+                                                     "${KITCHEN_DIR}"
+            else
+               craft::style::r_get_sdk_platform_configuration_string "${sdk}" \
+                                                                     "${platform}" \
+                                                                     "${configuration}" \
+                                                                     "${style}"
+               directory="${RVAL}"
 
-            r_filepath_concat "${DEPENDENCY_DIR}" "${directory}"
-            r_filepath_concat "${RVAL}" "${subdir}"
+               r_filepath_concat "${DEPENDENCY_DIR}" "${directory}"
+               r_filepath_concat "${RVAL}" "${subdir}"
+            fi
             r_absolutepath "${RVAL}"
+
+            log_debug "considering: \"${RVAL}\""
 
             if [ "${OPTION_IF_EXISTS}" = 'YES' ] && [ ! -d "${RVAL}" ]
             then

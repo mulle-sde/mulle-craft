@@ -283,15 +283,25 @@ craft::build::r_project_definitiondirs()
       return
    fi
 
+   local definitionames
+
+   definitionnames="definition"
+
    local extra_extension
 
    craft::path::r_config_extension "${name}"
    extra_extension="${RVAL}"
 
-   local extension
+   if [ ! -z "${extra_extension}" ]
+   then
+      r_concat "${definitionnames}" "definition.${extra_extension}"
+      definitionnames="${RVAL}"
+   fi
+
+   local definitionname
 
    # will run once for empty extensions, which is what we want
-   .foreachpath extension in "" "${extra_extension}"
+   .for definitionname in ${definitionnames}
    .do
       # default values provided by dependency/share/mulle-craft/definition
       craft::craftinfo::r_find_dependency_item "" \
@@ -300,7 +310,7 @@ craft::build::r_project_definitiondirs()
                                                "${platform}" \
                                                "${configuration}" \
                                                "${style}"  \
-                                               "definition${extension}"
+                                               "${definitionname}"
 
       case $? in
          0)
@@ -321,14 +331,14 @@ craft::build::r_project_definitiondirs()
    # overrides of .mulle/share/craft/definition
    if [ "${OPTION_LOCAL_CRAFTINFO}" = 'YES' ]
    then
-      .foreachpath extension in "" "${extra_extension}"
+      .for definitionname in ${definitionnames}
       .do
          craft::craftinfo::r_find_project_item "${name}" \
                                                "${project}" \
                                                "${allowplatform}" \
                                                "${sdk}" \
                                                "${platform}" \
-                                               "definition${extension}"
+                                               "${definitionname}"
 
          case $? in
             0)
@@ -348,7 +358,7 @@ craft::build::r_project_definitiondirs()
    fi
 
    # more overrides of craftinfo in .mulle/share/craft/whatevs/definition
-   .foreachpath extension in "" "${extra_extension}"
+   .for definitionname in ${definitionnames}
    .do
       craft::craftinfo::r_find_dependency_item "${name}" \
                                                "${allowplatform}" \
@@ -356,7 +366,7 @@ craft::build::r_project_definitiondirs()
                                                "${platform}" \
                                                "${configuration}" \
                                                "${style}"  \
-                                               "definition${extension}"
+                                               "${definitionname}"
 
       case $? in
          0)
@@ -598,10 +608,20 @@ This can lead to problems on darwin, but may solve problems on linux..."
       args="${RVAL}"
    fi
 
+   local subdir
+
+   craft::path::r_dependency_subdir "${sdk}" "${platform}" "${configuration}" "auto"
+   subdir="${RVAL}"
+
+   if [ ! -z "${subdir}" ]
+   then
+      r_concat "${args}" "-DMULLE_SDK_SUBDIR='${subdir}'"
+      args="${RVAL}"
+   fi
 
    local sdk_path
 
-   craft::path::r_get_mulle_sdk_path "${sdk}" "${platform}"  "${configuration}" "auto"
+   craft::path::r_get_mulle_sdk_path "${sdk}" "${platform}" "${configuration}" "auto"
    sdk_path="${RVAL}"
 
    if [ ! -z "${sdk_path}" ]
@@ -972,8 +992,6 @@ craft::build::build_craftorder_node()
                                 "${configuration}"  \
                                 "${style}"
    dependency_dir="${RVAL}"
-
-
 
    #
    # Depending on marks, either install and dispense or just install
@@ -2013,8 +2031,28 @@ craft::build::build_mainproject()
       options="${RVAL}"
    fi
 
-   local sdk_path
+   local subdir
 
+   craft::path::r_dependency_subdir "${sdk}" "${platform}" "${configuration}" "${style}"
+   subdir="${RVAL}"
+   if [ ! -z "${subdir}" ]
+   then
+      r_concat "${options}" "-DMULLE_SDK_SUBDIR='${subdir}'"
+      options="${RVAL}"
+   fi
+
+   if [ "${configuration}" != 'Release' ]
+   then
+      craft::path::r_dependency_subdir "${sdk}" "${platform}" 'Release' "${style}"
+      subdir="${RVAL}"
+      if [ ! -z "${subdir}" ]
+      then
+         r_concat "${options}" "-DMULLE_SDK_FALLBACK_SUBDIR='${subdir}'"
+         options="${RVAL}"
+      fi
+   fi
+
+   local sdk_path
 
    craft::path::r_get_mulle_sdk_path "${sdk}" "${platform}" "${configuration}" "${style}"
    sdk_path="${RVAL}"

@@ -1,0 +1,12 @@
+{
+   project =
+   {
+      description="🚬 Build projects using mulle-make and mulle-sourcetree";
+      domain="github";
+      name="mulle-craft";
+      username="mulle-sde";
+      reponame="mulle-craft";
+      homepage="https://github.com/mulle-sde/mulle-craft";
+      license="BSD-3-Clause"
+   };
+}

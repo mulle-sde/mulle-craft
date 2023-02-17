@@ -1,11 +1,11 @@
 
-PIX=searchpath.png \
-mulle-sde-overview.png \
-dispense-strict.png \
-dispense-auto.png
+PIX=searchpath.svg \
+mulle-sde-overview.svg \
+dispense-strict.svg \
+dispense-auto.svg
 
-%.png: %.dot
-	dot -Tpng -o $*.png $<
+%.svg: %.dot
+	dot -Tsvg -o $*.svg $<
 
 
 all: $(PIX)

@@ -140,6 +140,26 @@ craft::path::r_config_extension()
 }
 
 
+craft::path::r_dependency_subdir()
+{
+   log_entry "craft::path::r_dependency_subdir" "$@"
+
+   local sdk="$1"
+   local platform="$2"
+   local configuration="$3"
+   local style="$4"
+
+   include "craft::style"
+
+   #
+   # Figure out where to dispense into
+   #
+   craft::style::r_get_sdk_platform_configuration_string "${sdk}" \
+                                                         "${platform}" \
+                                                         "${configuration}"  \
+                                                         "${style}"
+}
+
 
 craft::path::r_dependencydir()
 {
@@ -201,28 +221,28 @@ craft::path::r_get_mulle_sdk_path()
    local configuration="$3"
    local style="$4"
 
-   local sdk_platform
+#  local sdk_platform
+#
+#   #
+#   # The MULLE_SDK_PATH does not contain the configuration (!)
+#   #
+#   include "craft::style"
+#
+#   craft::style::r_get_sdk_platform_string "${sdk}" \
+#                                           "${platform}" \
+#                                           "${style}"
+#   sdk_platform="${RVAL}"
+#
+#   local addiction_dir
+#   local dependency_dir
+#
+#   r_filepath_concat "${ADDICTION_DIR}" "${sdk_platform}"
+#   addiction_dir="${RVAL}"
+#
+#   r_filepath_concat "${DEPENDENCY_DIR}" "${sdk_platform}"
+#   dependency_dir="${RVAL}"
 
-   #
-   # The MULLE_SDK_PATH does not contain the configuration (!)
-   #
-   include "craft::style"
-
-   craft::style::r_get_sdk_platform_string "${sdk}" \
-                                           "${platform}" \
-                                           "${style}"
-   sdk_platform="${RVAL}"
-
-   local addiction_dir
-   local dependency_dir
-
-   r_filepath_concat "${ADDICTION_DIR}" "${sdk_platform}"
-   addiction_dir="${RVAL}"
-
-   r_filepath_concat "${DEPENDENCY_DIR}" "${sdk_platform}"
-   dependency_dir="${RVAL}"
-
-   r_colon_concat "${dependency_dir}" "${addiction_dir}"
+   r_colon_concat "${DEPENDENCY_DIR}" "${ADDICTION_DIR}"
    r_colon_concat "${RVAL}" "${MULLE_SDK_PATH}"
 
    # this will be passed as MULLE_SDK_PATH

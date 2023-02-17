@@ -11,7 +11,7 @@ digraph G {
 
     "foo"           [ label="foo", fontcolor="#5867d6", color="#5867d6" ]
 
-    "foo" -> ".mulle"  -> "etc"  -> "craft"  -> "mulle-make.darwin"
+    "foo" -> ".mulle"  -> "etc"  -> "craft"  -> "definition.darwin"
 
     node[ shape=folder, color="#4b6584", fontcolor="#4b6584"];
 
@@ -19,8 +19,8 @@ digraph G {
 
     "foo2"          [ label="foo" ]
 
-    "foo2"         -> "mulle-make.linux"
-    "foo2"         -> "mulle-make"
+    "foo2"         -> "definition.linux"
+    "foo2"         -> "definition"
 
     "mulle-craft1"  [ label="mulle-craft"]
 
