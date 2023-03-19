@@ -468,6 +468,11 @@ craft::build::build_project()
 
    case "${phase}" in
       'Singlephase')
+         if [ "${OPTION_PARALLEL}" = 'YES' -a "${OPTION_PARALLEL_PHASE}" = 'YES' ]
+         then
+            r_concat "${args}" "--underline"
+            args="${RVAL}"
+         fi
       ;;
 
       'Header'|'Headers'|'Compile'|'Link')
@@ -2214,7 +2219,7 @@ craft::build::common()
    local OPTION_PARALLEL='YES'
    local OPTION_PARALLEL_LINK='YES'
    local OPTION_PARALLEL_MAKE='YES'
-   local OPTION_PARALLEL_PHASE='YES' # NO sometimes usefule for debugging
+   local OPTION_PARALLEL_PHASE='YES' # NO sometimes useful for debugging
    local OPTION_PHASES="Headers Compile Link"
    local OPTION_PLATFORM_CRAFTINFO="${MULLE_CRAFT_PLATFORM_CRAFTINFO:-YES}"
    local OPTION_PREFERRED_LIBRARY_STYLE

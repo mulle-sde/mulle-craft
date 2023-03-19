@@ -51,8 +51,10 @@ Usage:
    Used by build scripts to determine proper search paths. The configuration
    Release is always a fallback for Debug.
 
+   See \`mulle-craft style\` for available styles.
+
 Example:
-      mulle-craft searchpath include
+      mulle-craft searchpath header
 
    could yield:
       dependency/Debug/include:dependency/include:addiction/include
@@ -66,7 +68,7 @@ Types:
 
 Options:
    --if-exists       : only add to searchpath if directory exists
-   --style <style>   : adjust output to match style
+   --style <style>   : adjust output to match style (auto)
    --release         : adjust output to match configuration "Release"
    --debug           : adjust output to match configuration "Debug"
    --test            : set "Test" flag
@@ -186,7 +188,7 @@ craft::searchpath::main()
          subdir="Frameworks"
       ;;
 
-      header)
+      header|include)
          subdir="include"
       ;;
 

@@ -185,7 +185,7 @@ craft::dependency::set_state()
 {
    local state="$1"
 
-   log_verbose "Dependency folder marked as \"${state}\""
+   log_fluff "Dependency folder marked as \"${state}\""
 
    # for "install" this is superflous and unwanted
    if [ "${OPTION_KEEP_DEPENDENCY_STATE}" = 'YES' ]
