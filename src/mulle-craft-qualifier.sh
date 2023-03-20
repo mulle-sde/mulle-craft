@@ -204,7 +204,7 @@ craft::qualifier::r_filtered_craftorder()
    local configuration="$4"
    local version="$5"
 
-   include "sourcetree::nodemarks"
+   include "sourcetree::marks"
 
    local qualifier
 
@@ -228,7 +228,7 @@ craft::qualifier::r_filtered_craftorder()
    .do
       marks="${line#*;}"
 
-      if sourcetree::nodemarks::filter_with_qualifier "${marks}" "${qualifier}"
+      if sourcetree::marks::filter_with_qualifier "${marks}" "${qualifier}"
       then
          r_add_line "${result}" "${line}"
          result="${RVAL}"
@@ -386,9 +386,9 @@ craft::qualifier::main()
 version-max-${OPTION_PLATFORM:-${MULLE_UNAME}} to work and vice versa"
          fi
 
-         include "sourcetree::nodemarks"
+         include "sourcetree::marks"
 
-         if sourcetree::nodemarks::filter_with_qualifier "${marks}" "${qualifier}"
+         if sourcetree::marks::filter_with_qualifier "${marks}" "${qualifier}"
          then
             log_info 'YES'
             return 0

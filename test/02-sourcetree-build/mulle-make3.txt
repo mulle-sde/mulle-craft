@@ -1,0 +1,7 @@
+--build-dir ${MULLE_TMP_DIR}/build/.craftorder/foo/Debug/src
+--configuration Debug
+--definition-dir NONE
+--log-dir ${MULLE_TMP_DIR}/build/.craftorder/foo/Debug/src/.log
+--sdk foo
+MULLE_SDK_PATH=${MULLE_TMP_DIR}/dependency:${MULLE_TMP_DIR}/addiction
+MULLE_SDK_SUBDIR=foo/Debug

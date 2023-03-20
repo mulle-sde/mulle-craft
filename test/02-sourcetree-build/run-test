@@ -140,6 +140,10 @@ main()
                                                 craftorder --sdk foo --release
    log_verbose "----- #2 PASSED -----"
 
+   run_test "${directory}" "mulle-make3.txt" --craftorder-file "${PWD}/craftorder" \
+                                                craftorder --sdk foo --debug
+   log_verbose "----- #3 PASSED -----"
+
    log_info "----- ALL PASSED -----"
    cd ..
    rmdir_safer "${directory}"

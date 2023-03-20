@@ -97,6 +97,8 @@ Default"
    MULLE_HOSTNAME=localhost
    export MULLE_HOSTNAME   # avoid errors on solaris
 
+   local text
+
    i=1
    .foreachline platform in ${platforms}
    .do
@@ -107,12 +109,13 @@ Default"
          .do
             .foreachline style in ${styles}
             .do
-               r_add_line "${RVAL}" "${platform}/${sdk}/${configuration}/${style}=`run_mulle_craft style \
-                                                     --style "${style}" \
-                                                     --configuration "${configuration}" \
-                                                     --platform "${platform}" \
-                                                     --sdk "${sdk}"  \
-                                                     list`"
+               text="`run_mulle_craft -s style \
+                        --style "${style}" \
+                        --configuration "${configuration}" \
+                        --platform "${platform}" \
+                        --sdk "${sdk}"  \
+                        list`"
+               r_add_line "${RVAL}" "${platform}/${sdk}/${configuration}/${style}=${text}"
             .done
          .done
       .done
