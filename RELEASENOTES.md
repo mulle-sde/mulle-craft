@@ -1,3 +1,12 @@
+## 3.1.0
+
+* in parallel builds tell mulle-make to *underline* the output for serial dependencies
+* rename "mulle-craft searchpath header" command to "mulle-craft searchpath include" for orthogonality with other commands
+* the **searchpath** command can now search for binary and kitchen
+* the `MULLE_SDK_PATH` variable content has changed, which requires changes in the cmake files that depend on it
+* fix various cross-platform bugs and cleanup some code
+
+
 # 3.0.0
 
 * `MULLE_CRAFT_..._MAKE_OPTIONS` no longer supported
