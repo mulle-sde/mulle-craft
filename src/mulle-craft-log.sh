@@ -288,7 +288,7 @@ craft::log::craftorders()
 
    local sdk="${OPTION_SDK}"
    local platform="${OPTION_PLATFORM}"
-   local style="${OPTION_SDK:-${MULLE_CRAFT_DISPENSE_STYLE:-auto}}"
+   local style="${MULLE_CRAFT_DISPENSE_STYLE:-${DISPENSE_STYLE:-auto}}"
 
    configuration="${OPTION_CONFIGURATION}"
    configuration="${configuration:-${lastconfiguration}}"

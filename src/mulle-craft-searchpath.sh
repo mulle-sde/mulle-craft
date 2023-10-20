@@ -54,7 +54,7 @@ Usage:
    See \`mulle-craft style\` for available styles.
 
 Example:
-      mulle-craft searchpath header
+      ${MULLE_USAGE_NAME} searchpath header
 
    could yield:
       dependency/Debug/include:dependency/include:addiction/include

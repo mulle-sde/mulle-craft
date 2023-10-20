@@ -49,12 +49,14 @@ Options:
    --all          : rebuild everything (doesn't clean)
    --debug        : compile for debug only
    --lenient      : do not stop on errors
+   --mulle-test   : compile for testing (defines MULLE_TEST)
+   --no-hook      : do not execute MULLE_CRAFT_POST_PROJECT
    --no-protect   : do not make dependency read-only
    --release      : compile for release only
    --serial       : don't build in parallel
-   --mulle-test   : compile for testing (defines MULLE_TEST)
-   --sdk <sdk>    : specify sdk to build against (Default)
+
    --platform <p> : specify platform to build for (${MULLE_UNAME})
+   --sdk <sdk>    : specify sdk to build against (Default)
    --style <s>    : dependency style: auto, none, relax, strict, tight
    --target <t>   : target to build of project (if any)
    --             : pass remaining options to mulle-make
@@ -63,12 +65,13 @@ Environment:
    ADDICTION_DIR              : place to get addictions from (optional)
    KITCHEN_DIR                : place for intermediate craft files (required)
    CRAFTINFO_PATH             : places to find craftinfos
-   DISPENSE_STYLE             : how to install into dependency (none)
    DEPENDENCY_DIR             : place to put dependencies into
    DEPENDENCY_TARBALLS        : tarballs to install into dependency, ':' sep
    MULLE_CRAFT_MAKE_FLAGS     : additional flags passed to mulle-make
    MULLE_CRAFT_CONFIGURATIONS : configurations to build, ':' separated
+   MULLE_CRAFT_DISPENSE_STYLE : how to install into dependency (none)
    MULLE_CRAFT_PLATFORMS      : platforms to build, ':' separated
+   MULLE_CRAFT_POST_PROJECT   : execute this script after success
    MULLE_CRAFT_SDKS           : sdks to build, ':' separated
    MULLE_CRAFT_USE_SCRIPT     : enables building with scripts
 
@@ -1693,7 +1696,7 @@ craft::build::do_craftorder()
    [ -z "${kitchendir}" ]      && _internal_fail "kitchendir is missing"
 
    [ -z "${DEPENDENCY_DIR}" ]  && fail "DEPENDENCY_DIR is undefined"
-   [ -z "${DISPENSE_STYLE}" ]  && _internal_fail "DISPENSE_STYLE is empty"
+   [ -z "${MULLE_CRAFT_DISPENSE_STYLE}" ]  && _internal_fail "MULLE_CRAFT_DISPENSE_STYLE is empty"
 
    #
    # "NONE" creates no dependency folder
@@ -1708,7 +1711,7 @@ craft::build::do_craftorder()
    local craftorder
    local style
 
-   style="${DISPENSE_STYLE}"
+   style="${MULLE_CRAFT_DISPENSE_STYLE}"
    craftorder="`grep -E -v '^#' "${craftorderfile}" 2> /dev/null`"
    [ $? -gt 1 ] && fail "Craftorder file \"${craftorderfile}\" is missing"
 
@@ -2185,7 +2188,7 @@ as a ${C_MAGENTA}${C_BOLD}${configuration}${C_VERBOSE} build"
             if ! craft::build::build_mainproject "${sdk}" \
                                                  "${platform}" \
                                                  "${configuration}" \
-                                                 "${DISPENSE_STYLE:-auto}" \
+                                                 "${MULLE_CRAFT_DISPENSE_STYLE}" \
                                                  "${name}" \
                                                  "" \
                                                  "$@"
@@ -2212,6 +2215,7 @@ craft::build::common()
    local OPTION_CLEAN_TMP='YES'
    local OPTION_DONEFILES='YES'
    local OPTION_KEEP_DEPENDENCY_STATE='YES'
+   local OPTION_HOOK='NO'
    local OPTION_LENIENT='NO'
    local OPTION_LIST_REMAINING='NO'
    local OPTION_LOCAL_CRAFTINFO="${MULLE_CRAFT_LOCAL_CRAFTINFO:-YES}"
@@ -2362,6 +2366,10 @@ craft::build::common()
             OPTION_PROTECT_DEPENDENCY='YES'
          ;;
 
+         --no-hook)
+            OPTION_HOOK='NO'
+         ;;
+
          --no-protect)
             OPTION_PROTECT_DEPENDENCY='NO'
          ;;
@@ -2436,7 +2444,7 @@ craft::build::common()
             [ $# -eq 1 ] && craft::build::usage "Missing argument to \"$1\""
             shift
 
-            DISPENSE_STYLE="$1"
+            MULLE_CRAFT_DISPENSE_STYLE="$1"
          ;;
 
          --target|--targets)
@@ -2446,6 +2454,12 @@ craft::build::common()
             OPTION_TARGETS="$1"
          ;;
 
+         --post-project)
+            [ $# -eq 1 ] && craft::build::usage "Missing argument to \"$1\""
+            shift
+
+            MULLE_CRAFT_POST_PROJECT="$1"
+         ;;
 
          --version)
             [ $# -eq 1 ] && craft::build::usage "Missing argument to \"$1\""
@@ -2476,10 +2490,10 @@ craft::build::common()
    [ -z "${KITCHEN_DIR}" ] && _internal_fail "KITCHEN_DIR not set"
    [ -z "${MULLE_UNAME}" ] && _internal_fail "MULLE_UNAME not set"
 
-   DISPENSE_STYLE="${DISPENSE_STYLE:-auto}"
-   MULLE_CRAFT_CONFIGURATIONS="${MULLE_CRAFT_CONFIGURATIONS:-Debug}"
-   MULLE_CRAFT_SDKS="${MULLE_CRAFT_SDKS:-Default}"
-   MULLE_CRAFT_PLATFORMS="${MULLE_CRAFT_PLATFORMS:-Default}"
+   MULLE_CRAFT_DISPENSE_STYLE="${MULLE_CRAFT_DISPENSE_STYLE:-${DISPENSE_STYLE:-auto}}"
+   MULLE_CRAFT_CONFIGURATIONS="${MULLE_CRAFT_CONFIGURATIONS:-${CONFIGURATIONS:-Debug}}"
+   MULLE_CRAFT_SDKS="${MULLE_CRAFT_SDKS:-${SDKS:-Default}}"
+   MULLE_CRAFT_PLATFORMS="${MULLE_CRAFT_PLATFORMS:-${PLATFORMS:-Default}}"
 
    local currentenv
    local filenameenv
@@ -2516,7 +2530,7 @@ craft::build::common()
 ${currentenv}"
    fi
 
-   log_setting "DISPENSE_STYLE             : \"${DISPENSE_STYLE}\""
+   log_setting "MULLE_CRAFT_DISPENSE_STYLE : \"${MULLE_CRAFT_DISPENSE_STYLE}\""
    log_setting "MULLE_CRAFT_CONFIGURATIONS : \"${MULLE_CRAFT_CONFIGURATIONS}\""
    log_setting "MULLE_CRAFT_SDKS           : \"${MULLE_CRAFT_SDKS}\""
    log_setting "MULLE_CRAFT_PLATFORMS      : \"${MULLE_CRAFT_PLATFORMS}\""
@@ -2560,7 +2574,18 @@ ${currentenv}"
    # don't build if only headers are built for example
    case "${OPTION_PHASES}" in
       *Link*)
-         craft::build::do_mainproject "$@"
+         if ! craft::build::do_mainproject "$@"
+         then
+            return 1
+         fi
+
+         # run post-craft hook if defined
+         if [ ! -z "${MULLE_CRAFT_POST_PROJECT}" -a "${OPTION_HOOK}" = 'YES' ]
+         then
+            log_info "Running post-project hook ${C_RESET_BOLD}${MULLE_CRAFT_POST_PROJECT}${C_INFO} with mudo"
+            # MEMO: could eval this, but I think that's a bit risky
+            exekutor mudo -e -f "${MULLE_CRAFT_POST_PROJECT}"
+         fi
       ;;
    esac
 }
