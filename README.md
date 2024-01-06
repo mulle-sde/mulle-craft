@@ -13,11 +13,8 @@ That is determined by *mulle-make*, which gets called from *mulle-craft*.
 
 | Release Version                                       | Release Notes
 |-------------------------------------------------------|--------------
-| ![Mulle kybernetiK tag](https://img.shields.io/github/tag/mulle-sde/mulle-craft.svg?branch=release) | [RELEASENOTES](RELEASENOTES.md) |
+| ![Mulle kybernetiK tag](https://img.shields.io/github/tag/mulle-sde/mulle-craft.svg?branch=release)  | [RELEASENOTES](RELEASENOTES.md) |
 
-Executable    | Description
---------------|--------------------------------
-`mulle-craft` | Build projects and their dependencies
 
 
 
@@ -165,6 +162,7 @@ These are the marks understood by mulle-craft:
 
 
 
+
 ## Overview
 
 ![Overview](dox/mulle-sde-overview.svg)
@@ -173,7 +171,8 @@ These are the marks understood by mulle-craft:
 ## Install
 
 See [mulle-sde-developer](//github.com/mulle-sde/mulle-sde-developer) how to
-install mulle-sde, which will also install mulle-craft.
+install mulle-sde, which will also install mulle-craft with required
+dependencies.
 
 The command to install only the latest mulle-craft into
 `/usr/local` (with **sudo**) is:
@@ -188,3 +187,5 @@ curl -L 'https://github.com/mulle-sde/mulle-craft/archive/latest.tar.gz' \
 ## Author
 
 [Nat!](https://mulle-kybernetik.com/weblog) for Mulle kybernetiK
+
+

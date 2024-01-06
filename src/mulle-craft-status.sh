@@ -167,12 +167,12 @@ craft::status::output_names_with_status()
          _configuration="${configuration}"
       else
          craft::path::__evaluate_variables "${name}" \
-                                          "${sdk}" \
-                                          "${platform}" \
-                                          "${configuration}" \
-                                          "relax" \
-                                          "${kitchendir}" \
-                                          'NO'
+                                           "${sdk}" \
+                                           "${platform}" \
+                                           "${configuration}" \
+                                           "relax" \
+                                           "${kitchendir}" \
+                                           'NO'
       fi
 
       phase="`grep -E -v '^#' "${_kitchendir}/.phase" 2> /dev/null`"
@@ -295,7 +295,6 @@ craft::status::__parse_donefile()
 
    craft::status::__parse_triple "${name}"
 }
-
 
 
 craft::status::output_with_donefile()

@@ -59,7 +59,7 @@ Options:
    --sdk <sdk>    : specify sdk to build against (Default)
    --style <s>    : dependency style: auto, none, relax, strict, tight
    --target <t>   : target to build of project (if any)
-   --             : pass remaining options to mulle-make
+   --             : pass remaining arguments to mulle-make
 
 Environment:
    ADDICTION_DIR              : place to get addictions from (optional)
@@ -1586,7 +1586,7 @@ craft::build::_do_craftorder()
       is_parallel_enabled='YES'
    fi
 
-   log_fluff "is_parallel_enabled : ${is_parallel_enabled}"
+   log_setting "is_parallel_enabled : ${is_parallel_enabled}"
 
    .foreachline line in ${remaining}
    .do
@@ -2215,7 +2215,7 @@ craft::build::common()
    local OPTION_CLEAN_TMP='YES'
    local OPTION_DONEFILES='YES'
    local OPTION_KEEP_DEPENDENCY_STATE='YES'
-   local OPTION_HOOK='NO'
+   local OPTION_HOOK='YES'
    local OPTION_LENIENT='NO'
    local OPTION_LIST_REMAINING='NO'
    local OPTION_LOCAL_CRAFTINFO="${MULLE_CRAFT_LOCAL_CRAFTINFO:-YES}"
@@ -2407,13 +2407,6 @@ craft::build::common()
             MULLE_CRAFT_CONFIGURATIONS="$1"
          ;;
 
-         --preferred-library-style|--library-style)
-            [ $# -eq 1 ] && craft::build::usage "Missing argument to \"$1\""
-            shift
-
-            OPTION_PREFERRED_LIBRARY_STYLE="$1"
-         ;;
-
          --debug)
             MULLE_CRAFT_CONFIGURATIONS="Debug"
          ;;
@@ -2426,18 +2419,32 @@ craft::build::common()
             OPTION_MULLE_TEST='YES'
          ;;
 
-         --sdk|--sdks)
-            [ $# -eq 1 ] && craft::build::usage "Missing argument to \"$1\""
-            shift
-
-            MULLE_CRAFT_SDKS="$1"
-         ;;
-
          --platform|--platforms)
             [ $# -eq 1 ] && craft::build::usage "Missing argument to \"$1\""
             shift
 
             MULLE_CRAFT_PLATFORMS="$1"
+         ;;
+
+         --post-project)
+            [ $# -eq 1 ] && craft::build::usage "Missing argument to \"$1\""
+            shift
+
+            MULLE_CRAFT_POST_PROJECT="$1"
+         ;;
+
+         --preferred-library-style|--library-style)
+            [ $# -eq 1 ] && craft::build::usage "Missing argument to \"$1\""
+            shift
+
+            OPTION_PREFERRED_LIBRARY_STYLE="$1"
+         ;;
+
+         --sdk|--sdks)
+            [ $# -eq 1 ] && craft::build::usage "Missing argument to \"$1\""
+            shift
+
+            MULLE_CRAFT_SDKS="$1"
          ;;
 
          --style|--dispense-style|--dependency-style)
@@ -2452,13 +2459,6 @@ craft::build::common()
             shift
 
             OPTION_TARGETS="$1"
-         ;;
-
-         --post-project)
-            [ $# -eq 1 ] && craft::build::usage "Missing argument to \"$1\""
-            shift
-
-            MULLE_CRAFT_POST_PROJECT="$1"
          ;;
 
          --version)

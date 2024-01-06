@@ -62,12 +62,12 @@ Usage:
    ${MULLE_USAGE_NAME} [flags] [command]
 
    Crafts either projects given by a "craftorder" file. Or crafts the "project"
-   in the current directory. The actual build of each individual is done via
-   mulle-make.
+   in the current directory. The actual build of each individual project is done
+   via mulle-make.
 
    mulle-craft searches for definition directories, which may contain
    compiler flags or commands and forwards them to mulle-make. See "search"
-   fot more details.
+   for more details.
 
    See the various commands for more help.
 
@@ -75,9 +75,10 @@ Flags:
 EOF
 
    (
-      options_technical_flags_craft::usage "               : "
+      options_technical_flags_usage "                    : "
 
       cat <<EOF
+   --                       : pass remaining arguments to mulle-make
    --kitchen-dir <dir>      : specify kitchen directory
    --definition-dir <dir>   : specify definitions directory for dependencies
    --craftorder-file <file> : specify craftorder file, mandatory for some commands
@@ -90,11 +91,11 @@ EOF
 Commands:
    clean                : clean output
    craftorder           : craft projects using a craftorder file
+   find                 : find an item in craftinfos
    list                 : list recraft::maining builds in craftorder file
    log                  : inspect kitchen logs
    project              : craft craft::main project without craftorder (default)
    qualify              : test build qualifiers used in craftorder files
-   find                 : find for an item in craftinfos
    searchpath           : show searchpath for headers and libraries
    status               : returns 0 if dependency is ready
 EOF
@@ -281,6 +282,10 @@ craft::main()
             exit 0
          ;;
 
+         --)
+            break
+         ;;
+
          -*)
             log_error "${MULLE_EXECUTABLE_FAIL_PREFIX}: Unknown option \"$1\""
             craft::usage
@@ -296,20 +301,26 @@ craft::main()
 
    options_setup_trace "${MULLE_TRACE}" && set -x
 
-   local cmd="$1"
-
-   [ $# -eq 0 ] || shift
+   local cmd="${1:-}"
 
    case "${cmd}" in
       qualifier|style)
+         shift
       ;;
 
-      *-dir|search|craftinfo-search|searchpath)
-         MULLE_SQUELCH_ENVIRONMENT_WARNING='YES' \
-            craft::setup_environment
+    *-dir|search|craftinfo-search|searchpath)
+         shift
+         MULLE_SQUELCH_ENVIRONMENT_WARNING='YES' craft::setup_environment
       ;;
 
       *)
+         if [ "${cmd}" = '--' ]
+         then
+            cmd=""
+         else
+            shift
+         fi
+
          craft::setup_environment
 
          MULLE_MAKE="${MULLE_MAKE:-`command -v mulle-make`}"
@@ -335,7 +346,14 @@ craft::main()
       ;;
 
       craftorder-kitchen-dir)
-         printf "%s\n" "${CRAFTORDER_KITCHEN_DIR}"
+         if [ $# -eq 0 ]
+         then
+            printf "%s\n" "${CRAFTORDER_KITCHEN_DIR}"
+         else
+            include "craft::path"
+
+            craft::path::main "$@"
+         fi
       ;;
 
       kitchen-dir)

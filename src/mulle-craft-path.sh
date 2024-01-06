@@ -34,6 +34,39 @@
 #
 MULLE_CRAFT_PATH_SH='included'
 
+
+craft::path::usage()
+{
+   [ "$#" -ne 0 ] && log_error "$*"
+
+    cat <<EOF >&2
+Usage:
+   ${MULLE_USAGE_NAME} craftorder-kitchen-dir [options] <project>
+
+   Print the build directory for a given project in the craftorder.
+   See \`mulle-craft style\` for available styles.
+
+Options:
+   --configuration <c> : configuration c (${configuration})
+   --debug             : use configuration "Debug"
+   --if-exists         : only print if directory exists
+   --platform <p>      : specify platform (${platform})
+   --release           : use configuration "Release"
+   --sdk <s>           : use SDK s (${sdk})
+   --style <s>         : use style s (${style})
+
+Environment:
+   KITCHEN_DIR                : place of the kitchen root
+   MULLE_CRAFT_CONFIGURATIONS : configurations to build
+   MULLE_CRAFT_SDKS           : sdks to build
+   MULLE_CRAFT_PLATFORMS      : platforms to build for
+   MULLE_CRAFT_DISPENSE_STYLE : default style
+EOF
+  exit 1
+}
+
+
+
 #
 # local _configuration
 # local _evaledproject
@@ -369,8 +402,6 @@ craft::path::r_effective_project_kitchendir()
       done
    fi
 
-   log_fluff "Kitchen directory is \"${kitchendir}\""
-
    RVAL="${kitchendir}"
    return 0
 }
@@ -438,3 +469,119 @@ craft::path::__evaluate_variables()
    log_setting "evaledproject  : \"${_evaledproject}\""
    log_setting "name           : \"${_name}\""
 }
+
+
+
+craft::path::main()
+{
+   log_entry "craft::path::main" "$@"
+
+   local OPTION_IF_EXISTS='NO'
+   local configuration
+   local platform
+   local sdk
+   local style
+
+   configuration="${MULLE_CRAFT_CONFIGURATIONS%%:*}"
+   configuration="${configuration:-Debug}"
+   sdk="${MULLE_CRAFT_SDKS%%:*}"
+   sdk="${sdk:-Default}"
+   platform="${MULLE_CRAFT_PLATFORMS%%:*}"
+   platform="${platform:-${MULLE_UNAME}}"
+   style="${MULLE_CRAFT_DISPENSE_STYLE:-auto}"
+
+   while [ $# -ne 0 ]
+   do
+      case "$1" in
+         -h*|--help|help)
+            craft::path::usage
+         ;;
+
+         --if-exists)
+            OPTION_IF_EXISTS='YES'
+         ;;
+
+         --release)
+            configuration="Release"
+         ;;
+
+         --debug)
+            # Release is fallback for Debug
+            configuration="Debug"
+         ;;
+
+         --configuration)
+            [ $# -eq 1 ] && craft::path::usage "Missing argument to \"$1\""
+            shift
+
+            configuration="$1"
+         ;;
+
+         --platform)
+            [ $# -eq 1 ] && craft::path::usage "Missing argument to \"$1\""
+            shift
+
+            platform="$1"
+         ;;
+
+         --style)
+            [ $# -eq 1 ] && craft::path::usage "Missing argument to \"$1\""
+            shift
+
+            style="$1"
+         ;;
+
+         --sdk)
+            [ $# -eq 1 ] && craft::path::usage "Missing argument to \"$1\""
+            shift
+
+            sdk="$1"
+         ;;
+
+         -*)
+            craft::path::usage "Unknown option \"$1\""
+         ;;
+
+         *)
+            break
+         ;;
+      esac
+
+      shift
+   done
+
+   local project="$1"
+
+   [ -z "${project}" ] && craft::path::usage "Project is missing"
+   [ $# -ne 1 ] && craft::path::usage "Superflous parameters \"$*\""
+
+   include "craft::style"
+
+   [ -z "${CRAFTORDER_KITCHEN_DIR}" ] && _internal_fail "CRAFTORDER_KITCHEN_DIR is empty"
+
+   local _name
+   local _evaledproject
+   local _kitchendir
+   local _configuration
+
+   #
+   # get remapped _configuration
+   # get actual _kitchendir
+   #
+
+   craft::path::__evaluate_variables "${project}" \
+                                     "${sdk}" \
+                                     "${platform}" \
+                                     "${configuration}" \
+                                     "${style}" \
+                                     "${CRAFTORDER_KITCHEN_DIR}" \
+                                     'NO'
+   if [ "${OPTION_IF_EXISTS}" = 'YES' -a ! -d "${_kitchendir}" ]
+   then
+      return 1
+   fi
+
+   printf "%s\n" "${_kitchendir}"
+}
+
+:
