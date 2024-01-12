@@ -112,41 +112,15 @@ craft::build::assert_sane_name()
 #   _libpath
 #   _binpath
 #
-craft::build::__add_various_paths()
+craft::build::__add_addiction_paths()
 {
-   log_entry "craft::build::__add_various_paths" "$@"
+   log_entry "craft::build::__add_addiction_paths" "$@"
 
    local sdk="$1"
    local platform="$2"
    local configuration="$3"
    local style="$4"
 
-   _binpath="${PATH}"
-
-   local config_sdk_platform
-
-   craft::style::r_get_sdk_platform_configuration_string "${sdk}" \
-                                                         "${platform}" \
-                                                         "${configuration}" \
-                                                         "${style}"
-   config_sdk_platform="${RVAL}"
-
-   log_debug "config_sdk_platform : ${config_sdk_platform}"
-
-   if [ -d "${DEPENDENCY_DIR}/bin" ]
-   then
-      r_colon_concat "${DEPENDENCY_DIR}/bin" "${_binpath}"
-      _binpath="${RVAL}"
-   fi
-
-   if [ ! -z "${config_sdk_platform}" ]
-   then
-      if [ -d "${DEPENDENCY_DIR}/${config_sdk_platform}/bin" ]
-      then
-         r_colon_concat "${DEPENDENCY_DIR}/${config_sdk_platform}/bin" "${_binpath}"
-         _binpath="${RVAL}"
-      fi
-   fi
 
    #
    # Do addictions afterwards, so that dependency overrides addiction
@@ -217,6 +191,7 @@ craft::build::__add_various_paths()
 # local _frameworkspath
 # local _libpath
 # local _binpath
+# local _sharepath
 #
 craft::build::__set_various_paths()
 {
@@ -226,36 +201,84 @@ craft::build::__set_various_paths()
    local platform="$2"
    local configuration="$3"
    local style="$4"
+   local create="$5"
+
+   local config_sdk_platform
+
+   _binpath="${PATH}"
 
    if [ ! -z "${DEPENDENCY_DIR}" ]
    then
       craft::dependency::r_include_path "${sdk}" \
                                         "${platform}" \
                                         "${configuration}" \
-                                        "${style}"
+                                        "${style}" \
+                                        "${create}"
       _includepath="${RVAL}"
 
       craft::dependency::r_lib_path "${sdk}" \
                                     "${platform}" \
                                     "${configuration}" \
-                                    "${style}"
+                                    "${style}" \
+                                    "${create}"
       _libpath="${RVAL}"
+
+      craft::dependency::r_share_path "${sdk}" \
+                                    "${platform}" \
+                                    "${configuration}" \
+                                    "${style}" \
+                                    "${create}"
+      _sharepath="${RVAL}"
 
       case "${MULLE_UNAME}" in
          darwin)
             craft::dependency::r_frameworks_path "${sdk}" \
                                                  "${platform}" \
                                                  "${configuration}" \
-                                                 "${style}"
+                                                 "${style}" \
+                                                 "${create}"
             _frameworkspath="${RVAL}"
          ;;
       esac
+
+      craft::style::r_get_sdk_platform_configuration_string "${sdk}" \
+                                                            "${platform}" \
+                                                            "${configuration}" \
+                                                            "${style}" \
+                                                            "${create}"
+      config_sdk_platform="${RVAL}"
+
+      log_debug "config_sdk_platform : ${config_sdk_platform}"
+
+      if [ "${create}" = 'YES' ]
+      then
+         mkdir_if_missing "${DEPENDENCY_DIR}/bin"
+      fi
+
+      if [ -d "${DEPENDENCY_DIR}/bin" ]
+      then
+         r_colon_concat "${DEPENDENCY_DIR}/bin" "${_binpath}"
+         _binpath="${RVAL}"
+      fi
+
+      if [ ! -z "${config_sdk_platform}" ]
+      then
+         if [ "${create}" = 'YES' ]
+         then
+            mkdir_if_missing "${DEPENDENCY_DIR}/${config_sdk_platform}/bin"
+         fi
+         if [ -d "${DEPENDENCY_DIR}/${config_sdk_platform}/bin" ]
+         then
+            r_colon_concat "${DEPENDENCY_DIR}/${config_sdk_platform}/bin" "${_binpath}"
+            _binpath="${RVAL}"
+         fi
+      fi
    fi
 
-   craft::build::__add_various_paths "${sdk}" \
-                                     "${platform}" \
-                                     "${configuration}" \
-                                     "${style}"
+   craft::build::__add_addiction_paths "${sdk}" \
+                                       "${platform}" \
+                                       "${configuration}" \
+                                       "${style}"
 }
 
 
@@ -438,11 +461,13 @@ craft::build::build_project()
    local _frameworkspath
    local _libpath
    local _binpath
+   local _sharepath
 
    craft::build::__set_various_paths "${sdk}" \
                                      "${platform}" \
                                      "${configuration}" \
-                                     "${style}"
+                                     "${style}" \
+                                     'YES'
 
    # remove old logs
    local logdir
@@ -1923,11 +1948,13 @@ craft::build::build_mainproject()
    local _frameworkspath
    local _libpath
    local _binpath
+   local _sharepath
 
    craft::build::__set_various_paths "${sdk}" \
                                      "${platform}" \
                                      "${configuration}" \
-                                     "${style}"
+                                     "${style}" \
+                                     'NO'
 
    #
    # find proper build and log directory (always relax)

@@ -298,6 +298,7 @@ craft::dependency::init()
    [ -z "${DEPENDENCY_DIR}" ] && _internal_fail "DEPENDENCY_DIR not set"
 
    mkdir_if_missing "${DEPENDENCY_DIR}"
+
    craft::dependency::write_cachedir_tag "${DEPENDENCY_DIR}"
 
    craft::dependency::set_state "initing"
@@ -498,6 +499,25 @@ craft::dependency::r_existing_dirs_path()
 }
 
 
+craft::dependency::r_mkdirs_if_missing_path()
+{
+   log_entry "craft::dependency::r_mkdirs_if_missing_path" "$@"
+
+   local subdirectories="$1"
+
+   [ -z "${DEPENDENCY_DIR}" ] && _internal_fail "DEPENDENCY_DIR not set"
+
+   local subdir
+
+   .foreachline subdir in ${subdirectories}
+   .do
+      mkdir_if_missing "${DEPENDENCY_DIR}/${subdir}"
+   .done
+
+   RVAL="${subdirectories}"
+}
+
+
 craft::dependency::r_dir_locations()
 {
    log_entry "craft::dependency::r_dir_locations" "$@"
@@ -541,12 +561,20 @@ craft::dependency::r_include_path()
 {
    log_entry "craft::dependency::r_include_path" "$@"
 
+   local create="${5:-NO}"
 #   local sdk="$1"
 #   local platform="$2"
 #   local configuration="$3"
+#   local style="$4"
+#   local create="$5"
 
    craft::dependency::r_dir_locations "include" "$@"
-   craft::dependency::r_existing_dirs_path "${RVAL}"
+   if [ "${create}" = 'YES' ]
+   then
+      craft::dependency::r_mkdirs_if_missing_path "${RVAL}"
+   else
+      craft::dependency::r_existing_dirs_path "${RVAL}"
+   fi
 }
 
 
@@ -554,12 +582,20 @@ craft::dependency::r_lib_path()
 {
    log_entry "craft::dependency::r_lib_path" "$@"
 
+   local create="${5:-NO}"
 #   local sdk="$1"
 #   local platform="$2"
 #   local configuration="$3"
+#   local style="$4"
+#   local create="$5"
 
    craft::dependency::r_dir_locations "lib" "$@"
-   craft::dependency::r_existing_dirs_path "${RVAL}"
+   if [ "${create}" = 'YES' ]
+   then
+      craft::dependency::r_mkdirs_if_missing_path "${RVAL}"
+   else
+      craft::dependency::r_existing_dirs_path "${RVAL}"
+   fi
 }
 
 
@@ -567,12 +603,20 @@ craft::dependency::r_frameworks_path()
 {
    log_entry "craft::dependency::r_frameworks_path" "$@"
 
+   local create="${5:-NO}"
 #   local sdk="$1"
 #   local platform="$2"
 #   local configuration="$3"
+#   local style="$4"
+#   local create="$5"
 
    craft::dependency::r_dir_locations "Frameworks" "$@"
-   craft::dependency::r_existing_dirs_path "${RVAL}"
+   if [ "${create}" = 'YES' ]
+   then
+      craft::dependency::r_mkdirs_if_missing_path "${RVAL}"
+   else
+      craft::dependency::r_existing_dirs_path "${RVAL}"
+   fi
 }
 
 
@@ -580,12 +624,20 @@ craft::dependency::r_share_path()
 {
    log_entry "craft::dependency::r_share_path" "$@"
 
+   local create="${5:-NO}"
 #   local sdk="$1"
 #   local platform="$2"
 #   local configuration="$3"
+#   local style="$4"
+#   local create="$5"
 
    craft::dependency::r_dir_locations "share" "$@"
-   craft::dependency::r_existing_dirs_path "${RVAL}"
+   if [ "${create}" = 'YES' ]
+   then
+      craft::dependency::r_mkdirs_if_missing_path "${RVAL}"
+   else
+      craft::dependency::r_existing_dirs_path "${RVAL}"
+   fi
 }
 
 
