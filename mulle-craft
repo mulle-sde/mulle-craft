@@ -98,13 +98,14 @@ Commands:
    qualify              : test build qualifiers used in craftorder files
    searchpath           : show searchpath for headers and libraries
    status               : returns 0 if dependency is ready
+   style                : show known build styles
 EOF
 
    if [ "${MULLE_FLAG_LOG_VERBOSE}" = 'NO' ]
    then
       cat <<EOF
 
-      (use mulle-craft -v help to show more commands and flags)
+      (use mulle-craft -v help to show flags)
 EOF
    fi
 

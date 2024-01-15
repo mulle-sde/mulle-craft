@@ -45,6 +45,8 @@ Usage:
 
    ${USAGE_INFO}
 
+   See the \`${MULLE_USAGE_NAME}\` for more information about styles.
+
 Options:
    --all          : rebuild everything (doesn't clean)
    --debug        : compile for debug only
@@ -2677,8 +2679,7 @@ craft::build::list_craftorder_main()
    log_entry "craft::build::list_craftorder_main" "$@"
 
    USAGE_BUILD_STYLE="list"
-   USAGE_INFO="List remaining items in craftorder to be crafted.
-"
+   USAGE_INFO="List remaining items in craftorder to be crafted."
    local OPTION_USE_PROJECT
    local OPTION_USE_CRAFTORDER
    local OPTION_MUST_HAVE_BUILDORDER
