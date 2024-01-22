@@ -238,7 +238,7 @@ craft::craftinfo::r_find_dependency_item()
    rval=$?
    if [ $rval -ne 0 ]
    then
-      log_debug "No ${itemname} for \"${projectname}\" in \"${DEPENDENCY_DIR}\" found"
+      log_fluff "No ${itemname} for \"${projectname}\" in \"${DEPENDENCY_DIR}\" found"
       return $rval
    fi
 
@@ -253,7 +253,7 @@ craft::craftinfo::r_find_dependency_item()
       return 0
    fi
 
-   log_debug "No ${itemname} for \"${projectname}\" in \"${directory}\" found"
+   log_fluff "No ${itemname} for \"${projectname}\" in \"${directory}\" found"
    RVAL=""
    return 2
 }

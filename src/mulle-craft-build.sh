@@ -123,7 +123,7 @@ craft::build::__add_addiction_paths()
    local configuration="$3"
    local style="$4"
 
-
+   local directory
    #
    # Do addictions afterwards, so that dependency overrides addiction
    #
@@ -136,54 +136,64 @@ craft::build::__add_addiction_paths()
 
       if [ ! -z "${sdk_platform}" ]
       then
-         if [ -d "${ADDICTION_DIR}/${sdk_platform}/include" ]
+         directory="${ADDICTION_DIR}/${sdk_platform}/include"
+         if [ -d "${directory}" ]
          then
-            r_colon_concat "${_includepath}" "${ADDICTION_DIR}/${sdk_platform}/include"
+            r_colon_concat "${_includepath}" "${directory}"
             _includepath="${RVAL}"
          fi
 
-         if [ -d "${ADDICTION_DIR}/${sdk_platform}/Frameworks" ]
+         directory="${ADDICTION_DIR}/${sdk_platform}/Frameworks"
+         if [ -d "${directory}" ]
          then
-            r_colon_concat "${_frameworkspath}" "${ADDICTION_DIR}/${sdk_platform}/Frameworks"
+            r_colon_concat "${_frameworkspath}" "${directory}"
             _frameworkspath="${RVAL}"
          fi
 
-         if [ -d "${ADDICTION_DIR}/${sdk_platform}/lib" ]
+         directory="${ADDICTION_DIR}/${sdk_platform}/lib"
+         if [ -d "${directory}" ]
          then
-            r_colon_concat "${_libpath}" "${ADDICTION_DIR}/${sdk_platform}/lib"
+            r_colon_concat "${_libpath}" "${directory}"
             _libpath="${RVAL}"
          fi
 
-         if [ -d "${ADDICTION_DIR}/${sdk_platform}/bin" ]
+         directory="${ADDICTION_DIR}/${sdk_platform}/bin"
+         if [ -d "${directory}" ]
          then
-            r_colon_concat "${ADDICTION_DIR}/${sdk_platform}/bin" "${_binpath}"
+            r_colon_concat "${directory}" "${_binpath}"
             _binpath="${RVAL}"
          fi
       fi
 
-      if [ -d "${ADDICTION_DIR}/include" ]
+      directory="${ADDICTION_DIR}/include"
+      if [ -d "${directory}" ]
       then
-         r_colon_concat "${_includepath}" "${ADDICTION_DIR}/include"
+         r_colon_concat "${_includepath}" "${directory}"
          _includepath="${RVAL}"
       fi
 
-      if [ -d "${ADDICTION_DIR}/lib" ]
+      directory="${ADDICTION_DIR}/lib"
+      if [ -d "${directory}" ]
       then
-         r_colon_concat "${_libpath}" "${ADDICTION_DIR}/lib"
+         r_colon_concat "${_libpath}" "${directory}"
          _libpath="${RVAL}"
       fi
 
-      if [ -d "${ADDICTION_DIR}/Frameworks" ]
+      directory="${ADDICTION_DIR}/Frameworks"
+      if [ -d "${directory}" ]
       then
-         r_colon_concat "${_frameworkspath}" "${ADDICTION_DIR}/Frameworks"
+         r_colon_concat "${_frameworkspath}" "${directory}"
          _frameworkspath="${RVAL}"
       fi
 
-      if [ -d "${ADDICTION_DIR}/bin" ]
+      directory="${ADDICTION_DIR}/bin"
+      if [ -d "${directory}" ]
       then
-         r_colon_concat "${ADDICTION_DIR}/bin" "${_binpath}"
+         r_colon_concat "${directory}" "${_binpath}"
          _binpath="${RVAL}"
       fi
+   else
+      log_fluff "ADDICTION_DIR is not set"
    fi
 }
 
@@ -252,26 +262,30 @@ craft::build::__set_various_paths()
 
       log_debug "config_sdk_platform : ${config_sdk_platform}"
 
+      local directory
+
+      directory="${DEPENDENCY_DIR}/bin"
       if [ "${create}" = 'YES' ]
       then
-         mkdir_if_missing "${DEPENDENCY_DIR}/bin"
+         mkdir_if_missing "${directory}"
       fi
 
-      if [ -d "${DEPENDENCY_DIR}/bin" ]
+      if [ -d "${directory}" ]
       then
-         r_colon_concat "${DEPENDENCY_DIR}/bin" "${_binpath}"
+         r_colon_concat "${directory}" "${_binpath}"
          _binpath="${RVAL}"
       fi
 
       if [ ! -z "${config_sdk_platform}" ]
       then
+         directory="${DEPENDENCY_DIR}/${config_sdk_platform}/bin"
          if [ "${create}" = 'YES' ]
          then
-            mkdir_if_missing "${DEPENDENCY_DIR}/${config_sdk_platform}/bin"
+            mkdir_if_missing "${directory}"
          fi
-         if [ -d "${DEPENDENCY_DIR}/${config_sdk_platform}/bin" ]
+         if [ -d "${directory}" ]
          then
-            r_colon_concat "${DEPENDENCY_DIR}/${config_sdk_platform}/bin" "${_binpath}"
+            r_colon_concat "${directory}" "${_binpath}"
             _binpath="${RVAL}"
          fi
       fi

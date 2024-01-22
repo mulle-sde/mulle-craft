@@ -508,13 +508,19 @@ craft::dependency::r_mkdirs_if_missing_path()
    [ -z "${DEPENDENCY_DIR}" ] && _internal_fail "DEPENDENCY_DIR not set"
 
    local subdir
+   local expanded_subdirectories
+   local expanded_subdir
 
    .foreachline subdir in ${subdirectories}
    .do
-      mkdir_if_missing "${DEPENDENCY_DIR}/${subdir}"
+      expanded_subdir="${DEPENDENCY_DIR}/${subdir}"
+      mkdir_if_missing "${expanded_subdir}"
+
+      r_colon_concat "${expanded_subdirectories}" "${expanded_subdir}"
+      expanded_subdirectories="${RVAL}"
    .done
 
-   RVAL="${subdirectories}"
+   RVAL="${expanded_subdirectories}"
 }
 
 
@@ -533,7 +539,7 @@ craft::dependency::r_dir_locations()
    if [ -z "${MULLE_CRAFT_STYLE_SH}" ]
    then
       # shellcheck source=src/mulle-craft-style.sh
-      . "${MULLE_CRAFT_LIBEXEC_DIR}/mulle-craft-style.sh" || exit 1
+      include "mulle-craft::style"
    fi
 
    local subdir
@@ -544,7 +550,7 @@ craft::dependency::r_dir_locations()
                                                          "${style}"
    subdir="${RVAL}"
 
-   r_filepath_concat "${RVAL}" "${name}"
+   r_filepath_concat "${subdir}" "${name}"
 
    # kinda dodgy, why is this here ?
    #

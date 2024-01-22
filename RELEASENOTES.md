@@ -1,3 +1,7 @@
+### 3.2.1
+
+* Various small improvements
+
 ## 3.1.0
 
 * in parallel builds tell mulle-make to *underline* the output for serial dependencies
