@@ -1,3 +1,7 @@
+### 3.2.2
+
+* reduce some verbosity, for the benefit of mulle-craft -vv
+
 ### 3.2.1
 
 * Various small improvements

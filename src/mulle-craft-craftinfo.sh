@@ -227,6 +227,9 @@ craft::craftinfo::r_find_dependency_item()
    r_basename "${name}"
    projectname="${RVAL}"
 
+   # this is OK it's then a "root" definition
+   # [ -z "${projectname}" ] && _internal_fail "${name} is empty"
+
    local rval
 
    craft::craftinfo::r_find_dependency_dir "${projectname}" \
@@ -238,7 +241,7 @@ craft::craftinfo::r_find_dependency_item()
    rval=$?
    if [ $rval -ne 0 ]
    then
-      log_fluff "No ${itemname} for \"${projectname}\" in \"${DEPENDENCY_DIR}\" found"
+      log_debug "No ${itemname} for \"${projectname}\" in \"${DEPENDENCY_DIR}\" found"
       return $rval
    fi
 
@@ -253,7 +256,7 @@ craft::craftinfo::r_find_dependency_item()
       return 0
    fi
 
-   log_fluff "No ${itemname} for \"${projectname}\" in \"${directory}\" found"
+   log_debug "No ${itemname} for \"${projectname}\" in \"${directory}\" found"
    RVAL=""
    return 2
 }
