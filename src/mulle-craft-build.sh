@@ -236,10 +236,10 @@ craft::build::__set_various_paths()
       _libpath="${RVAL}"
 
       craft::dependency::r_share_path "${sdk}" \
-                                    "${platform}" \
-                                    "${configuration}" \
-                                    "${style}" \
-                                    "${create}"
+                                      "${platform}" \
+                                      "${configuration}" \
+                                      "${style}" \
+                                      "${create}"
       _sharepath="${RVAL}"
 
       case "${MULLE_UNAME}" in
@@ -591,6 +591,13 @@ This can lead to problems on darwin, but may solve problems on linux..."
       r_concat "${args}" "--configuration '${configuration}'"
       args="${RVAL}"
    fi
+
+   if [ ! -z "${OPTION_CCACHE}"  ]
+   then
+      r_concat "${args}" "--ccache '${OPTION_CCACHE}'"
+      args="${RVAL}"
+   fi
+
    # TODO: hackish! fix it
    if [ "${OPTION_MULLE_TEST}" = 'YES' ]
    then
@@ -2042,6 +2049,13 @@ craft::build::build_mainproject()
       r_concat "${options}" "--configuration '${configuration}'"
       options="${RVAL}"
    fi
+
+   if [ ! -z "${OPTION_CCACHE}"  ]
+   then
+      r_concat "${options}" "--ccache '${OPTION_CCACHE}'"
+      options="${RVAL}"
+   fi
+
    if [ "${OPTION_MULLE_TEST}" = 'YES' ]
    then
       r_concat "${options}" "--mulle-test"
@@ -2255,6 +2269,7 @@ craft::build::common()
 
    local OPTION_ALLOW_SCRIPTS="${MULLE_CRAFT_USE_SCRIPTS:-${MULLE_CRAFT_USE_SCRIPT:-}}"
    local OPTION_BUILD_DEPENDENCY="DEFAULT"
+   local OPTION_CCACHE="${MULLE_CRAFT_CCACHE}"
    local OPTION_CLEAN_TMP='YES'
    local OPTION_DONEFILES='YES'
    local OPTION_KEEP_DEPENDENCY_STATE='YES'
@@ -2365,6 +2380,13 @@ craft::build::common()
             shift
 
             OPTION_CALLBACK="$1"
+         ;;
+
+         --ccache)
+            [ $# -eq 1 ] && craft::build::usage "Missing argument to \"$1\""
+            shift
+
+            OPTION_CCACHE="$1"
          ;;
 
          --phases)
