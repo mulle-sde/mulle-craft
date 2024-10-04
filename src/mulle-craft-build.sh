@@ -765,6 +765,7 @@ This can lead to problems on darwin, but may solve problems on linux..."
                      "'${MULLE_MAKE}'" \
                         "${flags}" \
                         "${MULLE_TECHNICAL_FLAGS}" \
+                        "${MULLE_MAKE_FLAGS}" \
                     "${cmd}" \
                        "${args}" \
                        "${auxargs}" \
@@ -2155,6 +2156,7 @@ craft::build::build_mainproject()
    # never install the project, use mulle-make for that
    eval_rexekutor "'${MULLE_MAKE}'" \
                         "${MULLE_TECHNICAL_FLAGS}" \
+                        "${MULLE_MAKE_FLAGS}" \
                      "build" \
                         "${options}" \
                         "${auxargs}"

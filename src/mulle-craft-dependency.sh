@@ -187,7 +187,7 @@ craft::dependency::set_state()
 
    log_fluff "Dependency folder marked as \"${state}\""
 
-   # for "install" this is superflous and unwanted
+   # for "install" this is superfluous and unwanted
    if [ "${OPTION_KEEP_DEPENDENCY_STATE}" = 'YES' ]
    then
       redirect_exekutor "${DEPENDENCY_DIR}/.state" \
