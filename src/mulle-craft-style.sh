@@ -163,38 +163,51 @@ craft::style::r_get_sdk_platform_configuration_string()
    local configuration="$3"
    local style="$4"
 
+   local string
+
    craft::style::r_get_sdk_platform_string "${sdk}" "${platform}" "${style}"
+   string="${RVAL}"
+
    case "${style}" in
       i-tight)
-         r_concat "${configuration}" "${RVAL}" '-'
+         r_concat "${configuration}" "${string}" '-'
+         string="${RVAL}"
       ;;
 
       i-strict|i-relax)
-         r_filepath_concat "${configuration}" "${RVAL}"
+         r_filepath_concat "${configuration}" "${string}"
+         string="${RVAL}"
       ;;
 
       i-auto)
          if [ "${configuration}" != "Release" ]
          then
-            r_filepath_concat "${configuration}" "${RVAL}"
+            r_filepath_concat "${configuration}" "${string}"
+            string="${RVAL}"
          fi
       ;;
 
       tight)
-         r_concat "${RVAL}" "${configuration}" '-'
+         r_concat "${string}" "${configuration}" '-'
+         string="${RVAL}"
       ;;
 
       strict|relax)
-         r_filepath_concat "${RVAL}" "${configuration}"
+         r_filepath_concat "${string}" "${configuration}"
+         string="${RVAL}"
       ;;
 
       auto)
          if [ "${configuration}" != "Release" ]
          then
-            r_filepath_concat "${RVAL}" "${configuration}"
+            r_filepath_concat "${string}" "${configuration}"
+            string="${RVAL}"
          fi
       ;;
    esac
+
+   log_debug "craft::style::r_get_sdk_platform_configuration_string string=${string}"
+   RVAL="${string}"
 }
 
 

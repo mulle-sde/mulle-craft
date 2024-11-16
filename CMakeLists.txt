@@ -1,6 +1,6 @@
 cmake_minimum_required (VERSION 3.0)
 
-project( mulle-craft NONE)
+project( mulle-craft VERSION 3.3.0 LANGUAGES NONE)
 
 #
 # Primarily used for packaging on Linux
@@ -16,7 +16,7 @@ project( mulle-craft NONE)
 #
 
 execute_process( COMMAND ./mulle-craft version
-                 WORKING_DIRECTORY "${PROJECT_SOURCE_DIR}"
+                 WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}"
                  OUTPUT_VARIABLE MULLE_CRAFT_VERSION
                  OUTPUT_STRIP_TRAILING_WHITESPACE)
 message( STATUS "MULLE_CRAFT_VERSION is ${MULLE_CRAFT_VERSION} according to mulle-craft")

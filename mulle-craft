@@ -172,21 +172,21 @@ craft::setup_environment()
 
    r_basename "${DEPENDENCY_DIR}"
    case "${RVAL}" in
-      kitchen|addiction|stash|src|cmake)
+      kitchen|addiction|node_modules|stash|src|cmake)
          fail "Don't use misleading name \"${RVAL}\" for DEPENDENCY_DIR"
       ;;
    esac
 
    r_basename "${KITCHEN_DIR}"
    case "${RVAL}" in
-      dependency|addiction|stash|src|cmake)
+      dependency|addiction|node_modules|stash|src|cmake)
          fail "Don't use misleading name \"${RVAL}\" for KITCHEN_DIR"
       ;;
    esac
 
    r_basename "${ADDICTION_DIR}"
    case "${RVAL}" in
-      dependency|kitchen|stash|src|cmake)
+      dependency|kitchen|node_modules|stash|src|cmake)
          fail "Don't use misleading name \"${RVAL}\" for ADDICTION_DIR"
       ;;
    esac

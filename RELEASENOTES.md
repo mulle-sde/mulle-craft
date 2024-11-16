@@ -1,3 +1,12 @@
+## 3.3.0
+
+* fix searchpath construction
+
+* propagate ``MULLE_MAKE_FLAGS`` on the exekutor for mulle-make
+
+* added support for sccache (use --ccache option)
+
+
 ### 3.2.2
 
 * reduce some verbosity, for the benefit of mulle-craft -vv

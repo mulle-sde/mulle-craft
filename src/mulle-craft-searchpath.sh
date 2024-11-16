@@ -246,8 +246,8 @@ craft::searchpath::main()
                directory="${RVAL}"
 
                r_filepath_concat "${DEPENDENCY_DIR}" "${directory}"
-               r_filepath_concat "${RVAL}" "${subdir}"
             fi
+            r_filepath_concat "${RVAL}" "${subdir}"
             r_absolutepath "${RVAL}"
 
             log_debug "considering: \"${RVAL}\""
@@ -256,6 +256,7 @@ craft::searchpath::main()
             then
                log_verbose "Directory \"${RVAL}\" is not in the searchpath because it doesn't exist"
             else
+               log_debug "adding: \"${RVAL}\""
                r_add_unique_line "${paths}" "${RVAL}"
                paths="${RVAL}"
             fi
