@@ -1,3 +1,7 @@
+### 3.3.1
+
+* fix kitche-path in searchpath command
+
 ## 3.3.0
 
 * fix searchpath construction

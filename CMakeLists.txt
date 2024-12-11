@@ -1,6 +1,6 @@
 cmake_minimum_required (VERSION 3.0)
 
-project( mulle-craft VERSION 3.3.0 LANGUAGES NONE)
+project( mulle-craft VERSION 3.3.1 LANGUAGES NONE)
 
 #
 # Primarily used for packaging on Linux
@@ -59,4 +59,3 @@ install( FILES ${LIBRARY_SCRIPTS}
 # must be after CPACK_PACKAGE_VERSION
 include( CMakePackage.cmake)
 include( CPack)
-

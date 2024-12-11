@@ -136,7 +136,7 @@ craft::searchpath::main()
             configurations="$1"
          ;;
 
-         --kitchen)
+         --kitchen|--add-kitchen-path)
             OPTION_KITCHEN='YES'
          ;;
 
@@ -246,8 +246,8 @@ craft::searchpath::main()
                directory="${RVAL}"
 
                r_filepath_concat "${DEPENDENCY_DIR}" "${directory}"
+               r_filepath_concat "${RVAL}" "${subdir}"  # kitchen don't add '/lib'
             fi
-            r_filepath_concat "${RVAL}" "${subdir}"
             r_absolutepath "${RVAL}"
 
             log_debug "considering: \"${RVAL}\""
