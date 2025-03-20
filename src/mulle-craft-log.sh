@@ -355,7 +355,7 @@ craft::log::directories_list_files()
 {
    local directories
 
-   while :
+   while [ $# -ne 0 ]
    do
       case "$1" in
          --)
@@ -468,7 +468,7 @@ craft::log::main()
    local OPTION_TOOL="*"
    local OPTION_EXECUTABLE=""
 
-   while :
+   while [ $# -ne 0 ]
    do
       case "$1" in
          -h*|--help|help)

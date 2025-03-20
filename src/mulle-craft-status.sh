@@ -333,7 +333,7 @@ craft::status::main()
    local OPTION_COLOR='YES'
    local mode
 
-   while :
+   while [ $# -ne 0 ]
    do
       case "$1" in
          -h*|--help|help)

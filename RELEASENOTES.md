@@ -1,3 +1,7 @@
+### 3.3.2
+
+Various small improvements
+
 ### 3.3.1
 
 * fix kitche-path in searchpath command

@@ -653,7 +653,7 @@ craft::dependency::quickstatus_main()
 
    local OPTION_PRINT='NO'
 
-   while :
+   while [ $# -ne 0 ]
    do
       case "$1" in
          -h*|--help|help)

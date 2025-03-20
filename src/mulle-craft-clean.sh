@@ -105,7 +105,7 @@ craft::clean::main()
    local OPTION_DEPENDENCY="DEFAULT"
    local OPTION_TOUCH='NO'
 
-   while :
+   while [ $# -ne 0 ]
    do
       case "$1" in
          -h*|--help|help)
@@ -147,7 +147,7 @@ craft::clean::main()
 
    # centralize this into mulle-craft-environment.sh
 
-   while :
+   while [ $# -ne 0 ]
    do
       case "$1" in
          "build"|"kitchen")
