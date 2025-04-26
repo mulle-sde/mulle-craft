@@ -1,6 +1,6 @@
-cmake_minimum_required (VERSION 3.0)
+cmake_minimum_required( VERSION 3.15)
 
-project( mulle-craft VERSION 3.3.2 LANGUAGES NONE)
+project( mulle-craft VERSION 3.3.3 LANGUAGES NONE)
 
 #
 # Primarily used for packaging on Linux
