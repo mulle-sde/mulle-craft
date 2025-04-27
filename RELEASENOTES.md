@@ -1,3 +1,7 @@
+### 3.3.3
+
+* need to update `cmake_minimum_required` because cmake has a weird concept of min required
+
 ### 3.3.2
 
 Various small improvements
