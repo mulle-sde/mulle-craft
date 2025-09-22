@@ -273,7 +273,7 @@ craft::style::main()
    local cmd="$1"
 
    [ $# -ne 0 ] && shift
-   [ $# -eq 0 ] || craft::style::usage "Superflous arguments \"$*\""
+   [ $# -eq 0 ] || craft::style::usage "Superfluous arguments \"$*\""
 
    case "${cmd:-list}" in
       show)

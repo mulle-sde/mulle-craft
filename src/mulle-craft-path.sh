@@ -553,7 +553,7 @@ craft::path::main()
    local project="$1"
 
    [ -z "${project}" ] && craft::path::usage "Project is missing"
-   [ $# -ne 1 ] && craft::path::usage "Superflous parameters \"$*\""
+   [ $# -ne 1 ] && craft::path::usage "Superfluous parameters \"$*\""
 
    include "craft::style"
 

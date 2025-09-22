@@ -353,7 +353,7 @@ craft::qualifier::main()
 
       match)
          [ $# -lt 2 ] && craft::qualifier::usage "Missing argument for $1"
-         [ $# -gt 2 ] && shift 2 && craft::qualifier::usage "Superflous arguments \"$*\""
+         [ $# -gt 2 ] && shift 2 && craft::qualifier::usage "Superfluous arguments \"$*\""
          shift
 
          local marks
@@ -408,7 +408,7 @@ version-max-${OPTION_PLATFORM:-${MULLE_UNAME}} to work and vice versa"
       ;;
    esac
 
-   [ $# -eq 0 ] || craft::qualifier::usage "Superflous arguments \"$*\""
+   [ $# -eq 0 ] || craft::qualifier::usage "Superfluous arguments \"$*\""
 
    if [ "${OPTION_LF}" = 'NO' ]
    then

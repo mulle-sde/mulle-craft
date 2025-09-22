@@ -176,7 +176,7 @@ craft::searchpath::main()
    local type="$1"
 
    [ -z "${type}" ] && craft::searchpath::usage "Type is missing"
-   [ $# -ne 1 ] && craft::searchpath::usage "Superflous parameters \"$*\""
+   [ $# -ne 1 ] && craft::searchpath::usage "Superfluous parameters \"$*\""
 
    include "craft::path"
    include "craft::style"
