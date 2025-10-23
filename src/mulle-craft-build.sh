@@ -811,10 +811,10 @@ craft::build::build_dependency_directly()
    local style="$8"
 #   local phase="$9"
 
-   if [ -z "${PARALLEL_PHASE}" ]
-   then
-      craft::dependency::begin_update "${style}" || return 1
-   fi
+   # if [ -z "${PARALLEL_PHASE}" ]
+   # then
+   #    craft::dependency::update_begin "${style}" || return 1
+   # fi
 
    local rval
 
@@ -827,19 +827,22 @@ craft::build::build_dependency_directly()
    then
       if [ "${OPTION_LENIENT}" = 'NO' ]
       then
+         #  craft::dependency::update_fail 
          return 1
       fi
       rval=1
    fi
 
 
-   if [ -z "${PARALLEL_PHASE}" ]
-   then
-      if [ $rval != 1 ]
-      then
-         craft::dependency::end_update || return 1
-      fi
-   fi
+#   if [ -z "${PARALLEL_PHASE}" ]
+#   then
+#      if [ $rval != 1 ]
+#      then
+#         craft::dependency::update_end || return 1
+#      else
+#         craft::dependency::update_fail 
+#      fi
+#   fi
 
    # signal failures downward, even if lenient
    return $rval
@@ -915,7 +918,7 @@ craft::build::build_dependency_with_dispense()
 
    case "${PARALLEL_PHASE}" in
       "")
-         craft::dependency::begin_update "${style}" || return 1
+         # craft::dependency::update_begin "${style}" || return 1
       ;;
 
       'Header'|'Headers')
@@ -953,6 +956,10 @@ craft::build::build_dependency_with_dispense()
       ;;
 
       *)
+         # if [ -z "${PARALLEL_PHASE}" ]
+         # then
+         #    craft::dependency::update_fail 
+         # fi
          exit 1
       ;;
    esac
@@ -971,13 +978,15 @@ craft::build::build_dependency_with_dispense()
 
    rmdir_safer "${tmpdependency_dir}"
 
-   if [ -z "${PARALLEL_PHASE}" ]
-   then
-      if [ $rval != 1 ]
-      then
-         craft::dependency::end_update || return 1
-      fi
-   fi
+   # if [ -z "${PARALLEL_PHASE}" ]
+   # then
+   #    if [ $rval != 1 ]
+   #    then
+   #       craft::dependency::update_end || return 1
+   #    else
+   #       craft::dependency::update_fail 
+   #    fi
+   # fi
 
    return $rval
 }
@@ -1328,7 +1337,7 @@ craft::build::handle_parallel()
 
       case "${phase}" in
          'Header'|'Headers')
-            craft::dependency::begin_update "${style}" || return 1
+            # craft::dependency::update_begin "${style}" || return 1
             cmd='install'
          ;;
 
@@ -1421,14 +1430,16 @@ craft::build::handle_parallel()
          .done
 
          remove_file_if_present "${statusfile}"
-
          shell_enable_glob
+
+         # craft::dependency::update_fail 
+
          return 1
       fi
 
       case "${phase}" in
          Link)
-            craft::dependency::end_update || return 1
+            # craft::dependency::update_end || return 1
          ;;
       esac
    done
@@ -1752,8 +1763,9 @@ craft::build::do_craftorder()
    #
    if [ "${craftorderfile}" = "NONE" ]
    then
-      craft::dependency::end_update 'complete' || exit 1
-      log_verbose "The craftorder file is NONE, nothing to build"
+      craft::dependency::unprotect
+      rmdir_safer "${DEPENDENCY_DIR}"
+      log_verbose "The craftorder file is NONE, nothing to build. No dependency-dir"
       return
    fi
 
@@ -1769,11 +1781,11 @@ craft::build::do_craftorder()
    # That allows tarballs to be installed. Also now the existence of the
    # dependency folders, means something
    #
-   craft::dependency::begin_update  "${style}"  || exit 1
+   craft::dependency::update_begin "${style}"  || exit 1  # CORRECT
 
    if [ -z "${craftorder}" ]
    then
-      craft::dependency::end_update 'complete' || exit 1
+      craft::dependency::update_end 'complete' || exit 1
       _log_verbose "The craftorder file is empty, nothing to build \
 (${craftorderfile#"${MULLE_USER_PWD}/"})"
       return
@@ -1832,13 +1844,14 @@ craft::build::do_craftorder()
                                               "${style}" \
                                               "$@"
             then
-               return 1
+               craft::dependency::update_fail   # CORRECT
+               return 1 
             fi
          .done
       .done
    .done
 
-   craft::dependency::end_update 'complete' || exit 1
+   craft::dependency::update_end 'complete' || exit 1  # CORRECT
 }
 
 

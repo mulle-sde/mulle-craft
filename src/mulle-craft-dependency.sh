@@ -68,8 +68,8 @@ craft::dependency::install_directory()
 # bin share lib  folders and so on. The dependency folder is
 # write protected by default.
 #
-# You add stuff to ./dependency by calling `craft::dependency::begin_update`
-# and when you are done you call  `craft::dependency::end_update`. During that
+# You add stuff to ./dependency by calling `craft::dependency::update_begin`
+# and when you are done you call  `craft::dependency::update_end`. During that
 # time ./dependency is not write protected.
 #
 # The dependency folder can be preloaded with tarball content and directory
@@ -374,9 +374,9 @@ craft::dependency::clean()
 #
 # style is pushed through for tarball install
 #
-craft::dependency::begin_update()
+craft::dependency::update_begin()
 {
-   log_entry "craft::dependency::begin_update" "$@"
+   log_entry "craft::dependency::update_begin" "$@"
 
    local style="$1"
    local warnonrentry="${2:-nowarn}"
@@ -431,9 +431,28 @@ craft::dependency::begin_update()
 # dont call this if your build failed, even if lenient
 # "complete" is the final state
 #
-craft::dependency::end_update()
+craft::dependency::update_fail()
 {
-   log_entry "craft::dependency::end_update" "$@"
+   log_entry "craft::dependency::update_fail" "$@"
+
+   [ -z "${DEPENDENCY_DIR}" ] && _internal_fail "DEPENDENCY_DIR not set"
+
+   log_fluff "Dependency update failed"
+
+   if [ "${OPTION_PROTECT_DEPENDENCY}" = 'YES' ]
+   then
+      craft::dependency::protect
+   fi
+}
+
+
+#
+# dont call this if your build failed, even if lenient
+# "complete" is the final state
+#
+craft::dependency::update_end()
+{
+   log_entry "craft::dependency::update_end" "$@"
 
    local state="${1:-ready}"
 
@@ -463,12 +482,13 @@ craft::dependency::end_update()
 
       craft::dependency::set_state "${state}"
 
-      if [ "${OPTION_PROTECT_DEPENDENCY}" = 'YES' ]
-      then
-         craft::dependency::protect
-      fi
    else
       craft::dependency::set_state "${state}"
+   fi
+
+   if [ "${OPTION_PROTECT_DEPENDENCY}" = 'YES' ]
+   then
+      craft::dependency::protect
    fi
 }
 
