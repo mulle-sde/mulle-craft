@@ -102,7 +102,7 @@ craft::clean::main()
 {
    log_entry "craft::clean::main" "$@"
 
-   local OPTION_DEPENDENCY="DEFAULT"
+   local OPTION_DEPENDENCY='DEFAULT'
    local OPTION_TOUCH='NO'
 
    while [ $# -ne 0 ]

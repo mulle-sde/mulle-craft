@@ -92,9 +92,9 @@ Commands:
    clean                : clean output
    craftorder           : craft projects using a craftorder file
    find                 : find an item in craftinfos
-   list                 : list recraft::maining builds in craftorder file
+   list                 : list remaining builds in craftorder file
    log                  : inspect kitchen logs
-   project              : craft craft::main project without craftorder (default)
+   project              : craft main project without craftorder (default)
    qualify              : test build qualifiers used in craftorder files
    searchpath           : show searchpath for headers and libraries
    status               : returns 0 if dependency is ready
@@ -161,13 +161,13 @@ craft::setup_environment()
    if [ "${KITCHEN_DIR#${DEPENDENCY_DIR}}" != "${KITCHEN_DIR}" -o \
         "${DEPENDENCY_DIR#${KITCHEN_DIR}}" != "${DEPENDENCY_DIR}" ]
    then
-      fail "Don't place DEPENDENCY_DIR into kitchen or vice versa"
+      fail "Don't place DEPENDENCY_DIR \"${DEPENDENCY_DIR}\" into KITCHEN_DIR \"${KITCHEN_DIR}\" or vice versa"
    fi
 
    if [ "${ADDICTION_DIR#${DEPENDENCY_DIR}}" != "${ADDICTION_DIR}" -o \
         "${DEPENDENCY_DIR#${ADDICTION_DIR}}" != "${DEPENDENCY_DIR}" ]
    then
-      fail "Don't place ADDICTION_DIR into kitchen or vice versa"
+      fail "Don't place ADDICTION_DIR \"${ADDICTION_DIR}\" into DEPENDENCY_DIR \"${DEPENDENCY_DIR}\" or vice versa"
    fi
 
    r_basename "${DEPENDENCY_DIR}"

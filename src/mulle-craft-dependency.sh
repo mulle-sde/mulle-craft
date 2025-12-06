@@ -572,6 +572,8 @@ craft::dependency::r_dir_locations()
 
    r_filepath_concat "${subdir}" "${name}"
 
+   log_debug "craft::dependency::r_dir_locations returns: ${RVAL}"
+
    # kinda dodgy, why is this here ?
    #
 #   case "${name}" in
@@ -601,6 +603,8 @@ craft::dependency::r_include_path()
    else
       craft::dependency::r_existing_dirs_path "${RVAL}"
    fi
+
+   log_debug "craft::dependency::r_include_path returns: ${RVAL}"
 }
 
 
@@ -622,6 +626,8 @@ craft::dependency::r_lib_path()
    else
       craft::dependency::r_existing_dirs_path "${RVAL}"
    fi
+
+   log_debug "craft::dependency::r_lib_path returns: ${RVAL}"
 }
 
 
@@ -643,6 +649,8 @@ craft::dependency::r_frameworks_path()
    else
       craft::dependency::r_existing_dirs_path "${RVAL}"
    fi
+
+   log_debug "craft::dependency::r_frameworks_path returns: ${RVAL}"
 }
 
 
@@ -664,6 +672,8 @@ craft::dependency::r_share_path()
    else
       craft::dependency::r_existing_dirs_path "${RVAL}"
    fi
+
+   log_debug "craft::dependency::r_share_path returns: ${RVAL}"
 }
 
 

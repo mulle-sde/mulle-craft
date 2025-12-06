@@ -182,7 +182,7 @@ craft::log::list()
 
    local directory
    local configuration
-   local OPTION_OUTPUT="DEFAULT"
+   local OPTION_OUTPUT='DEFAULT'
 
    while [ $# -ne 0 ]
    do
@@ -310,6 +310,7 @@ craft::log::craftorders()
    local _configuration
    local _evaledproject
    local _name
+   local _toolchain
 
    include "craft::path"
 

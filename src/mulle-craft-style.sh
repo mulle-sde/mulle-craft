@@ -66,6 +66,8 @@ Options:
    --platform <p>       : the platform to craft for (${MULLE_UNAME})
    --configuration <c>  : configuration to craft  (Debug)
 
+Environment:
+   MULLE_CRAFT_PLATFORMS : colon separated list of platforms to build for
 EOF
   exit 1
 }
@@ -215,10 +217,13 @@ craft::style::main()
 {
    log_entry "craft::style::main" "$@"
 
-   local OPTION_PLATFORM="${MULLE_UNAME}"
+   local OPTION_PLATFORM
    local OPTION_SDK='Default'
    local OPTION_CONFIGURATION='Debug'
    local OPTION_STYLE='auto'
+
+   OPTION_PLATFORM="${MULLE_CRAFT_PLATFORMS%%:*}"
+   OPTION_PLATFORM="${OPTION_PLATFORM:-${MULLE_UNAME}}"
 
    while [ $# -ne 0 ]
    do

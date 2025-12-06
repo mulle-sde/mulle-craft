@@ -66,6 +66,52 @@ EOF
 }
 
 
+# Search for environment variables in order of specificity
+#
+# MULLE_CRAFT_TOOLCHAIN__<PLATFORM>
+# MULLE_CRAFT_TOOLCHAIN
+#
+craft::path::r_mapped_toolchain()
+{
+   log_entry "craft::path::r_mapped_toolchain" "$@"
+
+   local platform="$1" 
+
+   if [ ! -z "${platform}" -a "${platform}" != "${MULLE_UNAME}" ]
+   then
+      local key 
+      local platform_upcase_identifier
+
+      include "case"
+
+      r_uppercase "${platform}"
+      platform_upcase_identifier="${RVAL}"
+
+      key="MULLE_CRAFT_TOOLCHAIN__${platform_upcase_identifier}"
+      r_shell_indirect_expand "${key}"
+      if [ ! -z "${RVAL}" ]
+      then
+         log_verbose "${key} found with value \"${RVAL}\""
+         return 0
+      fi
+
+      # in the cross-compilation case, I 
+      # can't see a reason why we would want the native toolchain 
+      # or the default toolchain now or ?
+      return 1
+   fi
+
+   key="MULLE_CRAFT_TOOLCHAIN"
+   r_shell_indirect_expand "${key}"
+   if [ ! -z "${RVAL}" ]
+   then
+      log_verbose "${key} found with value \"${RVAL}\""
+      return 0
+   fi
+
+   return 1
+}
+
 
 #
 # local _configuration
@@ -417,6 +463,7 @@ craft::path::r_effective_project_kitchendir()
 # local _configuration
 # local _evaledproject
 # local _name
+# local _toolchain
 #
 craft::path::__evaluate_variables()
 {
@@ -450,6 +497,9 @@ craft::path::__evaluate_variables()
       _configuration="${RVAL}"
    fi
 
+   craft::path::r_mapped_toolchain "${platform}"      
+   _toolchain="${RVAL}"
+
    include "craft::style"
 
    #
@@ -467,6 +517,7 @@ craft::path::__evaluate_variables()
    log_setting "kitchendir     : \"${_kitchendir}\""
    log_setting "configuration  : \"${_configuration}\""
    log_setting "evaledproject  : \"${_evaledproject}\""
+   log_setting "toolchain      : \"${_toolchain}\""
    log_setting "name           : \"${_name}\""
 }
 
@@ -563,6 +614,7 @@ craft::path::main()
    local _evaledproject
    local _kitchendir
    local _configuration
+   local _toolchain
 
    #
    # get remapped _configuration

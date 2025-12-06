@@ -132,7 +132,8 @@ craft::status::output_names_with_status()
    local _evaledproject
    local _kitchendir
    local _configuration
-
+   local _toolchain
+   
    local phase
    local project
    local state

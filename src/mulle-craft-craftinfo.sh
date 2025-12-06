@@ -133,7 +133,7 @@ craft::craftinfo::r_find_item()
 
 #
 # find the dependency/share/mulle-craft/<projectname> folder
-# which is dependent on style/configuration (already encoded in subdir)
+# which is dependent on style/configuration 
 #
 craft::craftinfo::r_find_dependency_dir()
 {

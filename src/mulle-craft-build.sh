@@ -447,9 +447,12 @@ craft::build::build_project()
    local platform="$6"
    local configuration="$7"
    local style="$8"
-   local phase="$9"
+   local toolchain="$9"
 
    shift 9
+
+   local phase="$1"
+   shift
 
    [ -z "${cmd}" ]         && _internal_fail "cmd is empty"
    [ -z "${destination}" ] && _internal_fail "destination is empty"
@@ -460,13 +463,19 @@ craft::build::build_project()
    [ -z "${phase}" ]       && _internal_fail "phase is empty"
 
 
+   # definition dirs are not per target platform (they are per host OS)
+   # and then there may be an extra extension, for the complicated case that
+   # we want definition for crossplatform compile, we need to figure something
+   # out like definition.x11.macos-sdk11.linux, would read. when using
+   # sourcetree condig x11 and for platfoem macos with sd11 when building on
+   # linux... i don't know
    local definitiondirs
 
    craft::build::r_project_definitiondirs "${project}" \
                                           "${name}" \
                                           "${OPTION_PLATFORM_CRAFTINFO}" \
                                           "${sdk}" \
-                                          "${platform}" \
+                                          "${MULLE_UNAME}" \
                                           "${configuration}" \
                                           "${style}"
    definitiondirs="${RVAL}"
@@ -586,6 +595,34 @@ This can lead to problems on darwin, but may solve problems on linux..."
       .done
    fi
 
+   # TODO: hackish! fix it
+   if [ "${OPTION_MULLE_TEST}" = 'YES' ]
+   then
+      r_concat "${args}" "--mulle-test"
+      args="${RVAL}"
+      case ",${marks}," in
+         *,only-craft-release,*)
+            if [ "${configuration}" != 'Release' -a "${MULLE_FLAG_MAGNUM_FORCE}" != 'YES' ]
+            then
+               _log_verbose "${project} is marked as only-craft-release but
+this is ignored when running for tests."
+            fi
+         ;;
+      esac
+   else
+      case ",${marks}," in
+         *,only-craft-release,*)
+            if [ "${configuration}" != 'Release' -a "${MULLE_FLAG_MAGNUM_FORCE}" != 'YES' ]
+            then
+               _log_verbose "${project} is marked as only-craft-release and thus
+will be built optimized with no debugging symbols. You can override this by
+crafting with -f"
+               configuration='Release'
+            fi
+         ;;
+      esac
+   fi
+
    if [ ! -z "${configuration}" ]
    then
       r_concat "${args}" "--configuration '${configuration}'"
@@ -598,17 +635,19 @@ This can lead to problems on darwin, but may solve problems on linux..."
       args="${RVAL}"
    fi
 
-   # TODO: hackish! fix it
-   if [ "${OPTION_MULLE_TEST}" = 'YES' ]
-   then
-      r_concat "${args}" "--mulle-test"
-      args="${RVAL}"
-   fi
+
    if [ ! -z "${platform}" ]
    then
       r_concat "${args}" "--platform '${platform}'"
       args="${RVAL}"
    fi
+
+   if [ ! -z "${toolchain}" ]
+   then
+      r_concat "${args}" "--toolchain '${toolchain}'"
+      args="${RVAL}"
+   fi
+
    if [ ! -z "${sdk}" ]
    then
       r_concat "${args}" "--sdk '${sdk}'"
@@ -666,7 +705,7 @@ This can lead to problems on darwin, but may solve problems on linux..."
 
    local subdir
 
-   craft::path::r_dependency_subdir "${sdk}" "${platform}" "${configuration}" "auto"
+   craft::path::r_dependency_subdir "${sdk}" "${platform}" "${configuration}" "${style}"
    subdir="${RVAL}"
 
    if [ ! -z "${subdir}" ]
@@ -677,7 +716,7 @@ This can lead to problems on darwin, but may solve problems on linux..."
 
    local sdk_path
 
-   craft::path::r_get_mulle_sdk_path "${sdk}" "${platform}" "${configuration}" "auto"
+   craft::path::r_get_mulle_sdk_path "${sdk}" "${platform}" "${configuration}" 'auto'
    sdk_path="${RVAL}"
 
    if [ ! -z "${sdk_path}" ]
@@ -792,63 +831,6 @@ This can lead to problems on darwin, but may solve problems on linux..."
 }
 
 
-craft::build::build_dependency_directly()
-{
-   log_entry "craft::build::build_dependency_directly" "$@"
-
-   local cmd="$1"
-   local dependency_dir="$2"
-
-   shift 2
-
-#   local project="$1"
-#   local name="$2"
-#   local marks="$3"
-#   local kitchendir="$4"
-#   local sdk="$5"
-#   local platform="$6"
-#   local configuration="$7"
-   local style="$8"
-#   local phase="$9"
-
-   # if [ -z "${PARALLEL_PHASE}" ]
-   # then
-   #    craft::dependency::update_begin "${style}" || return 1
-   # fi
-
-   local rval
-
-   craft::build::build_project "${cmd}" \
-                               "${dependency_dir}" \
-                               "$@"
-   rval=$?
-
-   if [ $rval -ne 0 ]
-   then
-      if [ "${OPTION_LENIENT}" = 'NO' ]
-      then
-         #  craft::dependency::update_fail 
-         return 1
-      fi
-      rval=1
-   fi
-
-
-#   if [ -z "${PARALLEL_PHASE}" ]
-#   then
-#      if [ $rval != 1 ]
-#      then
-#         craft::dependency::update_end || return 1
-#      else
-#         craft::dependency::update_fail 
-#      fi
-#   fi
-
-   # signal failures downward, even if lenient
-   return $rval
-}
-
-
 craft::build::build_dependency_with_dispense()
 {
    log_entry "craft::build::build_dependency_with_dispense" "$@"
@@ -866,6 +848,7 @@ craft::build::build_dependency_with_dispense()
    local platform="$6"
    local configuration="$7"
    local style="$8"
+   local toolchain="$9"
 
    local rval
    local tmpdependency_dir
@@ -1010,7 +993,8 @@ craft::build::build_craftorder_node()
    local platform="$6"
    local configuration="$7"
    local style="$8"
-   local phase="$9"
+#   local toolchain="$9"
+#   local phase="$10"
 
    # no-platform- no-build, no-build-... will be filtered out in the
    # craftorder already
@@ -1073,9 +1057,9 @@ craft::build::build_craftorder_node()
    esac
 
    log_verbose "Build ${C_MAGENTA}${C_BOLD}${name}${C_VERBOSE}"
-   craft::build::build_dependency_directly "${cmd}" \
-                                           "${dependency_dir}" \
-                                           "$@"
+   craft::build::build_project "${cmd}" \
+                               "${dependency_dir}" \
+                               "$@"
    return $?
 }
 
@@ -1101,11 +1085,11 @@ craft::build::handle()
    local _evaledproject
    local _kitchendir
    local _configuration
-
+   local _toolchain
    #
    # get remapped _configuration
    # get actual _kitchendir
-   #
+   # get toolchain (if applicable)
 
    craft::path::__evaluate_variables "${project}" \
                                      "${sdk}" \
@@ -1138,6 +1122,7 @@ craft::build::handle()
                                        "${platform}" \
                                        "${_configuration}" \
                                        "${style}" \
+                                       "${_toolchain}" \
                                        "${phase}" \
                                        "$@"
    rval=$?
@@ -1874,14 +1859,17 @@ craft::build::r_mainproject_definition_dirs()
    # should use INFO_DIRS here ?
    local definitiondirs
 
+   #
    # default values provided by dependency/share/mulle-craft/definition
    # will run once for empty extensions, which is what we want
+   # definition dirs are not per target platform (they are per host OS)
+   #
    .foreachpath extension in "" ${extra_extension}
    .do
       craft::craftinfo::r_find_dependency_item "" \
                                                "${OPTION_PLATFORM_CRAFTINFO}" \
                                                "${sdk}" \
-                                               "${platform}" \
+                                               "${MULLE_UNAME}" \
                                                "${configuration}" \
                                                "${style}"  \
                                                "definition${extension}"
@@ -1911,7 +1899,7 @@ craft::build::r_mainproject_definition_dirs()
                                             "${projectdir}" \
                                             "${OPTION_PLATFORM_CRAFTINFO}" \
                                             "${sdk}" \
-                                            "${platform}" \
+                                            "${MULLE_UNAME}" \
                                             "definition${extension}"
 
       case $? in
@@ -1942,10 +1930,11 @@ craft::build::build_mainproject()
    local platform="$2"
    local configuration="$3"
    local style="$4"
-   local name="$5"
-   local projectdir="$6"
+   local toolchain="$5"
+   local name="$6"
+   local projectdir="$7"
 
-   shift 6
+   shift 7
 
    local definitiondirs
 
@@ -2080,6 +2069,12 @@ craft::build::build_mainproject()
       r_concat "${options}" "--platform '${platform}'"
       options="${RVAL}"
    fi
+   if [ ! -z "${toolchain}" ]
+   then
+      r_concat "${options}" "--toolchain '${toolchain}'"
+      options="${RVAL}"
+   fi
+
    if [ "${sdk}" != 'Default' ]
    then
       r_concat "${options}" "--sdk '${sdk}'"
@@ -2221,6 +2216,7 @@ craft::build::do_mainproject()
    local configuration
    local platform
    local sdk
+   local toolchain
 
    local match_version
    local blurb
@@ -2230,6 +2226,9 @@ craft::build::do_mainproject()
    .foreachpath platform in ${MULLE_CRAFT_PLATFORMS}
    .do
       craft::build::assert_sane_name "${platform}" " as platform name (use ':' as separator)"
+
+      craft::path::r_mapped_toolchain "${platform}"
+      toolchain="${RVAL}"
 
       .foreachpath sdk in ${MULLE_CRAFT_SDKS}
       .do
@@ -2261,6 +2260,7 @@ as a ${C_MAGENTA}${C_BOLD}${configuration}${C_VERBOSE} build"
                                                  "${platform}" \
                                                  "${configuration}" \
                                                  "${MULLE_CRAFT_DISPENSE_STYLE}" \
+                                                 "${toolchain}" \
                                                  "${name}" \
                                                  "" \
                                                  "$@"
@@ -2283,7 +2283,7 @@ craft::build::common()
    log_entry "craft::build::common" "$@"
 
    local OPTION_ALLOW_SCRIPTS="${MULLE_CRAFT_USE_SCRIPTS:-${MULLE_CRAFT_USE_SCRIPT:-}}"
-   local OPTION_BUILD_DEPENDENCY="DEFAULT"
+   local OPTION_BUILD_DEPENDENCY='DEFAULT'
    local OPTION_CCACHE="${MULLE_CRAFT_CCACHE}"
    local OPTION_CLEAN_TMP='YES'
    local OPTION_DONEFILES='YES'
