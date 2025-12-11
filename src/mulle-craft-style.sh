@@ -86,9 +86,12 @@ craft::style::r_get_sdk_platform_string()
    [ -z "${platform}" ]   && _internal_fail "platform must not be empty"
    [ -z "${style}" ]      && _internal_fail "style must not be empty"
 
-   if [ "${platform}" = 'Default' ]
+#   local actual_platform
+#
+#   actual_platform="${platform/Default/${MULLE_UNAME}}"
+   if [ "${platform}" = "${MULLE_UNAME}" ]
    then
-      platform="${MULLE_UNAME}"
+      platform='Default'
    fi
 
    case "${style}" in
@@ -105,40 +108,33 @@ craft::style::r_get_sdk_platform_string()
       ;;
 
       auto|relax|tight)
-         if [ "${sdk}" = "Default" ]
+         if [ "${sdk}" = 'Default' ]
          then
-            if [ "${platform}" = "${MULLE_UNAME}" ]
+            if [ "${platform}" = 'Default' ]
             then
                RVAL=""
             else
                RVAL="${platform}"
             fi
          else
-            if [ "${platform}" = "${MULLE_UNAME}" ]
-            then
-               RVAL="${sdk}"
-            else
-               RVAL="${sdk}-${platform}"
-            fi
+            # memo its no good to omit platform for default, because
+            # we can't distinguish between sdk and platform identifier
+            # prefer Default here though
+            RVAL="${sdk}-${platform}"
          fi
       ;;
 
       i-auto|i-relax|i-tight)
-         if [ "${sdk}" = "Default" ]
+         if [ "${sdk}" = 'Default' ]
          then
-            if [ "${platform}" = "${MULLE_UNAME}" ]
+            if [ "${platform}" = 'Default' ]
             then
                RVAL=""
             else
                RVAL="${platform}"
             fi
          else
-            if [ "${platform}" = "${MULLE_UNAME}" ]
-            then
-               RVAL="${sdk}"
-            else
-               RVAL="${platform}-${sdk}"
-            fi
+            RVAL="${platform}-${sdk}"
          fi
       ;;
 

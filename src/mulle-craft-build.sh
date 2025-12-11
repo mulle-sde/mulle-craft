@@ -89,21 +89,14 @@ EOF
 }
 
 
-craft::build::assert_sane_name()
+craft::build::assert_sane_identifier()
 {
    local name="$1"; shift
 
-   r_identifier "${name}" in
-
-   case "${name}" in
-      *--*)
-         fail "\"${name}\" contains two consecutive '-' characters"
-      ;;
-   esac
-
-   if [ ! -z "${name//[a-zA-Z0-9_.-]/}" ]
+   r_identifier "${name}"
+   if [ "${name}" != "${RVAL}" ]
    then
-      fail "\"${name}\" contains invalid characters$*"
+      fail "\"${name}\" is not a valid identifier$*"
    fi
 }
 
@@ -1206,18 +1199,23 @@ craft::build::handle_step()
 {
    log_entry "craft::build::handle_step" "$@"
 
-   local cmd="$1"; shift
-   local project="$1"; shift
-   local marks="$1"; shift
-   local sdk="$1"; shift
-   local platform="$1"; shift
-   local configuration="$1"; shift
-   local style="$1"; shift
-   local kitchendir="$1"; shift
-   local phase="$1"; shift
-   local statusfile="$1"; shift
-   local line="$1"; shift
-   local donefile="$1"; shift
+   local cmd="$1"
+   local project="$2"
+   local marks="$3"
+   local sdk="$4"
+   local platform="$5"
+   local configuration="$6"
+
+   shift 6
+
+   local style="$1"
+   local kitchendir="$2"
+   local phase="$3"
+   local statusfile="$4"
+   local line="$5"
+   local donefile="$6"
+
+   shift 6
 
    local rval
 
@@ -1801,17 +1799,17 @@ craft::build::do_craftorder()
 
    .foreachpath platform in ${MULLE_CRAFT_PLATFORMS}
    .do
-      craft::build::assert_sane_name "${platform}" " as platform name (use ':' as separator)"
+      craft::build::assert_sane_identifier "${platform}" " from MULLE_CRAFT_PLATFORMS (use ':' as separator)"
       .foreachpath sdk in ${MULLE_CRAFT_SDKS}
       .do
-         craft::build::assert_sane_name "${sdk}" " as sdk name (use ':' as separator)"
+         craft::build::assert_sane_identifier "${sdk}" " from MULLE_CRAFT_SDKS (use ':' as separator)"
 
          craft::qualifier::r_determine_platform_sdk_version "${platform}" "${sdk}" "${version}"
          match_version="${RVAL}"
 
          .foreachpath configuration in ${MULLE_CRAFT_CONFIGURATIONS}
          .do
-            craft::build::assert_sane_name "${configuration}" " as configuration name (use ':' as separator)"
+            craft::build::assert_sane_identifier "${sdk}" " from MULLE_CRAFT_CONFIGURATIONS (use ':' as separator)"
 
             craft::qualifier::r_filtered_craftorder "${craftorder}" \
                                                     "${sdk}" \
@@ -2225,21 +2223,21 @@ craft::build::do_mainproject()
 
    .foreachpath platform in ${MULLE_CRAFT_PLATFORMS}
    .do
-      craft::build::assert_sane_name "${platform}" " as platform name (use ':' as separator)"
+      craft::build::assert_sane_identifier "${platform}" " from MULLE_CRAFT_PLATFORMS (use ':' as separator)"
 
       craft::path::r_mapped_toolchain "${platform}"
       toolchain="${RVAL}"
 
       .foreachpath sdk in ${MULLE_CRAFT_SDKS}
       .do
-         craft::build::assert_sane_name "${sdk}" " as sdk name (use ':' as separator)"
+         craft::build::assert_sane_identifier "${sdk}" " from MULLE_CRAFT_SDKS (use ':' as separator)"
 
          craft::qualifier::r_determine_platform_sdk_version "${platform}" "${sdk}" "${version}"
          match_version="${RVAL}"
 
          .foreachpath configuration in ${MULLE_CRAFT_CONFIGURATIONS}
          .do
-            craft::build::assert_sane_name "${configuration}" " as configuration name (use ':' as separator)"
+            craft::build::assert_sane_identifier "${sdk}" " from MULLE_CRAFT_CONFIGURATIONS (use ':' as separator)"
 
             if [ "${MULLE_FLAG_LOG_VERBOSE}" = 'YES' ]
             then

@@ -377,7 +377,7 @@ craft::path::r_build_directory_name()
 
    r_basename "$1"         # just filename
    RVAL="${RVAL%%.*}"      # remove file extensions
-   RVAL="${RVAL//-/__}"       # turn '-' into '__' to avoid MulleScion/mulle-scion clash
+   RVAL="${RVAL//-/__}"    # turn '-' into '__' to avoid MulleScion/mulle-scion clash
    r_identifier "${RVAL}"  # make identifier (bad chars -> '_')
    RVAL="${RVAL%%_}"       # remove trailing '_'
    RVAL="${RVAL##_}"       # remove leading '_'
@@ -503,7 +503,8 @@ craft::path::__evaluate_variables()
    include "craft::style"
 
    #
-   # this is the build style which is always "relax"
+   # this is the build style which is always "relax". dont make this
+   # flexible as tools rely on it
    #
    craft::style::r_get_sdk_platform_configuration_string "${sdk}" \
                                                          "${platform}" \
