@@ -1,8 +1,8 @@
 _mulle_craft_complete()
 {
    local cur prev words cword
-   local commands="addiction-dir clean craftorder dependency-dir donefile find list log project qualifier searchpath status style uname version kitchen-dir craftorder-kitchen-dir libexec-dir tool-env"
-   local global_opts="-h --help -k --kitchen-dir -d --definition-dir --aux-definition-dir -f --force -p --project-dir --no-craftorder-file --craftorder-file --craftorder-kitchen-dir --craftorder-build-dir --dependency-dir --test-environment --motd --no-motd --version --"
+   local commands="addiction-dir clean craftorder dependency-dir donefile find list log project qualifier quickstatus searchpath status style uname version kitchen-dir craftorder-kitchen-dir libexec-dir tool-env"
+   local global_opts="-h --help -k --kitchen-dir -b --build-dir -d --definition-dir --aux-definition-dir -f --force -p --project-dir --no-craftorder-file --craftorder-file --craftorder-kitchen-dir --craftorder-build-dir --dependency-dir --test-environment --motd --no-motd --version --"
    local cur prev
    _get_comp_words_by_ref cur prev words cword
 
@@ -42,12 +42,11 @@ _mulle_craft_complete()
            fi
            ;;
        find)
-           # craftinfo find options
-           local find_opts="--project-dir --dependency-dir --item --no-platform --no-local"
+           local find_opts="-h --help --project-dir --dependency-dir --item --no-platform --no-local"
            if [ "$cword" -eq 2 ]; then
                COMPREPLY=($(compgen -W "${find_opts}" -- "$cur"))
            elif [ "$prev" == "--project-dir" -o "$prev" == "--dependency-dir" ]; then
-               _filedir
+               _filedir -d
            elif [ "$prev" == "--item" ]; then
                COMPREPLY=()
            else
@@ -55,22 +54,25 @@ _mulle_craft_complete()
            fi
            ;;
        log)
-           local log_opts="-h --help -c --configuration -t --tool -p --platform -s --sdk --style"
-           local log_cmds="list cat grep ack"
+           local log_opts="-h --help -c --configuration -e --executable -t --tool -p --platform -s --sdk --style"
+           local log_cmds="list"
            if [ "$cword" -eq 2 ]; then
                COMPREPLY=($(compgen -W "${log_opts} ${log_cmds}" -- "$cur"))
-           elif [ "$cword" -gt 2 ]; then
-               case "${words[2]}" in
-                   -c|--configuration|-p|--platform|-s|--sdk|--style)
-                       COMPREPLY=()
-                       ;;
-                   -t|--tool)
-                       COMPREPLY=()
-                       ;;
-                   "")
-                       COMPREPLY=()
-                       ;;
-               esac
+           elif [ "$prev" == "-c" -o "$prev" == "--configuration" ]; then
+               COMPREPLY=()
+           elif [ "$prev" == "-e" -o "$prev" == "--executable" ]; then
+               _filedir
+           elif [ "$prev" == "-t" -o "$prev" == "--tool" ]; then
+               COMPREPLY=()
+           elif [ "$prev" == "-p" -o "$prev" == "--platform" ]; then
+               COMPREPLY=()
+           elif [ "$prev" == "-s" -o "$prev" == "--sdk" ]; then
+               COMPREPLY=()
+           elif [ "$prev" == "--style" ]; then
+               local styles="none auto relax strict tight i-auto i-relax i-strict i-tight"
+               COMPREPLY=($(compgen -W "${styles}" -- "$cur"))
+           else
+               COMPREPLY=()
            fi
            ;;
        status)
@@ -91,13 +93,12 @@ _mulle_craft_complete()
                COMPREPLY=($(compgen -W "${styles}" -- "$cur"))
            elif [ "$prev" == "--configuration" -o "$prev" == "--platform" -o "$prev" == "--sdk" ]; then
                COMPREPLY=()
-           elif "$cword" -eq 3 ]; then
+           else
                COMPREPLY=()
            fi
            ;;
        project)
-           # build options for project
-           local project_opts="--all --debug --lenient --mulle-test --no-hook --no-protect --release --serial --platform --sdk --style --target --"
+           local project_opts="-h --help --all --debug --lenient --mulle-test --no-hook --no-protect --release --serial --platform --sdk --style --target --"
            if [ "$cword" -eq 2 ]; then
                COMPREPLY=($(compgen -W "${project_opts}" -- "$cur"))
            elif [ "$prev" == "--platform" -o "$prev" == "--sdk" -o "$prev" == "--style" -o "$prev" == "--target" ]; then
@@ -107,8 +108,7 @@ _mulle_craft_complete()
            fi
            ;;
        craftorder)
-           # similar to project but with more
-           local craftorder_opts="--all --debug --lenient --mulle-test --no-hook --no-protect --release --serial --platform --sdk --style --target --"
+           local craftorder_opts="-h --help --all --debug --lenient --mulle-test --no-hook --no-protect --release --serial --platform --sdk --style --target --"
            if [ "$cword" -eq 2 ]; then
                COMPREPLY=($(compgen -W "${craftorder_opts}" -- "$cur"))
            elif [ "$prev" == "--platform" -o "$prev" == "--sdk" -o "$prev" == "--style" -o "$prev" == "--target" ]; then
@@ -119,8 +119,9 @@ _mulle_craft_complete()
            ;;
        qualifier)
            local qualifier_opts="-h --help --configuration --debug --platform --release --sdk --version --no-lf --lf"
+           local qualifier_cmds="print print-no-build match"
            if [ "$cword" -eq 2 ]; then
-               COMPREPLY=($(compgen -W "${qualifier_opts} print match version print-no-build" -- "$cur"))
+               COMPREPLY=($(compgen -W "${qualifier_opts} ${qualifier_cmds}" -- "$cur"))
            elif [ "$prev" == "--platform" -o "$prev" == "--sdk" -o "$prev" == "--configuration" -o "$prev" == "--version" ]; then
                COMPREPLY=()
            else
@@ -128,19 +129,21 @@ _mulle_craft_complete()
            fi
            ;;
        searchpath)
-           local searchpath_opts="--if-exists --style --release --debug --test --configurations --kitchen --platforms --sdks"
-           local types="header library framework binary kitchen"
+           local searchpath_opts="-h --help --if-exists --style --release --debug --test --configurations --kitchen --platforms --sdks"
+           local searchpath_types="header library framework binary kitchen"
            if [ "$cword" -eq 2 ]; then
-               COMPREPLY=($(compgen -W "${searchpath_opts} ${types}" -- "$cur"))
-           elif [ "$prev" == "--style" -o "$prev" == "--configurations" -o "$prev" == "--platforms" -o "$prev" == "--sdks" ]; then
+               COMPREPLY=($(compgen -W "${searchpath_opts} ${searchpath_types}" -- "$cur"))
+           elif [ "$prev" == "--style" ]; then
+               local styles="none auto relax strict tight i-auto i-relax i-strict i-tight"
+               COMPREPLY=($(compgen -W "${styles}" -- "$cur"))
+           elif [ "$prev" == "--configurations" -o "$prev" == "--platforms" -o "$prev" == "--sdks" ]; then
                COMPREPLY=()
            else
                COMPREPLY=()
            fi
            ;;
        list)
-           # build list options
-           local list_opts="--all --debug --lenient --mulle-test --no-hook --no-protect --release --serial --platform --sdk --style --target --list-remaining --"
+           local list_opts="-h --help --all --debug --lenient --mulle-test --no-hook --no-protect --release --serial --platform --sdk --style --target --list-remaining --"
            if [ "$cword" -eq 2 ]; then
                COMPREPLY=($(compgen -W "${list_opts}" -- "$cur"))
            elif [ "$prev" == "--platform" -o "$prev" == "--sdk" -o "$prev" == "--style" -o "$prev" == "--target" ]; then
@@ -150,13 +153,18 @@ _mulle_craft_complete()
            fi
            ;;
        donefile)
-           local donefile_opts="-h --help --local --no-local --shared --no-shared --configuration --platform --sdk"
-           local donefile_cmds="cat echo list"
+           local donefile_opts="-h --help --configuration --platform --sdk --no-cat --no-local --no-shared"
+           local donefile_cmds="cat list"
            if [ "$cword" -eq 2 ]; then
                COMPREPLY=($(compgen -W "${donefile_opts} ${donefile_cmds}" -- "$cur"))
+           elif [ "$prev" == "--configuration" -o "$prev" == "--platform" -o "$prev" == "--sdk" ]; then
+               COMPREPLY=()
            else
                COMPREPLY=()
            fi
+           ;;
+       quickstatus)
+           COMPREPLY=()
            ;;
        "")
            COMPREPLY=($(compgen -W "${commands} ${global_opts}" -- "$cur"))
