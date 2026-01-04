@@ -468,7 +468,7 @@ craft::build::build_project()
                                           "${name}" \
                                           "${OPTION_PLATFORM_CRAFTINFO}" \
                                           "${sdk}" \
-                                          "${MULLE_UNAME}" \
+                                          "${platform}" \
                                           "${configuration}" \
                                           "${style}"
    definitiondirs="${RVAL}"
