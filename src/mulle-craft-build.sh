@@ -2286,7 +2286,7 @@ craft::build::common()
    local OPTION_CLEAN_TMP='YES'
    local OPTION_DONEFILES='YES'
    local OPTION_KEEP_DEPENDENCY_STATE='YES'
-   local OPTION_HOOK='YES'
+   local OPTION_HOOK
    local OPTION_LENIENT='NO'
    local OPTION_LIST_REMAINING='NO'
    local OPTION_LOCAL_CRAFTINFO="${MULLE_CRAFT_LOCAL_CRAFTINFO:-YES}"
@@ -2312,6 +2312,13 @@ craft::build::common()
 #        OPTION_PARALLEL='NO'
 #     ;;
 #  esac
+
+   # mulle-project-all with mulle-sde craft, will spawn realgamations which
+   # messes things up, this protects against it
+   if [ -z "${MULLE_PROJECT_ALL}" ]
+   then
+      OPTION_HOOK='YES'
+   fi
 
    while [ $# -ne 0 ]
    do
@@ -2440,12 +2447,16 @@ craft::build::common()
             OPTION_PARALLEL_PHASE='NO'
          ;;
 
-         --protect)
-            OPTION_PROTECT_DEPENDENCY='YES'
+         --hook)
+            OPTION_HOOK='YES'
          ;;
 
          --no-hook)
             OPTION_HOOK='NO'
+         ;;
+
+         --protect)
+            OPTION_PROTECT_DEPENDENCY='YES'
          ;;
 
          --no-protect)

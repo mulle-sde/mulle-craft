@@ -312,7 +312,7 @@ craft::craftinfo::r_find_project_item()
       fi
    fi
 
-   log_fluff "No ${itemname} for \"${name}\" in project found"
+   log_fluff "No ${itemname} for \"${name}\" found in project"
 
    RVAL=""
    return 2
