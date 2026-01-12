@@ -1,0 +1,110 @@
+[
+  {
+    "mark": "all-load",
+    "description": "Used with `no-static-link`. Hint to the linker to load all members of static archives."
+  },
+  {
+    "mark": "build",
+    "description": "A general qualifier to enable building for a specific context (e.g., `build-os-linux`)."
+  },
+  {
+    "mark": "build-os",
+    "description": "Qualifier to build a dependency only on a specific operating system."
+  },
+  {
+    "mark": "craft-configuration",
+    "description": "Qualifier to build a dependency only for a specific build configuration (e.g., `Debug`, `Release`)."
+  },
+  {
+    "mark": "craft-os",
+    "description": "`no-craft-os-<os>`: Ignores a dependency when crafting on the specified host OS."
+  },
+  {
+    "mark": "craft-platform",
+    "description": "`no-craft-platform-<p>`: Ignores a dependency when crafting for the specified platform."
+  },
+  {
+    "mark": "craft-release",
+    "description": "`only-craft-release`: Forces a dependency to be built in `Release` configuration."
+  },
+  {
+    "mark": "craft-sdk",
+    "description": "`no-craft-sdk-<sdk>`: Ignores a dependency when crafting for the specified SDK."
+  },
+  {
+    "mark": "dependency",
+    "description": "`no-dependency`: Prevents building this if the `--no-dependency` flag is specified."
+  },
+  {
+    "mark": "dynamic-link",
+    "description": "`no-dynamic-link`: Forces the project to be built as a static library (`--library-style static`)."
+  },
+  {
+    "mark": "framework",
+    "description": "`only-framework`: Indicates that the project is a framework, affecting build phases."
+  },
+  {
+    "mark": "inplace",
+    "description": "`no-inplace`: Builds the project in a temporary directory and then \"dispenses\" it to the final location."
+  },
+  {
+    "mark": "liftheaders",
+    "description": "`only-liftheaders`: Passes the `--lift-headers` option to `mulle-dispense`."
+  },
+  {
+    "mark": "mainproject",
+    "description": "`no-mainproject`: Marks a dependency as a subproject."
+  },
+  {
+    "mark": "memo",
+    "description": "`no-memo`: Prevents the build result from being recorded, forcing it to be rebuilt every time."
+  },
+  {
+    "mark": "platform",
+    "description": "A general qualifier to enable building for a specific platform."
+  },
+  {
+    "mark": "require",
+    "description": "`no-require`: Ignores a dependency if its source directory is missing."
+  },
+  {
+    "mark": "require-configuration",
+    "description": "`no-require-configuration-<c>`: Ignores a missing dependency for a specific configuration."
+  },
+  {
+    "mark": "require-os",
+    "description": "`no-require-os-<os>`: Ignores a missing dependency on a specific host OS."
+  },
+  {
+    "mark": "require-platform",
+    "description": "`no-require-platform-<p>`: Ignores a missing dependency for a specific target platform."
+  },
+  {
+    "mark": "require-sdk",
+    "description": "`no-require-sdk-<sdk>`: Ignores a missing dependency for a specific SDK."
+  },
+  {
+    "mark": "rootheader",
+    "description": "`no-rootheader`: Installs headers into a subdirectory named after the project during dispense."
+  },
+  {
+    "mark": "singlephase",
+    "description": "`no-singlephase`: Allows a project to be built in parallel using multiple phases (header, compile, link)."
+  },
+  {
+    "mark": "standalone",
+    "description": "`only-standalone`: Builds a standalone library (`--library-style standalone`)."
+  },
+  {
+    "mark": "static-link",
+    "description": "`no-static-link`: Forces the project to be built as a dynamic library (`--library-style dynamic`)."
+  },
+  {
+    "mark": "version-max",
+    "description": "Specifies the maximum SDK version the dependency can be built with."
+  },
+  {
+    "mark": "version-min",
+    "description": "Specifies the minimum SDK version required to build the dependency."
+  }
+]

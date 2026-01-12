@@ -1,3 +1,25 @@
+# 4.0.0
+
+
+* new reference documentation for 24 mulle-craft commands
+* JSON file documenting all craftorder marks and their effects
+
+
+
+
+* use --no-hook as default when run with `MULLE_PROJECT_ALL` saving fruitless reamalgamations
+
+
+* **BREAKING** if you are using a SDK the build path has changed and will now also always include a -${platform} suffix. Unfortunately that was necessary. If you don't specify a SDK nothing should have changed
+
+
+* improved support for cross platform builds
+
+* streamlined protection and unprotection of dependency-dir, hopefully for the better
+
+* added completion file
+
+
 ### 3.3.3
 
 * need to update `cmake_minimum_required` because cmake has a weird concept of min required

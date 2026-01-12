@@ -13,7 +13,7 @@ That is determined by *mulle-make*, which gets called from *mulle-craft*.
 
 | Release Version                                       | Release Notes
 |-------------------------------------------------------|--------------
-| ![Mulle kybernetiK tag](https://img.shields.io/github/tag/mulle-sde/mulle-craft.svg?branch=release)  | [RELEASENOTES](RELEASENOTES.md) |
+| ![Mulle kybernetiK tag](https://img.shields.io/github/tag/mulle-sde/mulle-craft.svg)  | [RELEASENOTES](RELEASENOTES.md) |
 
 
 
