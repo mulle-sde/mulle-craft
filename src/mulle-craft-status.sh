@@ -105,6 +105,7 @@ craft::status::output_names_with_status()
    local built_names="$2"
    local kitchendir="$3"
    local is_main="${4:-NO}"
+   local mode="$5"
 
    local name
    local rval
@@ -323,6 +324,7 @@ Configuration:${C_MAGENTA}${C_BOLD}${_configuration}${C_INFO}"
 
    craft::status::output "${_sdk}" "${_platform}" "${_configuration}" \
                        "${all_names}" "${done_names}" "${kitchendir}" \
+                       "NO" \
                        "${mode}"
 }
 
@@ -474,6 +476,7 @@ craft::status::main()
                             "${PROJECT_NAME}" \
                             "${PROJECT_NAME}" \
                             "${KITCHEN_DIR}" \
+                            "YES" \
                             "${mode}"
    fi
 }
