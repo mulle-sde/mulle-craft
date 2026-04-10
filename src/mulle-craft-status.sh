@@ -81,7 +81,8 @@ craft::status::r_get_names_from_file()
 
          *)
             r_basename "${project}"
-            r_add_line "${names}" "${RVAL}"
+            # Store name with marks: name;marks
+            r_add_line "${names}" "${RVAL};${marks}"
             names="${RVAL}"
          ;;
       esac
@@ -108,7 +109,7 @@ craft::status::output_names_with_status()
    local mode="$5"
 
    local name
-   local rval
+   local rc
 
    local ok_prefix
    local ok_suffix
@@ -138,7 +139,7 @@ craft::status::output_names_with_status()
    local phase
    local project
    local state
-   local rval
+   local rc
 
    local terse
 
@@ -152,6 +153,11 @@ craft::status::output_names_with_status()
 
    .foreachline name in ${all_names}
    .do
+      # Extract name and marks
+      local actual_name
+      local marks
+      IFS=";" read actual_name marks <<< "${name}"
+
       #
       # get remapped _configuration
       # get actual _kitchendir
@@ -168,7 +174,7 @@ craft::status::output_names_with_status()
          _kitchendir="${RVAL}"
          _configuration="${configuration}"
       else
-         craft::path::__evaluate_variables "${name}" \
+         craft::path::__evaluate_variables "${actual_name}" \
                                            "${sdk}" \
                                            "${platform}" \
                                            "${configuration}" \
@@ -179,20 +185,21 @@ craft::status::output_names_with_status()
 
       phase="`grep -E -v '^#' "${_kitchendir}/.phase" 2> /dev/null`"
       project="`grep -E -v '^#' "${_kitchendir}/.project" 2> /dev/null`"
-      rval="`grep -E -v '^#' "${_kitchendir}/.status" 2> /dev/null`"
+      rc="`grep -E -v '^#' "${_kitchendir}/.status" 2> /dev/null`"
 
       log_setting "_kitchendir    : ${_kitchendir}"
       log_setting "_configuration : ${_configuration}"
       log_setting "phase          : ${phase}"
       log_setting "project        : ${project}"
-      log_setting "rval           : ${rval}"
+      log_setting "rc           : ${rc}"
+      log_setting "marks          : ${marks}"
 
       # make it so it lists completed phases, which is less confusing IMO
       if [ ! -z "${phase}" ]
       then
          case "${phase}" in
             'Header'|'Headers')
-               if [ $rval -eq 0 ]
+               if [ $rc -eq 0 ]
                then
                   phase="Multiphase (Header)"
                else
@@ -210,13 +217,127 @@ craft::status::output_names_with_status()
          esac
       fi
 
+      local in_donefile='NO'
+      local has_kitchen='NO'
+      local has_dependency='NO'
+      local age_info=""
+      local is_craftinfo='NO'
+      local skip_platform='NO'
+
+      # Check if this dependency should be skipped for this platform
+      case ",${marks}," in
+         *,no-craft-platform-${platform},*)
+            skip_platform='YES'
+         ;;
+      esac
+
+      # Check if this is craftinfo-only (no actual build artifacts)
+      # Must have both no-header and no-link
+      case ",${marks}," in
+         *,no-header,*)
+            case ",${marks}," in
+               *,no-link,*)
+                  is_craftinfo='YES'
+               ;;
+            esac
+         ;;
+      esac
+
+      # Check if in donefile (need to search for name with marks)
       if find_line "${built_names}" "${name}"
       then
-         printf "   %b" "${ok_prefix}${name}${ok_suffix}"
-         case "${rval}" in
+         in_donefile='YES'
+      fi
+
+      if [ -d "${_kitchendir}" ]
+      then
+         has_kitchen='YES'
+      fi
+
+      # Check if dependency exists in dependency dir (configuration-specific)
+      # Try multiple locations:
+      # 1. include/${name}/ subdirectory
+      # 2. lib/lib${name}.a library file (if name doesn't start with "lib")
+      # 3. lib/${name}.a library file (if name starts with "lib")
+      local dep_path="${DEPENDENCY_DIR}/${_configuration}/include/${actual_name}"
+      if [ -d "${dep_path}" ]
+      then
+         has_dependency='YES'
+      else
+         # Check for library file
+         case "${actual_name}" in
+            lib*)
+               # Name already starts with lib, don't add another
+               dep_path="${DEPENDENCY_DIR}/${_configuration}/lib/${actual_name}.a"
+            ;;
+            *)
+               dep_path="${DEPENDENCY_DIR}/${_configuration}/lib/lib${actual_name}.a"
+            ;;
+         esac
+         if [ -f "${dep_path}" ]
+         then
+            has_dependency='YES'
+         fi
+      fi
+
+      # Calculate age from dependency dir if found
+      if [ "${has_dependency}" = 'YES' -a "${OPTION_COLOR}" = 'YES' ]
+      then
+         local dep_mtime
+         dep_mtime="$(stat -c %Y "${dep_path}" 2>/dev/null || stat -f %m "${dep_path}" 2>/dev/null)"
+         if [ ! -z "${dep_mtime}" ]
+         then
+            local now_time
+            now_time="$(date +%s)"
+            local age_seconds=$((now_time - dep_mtime))
+
+            # Format age
+            if [ ${age_seconds} -lt 60 ]
+            then
+               age_info="${age_seconds}s ago"
+            elif [ ${age_seconds} -lt 3600 ]
+            then
+               age_info="$((age_seconds / 60))m ago"
+            elif [ ${age_seconds} -lt 86400 ]
+            then
+               age_info="$((age_seconds / 3600))h ago"
+            else
+               age_info="$((age_seconds / 86400))d ago"
+            fi
+         fi
+      fi
+
+      # Determine overall status
+      # Skip dependencies that shouldn't be built for this platform
+      if [ "${skip_platform}" = 'YES' ]
+      then
+         printf "   %b" "${ok_prefix}${actual_name}${ok_suffix}"
+         state="OK  (skipped for ${platform})"
+         rc=""
+      # For craftinfo-only, we only need it to be in donefile (crafted)
+      elif [ "${is_craftinfo}" = 'YES' ]
+      then
+         if [ "${in_donefile}" = 'YES' ]
+         then
+            printf "   %b" "${ok_prefix}${actual_name}${ok_suffix}"
+            state="OK"
+            rc=""
+         else
+            printf "   %b" "${fail_prefix}${actual_name}${fail_suffix}"
+            state="-  missing: crafted"
+            rc=""
+         fi
+      elif [ "${in_donefile}" = 'YES' -a "${has_kitchen}" = 'YES' -a "${has_dependency}" = 'YES' ]
+      then
+         printf "   %b" "${ok_prefix}${actual_name}${ok_suffix}"
+         case "${rc}" in
             0)
                state="OK"
-               rval=""
+               if [ ! -z "${age_info}" ]
+               then
+                  state="OK  ${age_info}"
+               fi
+               rc=""
             ;;
 
             *)
@@ -224,19 +345,44 @@ craft::status::output_names_with_status()
             ;;
          esac
       else
-         printf "   %b" "${fail_prefix}${name}${fail_suffix}"
-         if [ -z "${project}" ]
+         printf "   %b" "${fail_prefix}${actual_name}${fail_suffix}"
+         state="-"
+
+         # Build missing list (renamed: kitchen→started, done→crafted, dependency→installed)
+         local missing=""
+         if [ "${has_kitchen}" = 'NO' ]
          then
-            state="-"
-            rval=""
-         else
-            state="FAIL"
+            missing="started"
          fi
+         if [ "${in_donefile}" = 'NO' ]
+         then
+            if [ ! -z "${missing}" ]
+            then
+               missing="${missing}, crafted"
+            else
+               missing="crafted"
+            fi
+         fi
+         if [ "${has_dependency}" = 'NO' ]
+         then
+            if [ ! -z "${missing}" ]
+            then
+               missing="${missing}, installed"
+            else
+               missing="installed"
+            fi
+         fi
+
+         if [ ! -z "${missing}" ]
+         then
+            state="-  missing: ${missing}"
+         fi
+         rc=""
       fi
 
       if [ "${terse}" = 'YES' ]
       then
-         printf ";%s;%s;%s\n" "${state}" "${phase:-Singlephase}" "${rval}"
+         printf ";%s;%s;%s\n" "${state}" "${phase:-Singlephase}" "${rc}"
       else
          printf ";%s\n" "${state}"
       fi

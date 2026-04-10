@@ -230,7 +230,7 @@ craft::craftinfo::r_find_dependency_item()
    # this is OK it's then a "root" definition
    # [ -z "${projectname}" ] && _internal_fail "${name} is empty"
 
-   local rval
+   local rc
 
    craft::craftinfo::r_find_dependency_dir "${projectname}" \
                                            "${DEPENDENCY_DIR}" \
@@ -238,11 +238,11 @@ craft::craftinfo::r_find_dependency_item()
                                            "${platform}" \
                                            "${configuration}" \
                                            "${style}"
-   rval=$?
-   if [ $rval -ne 0 ]
+   rc=$?
+   if [ $rc -ne 0 ]
    then
       log_debug "No ${itemname} for \"${projectname}\" in \"${DEPENDENCY_DIR}\" found"
-      return $rval
+      return $rc
    fi
 
    directory="${RVAL}"
@@ -444,7 +444,7 @@ craft::craftinfo::main()
       return 2
    fi
 
-   local rval
+   local rc
 
    craft::craftinfo::r_find_project_item "${name}" \
                                          "${OPTION_PROJECT_DIR}" \
@@ -452,10 +452,10 @@ craft::craftinfo::main()
                                          "${OPTION_SDK}" \
                                          "${OPTION_PLATFORM}" \
                                          "${OPTION_ITEM}"
-   rval=$?
+   rc=$?
 
-   [ $rval -eq 0 ] && printf "%s\n" "${RVAL}"
+   [ $rc -eq 0 ] && printf "%s\n" "${RVAL}"
 
-   return $rval
+   return $rc
 }
 

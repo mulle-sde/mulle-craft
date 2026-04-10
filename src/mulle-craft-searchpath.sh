@@ -68,6 +68,8 @@ Types:
 
 Options:
    --if-exists       : only add to searchpath if directory exists
+   --no-addiction    : don't add addiction path
+   --platform <name> : set platform (${MULLE_UNAME})
    --style <style>   : adjust output to match style (auto)
    --release         : adjust output to match configuration "Release"
    --debug           : adjust output to match configuration "Debug"
@@ -90,6 +92,7 @@ craft::searchpath::main()
    local OPTION_PREFIX_ONLY='NO'
    local OPTION_TEST='NO'
    local OPTION_KITCHEN='NO'
+   local OPTION_ADDICTION='YES'
 
    local configurations
    local platforms
@@ -106,14 +109,6 @@ craft::searchpath::main()
       case "$1" in
          -h*|--help|help)
             craft::searchpath::usage
-         ;;
-
-         --prefix-only)
-            OPTION_PREFIX_ONLY='YES'
-         ;;
-
-         --if-exists)
-            OPTION_IF_EXISTS='YES'
          ;;
 
          --release)
@@ -133,32 +128,60 @@ craft::searchpath::main()
             [ $# -eq 1 ] && craft::searchpath::usage "Missing argument to \"$1\""
             shift
 
-            configurations="$1"
+            if [ ! -z "$1" ]
+            then
+               configurations="$1"
+            fi
+         ;;
+         --platform|--platforms)
+            [ $# -eq 1 ] && craft::searchpath::usage "Missing argument to \"$1\""
+            shift
+
+            if [ ! -z "$1" ]
+            then
+               platforms="$1"
+            fi
+         ;;
+
+         --sdk|--sdks)
+            [ $# -eq 1 ] && craft::searchpath::usage "Missing argument to \"$1\""
+            shift
+
+            if [ ! -z "$1" ]
+            then
+               sdks="$1"
+            fi
+         ;;
+
+         #
+         #
+
+         --if-exists)
+            OPTION_IF_EXISTS='YES'
+         ;;
+
+         --no-addiction)
+            OPTION_ADDICTION='NO'
+         ;;
+
+         --only-addiction)
+            OPTION_ADDICTION='ONLY'
          ;;
 
          --kitchen|--add-kitchen-path)
             OPTION_KITCHEN='YES'
          ;;
 
-         --platforms)
-            [ $# -eq 1 ] && craft::searchpath::usage "Missing argument to \"$1\""
-            shift
-
-            platforms="$1"
+         --prefix-only)
+            OPTION_PREFIX_ONLY='YES'
          ;;
+
 
          --style)
             [ $# -eq 1 ] && craft::searchpath::usage "Missing argument to \"$1\""
             shift
 
             style="$1"
-         ;;
-
-         --sdks)
-            [ $# -eq 1 ] && craft::searchpath::usage "Missing argument to \"$1\""
-            shift
-
-            sdks="$1"
          ;;
 
          -*)
@@ -225,54 +248,60 @@ craft::searchpath::main()
    [ -z "${KITCHEN_DIR}" ]    && _internal_fail "KITCHEN_DIR is empty"
    [ -z "${DEPENDENCY_DIR}" ] && _internal_fail "DEPENDENCY_DIR is empty"
 
-   .foreachpath configuration in ${configurations}
-   .do
-      .foreachpath platform in ${platforms}
+   if [ "${OPTION_ADDICTION}" != 'ONLY' ]
+   then
+      .foreachpath configuration in ${configurations}
       .do
-         .foreachpath sdk in ${sdks}
+         .foreachpath platform in ${platforms}
          .do
-            if [ "${OPTION_KITCHEN}" = 'YES' ]
-            then
-               craft::path::r_mainproject_kitchendir "${sdk}" \
-                                                     "${platform}" \
-                                                     "${configuration}" \
-                                                     "${style}" \
-                                                     "${KITCHEN_DIR}"
-            else
-               craft::style::r_get_sdk_platform_configuration_string "${sdk}" \
-                                                                     "${platform}" \
-                                                                     "${configuration}" \
-                                                                     "${style}"
-               directory="${RVAL}"
+            .foreachpath sdk in ${sdks}
+            .do
+               if [ "${OPTION_KITCHEN}" = 'YES' ]
+               then
+                  craft::path::r_mainproject_kitchendir "${sdk}" \
+                                                        "${platform}" \
+                                                        "${configuration}" \
+                                                        "${style}" \
+                                                        "${KITCHEN_DIR}"
+               else
+                  craft::style::r_get_sdk_platform_configuration_string "${sdk}" \
+                                                                        "${platform}" \
+                                                                        "${configuration}" \
+                                                                        "${style}"
+                  directory="${RVAL}"
 
-               r_filepath_concat "${DEPENDENCY_DIR}" "${directory}"
-               r_filepath_concat "${RVAL}" "${subdir}"  # kitchen don't add '/lib'
-            fi
-            r_absolutepath "${RVAL}"
+                  r_filepath_concat "${DEPENDENCY_DIR}" "${directory}"
+                  r_filepath_concat "${RVAL}" "${subdir}"  # kitchen don't add '/lib'
+               fi
+               r_absolutepath "${RVAL}"
 
-            log_debug "considering: \"${RVAL}\""
+               log_debug "considering: \"${RVAL}\""
 
-            if [ "${OPTION_IF_EXISTS}" = 'YES' ] && [ ! -d "${RVAL}" ]
-            then
-               log_verbose "Directory \"${RVAL}\" is not in the searchpath because it doesn't exist"
-            else
-               log_debug "adding: \"${RVAL}\""
-               r_add_unique_line "${paths}" "${RVAL}"
-               paths="${RVAL}"
-            fi
+               if [ "${OPTION_IF_EXISTS}" = 'YES' ] && [ ! -d "${RVAL}" ]
+               then
+                  log_verbose "Directory \"${RVAL}\" is not in the searchpath because it doesn't exist"
+               else
+                  log_debug "adding: \"${RVAL}\""
+                  r_add_unique_line "${paths}" "${RVAL}"
+                  paths="${RVAL}"
+               fi
+            .done
          .done
       .done
-   .done
+   fi
 
-   r_filepath_concat "${ADDICTION_DIR}" "${subdir}"
-   r_absolutepath "${RVAL}"
-
-   if [ "${OPTION_IF_EXISTS}" = 'YES' ] && [ ! -d "${RVAL}" ]
+   if [ "${OPTION_ADDICTION}" != 'NO' ]
    then
-      log_verbose "Directory \"${RVAL}\" is not in the searchpath because it doesn't exist"
-   else
-      r_add_unique_line "${paths}" "${RVAL}"
-      paths="${RVAL}"
+      r_filepath_concat "${ADDICTION_DIR}" "${subdir}"
+      r_absolutepath "${RVAL}"
+
+      if [ "${OPTION_IF_EXISTS}" = 'YES' ] && [ ! -d "${RVAL}" ]
+      then
+         log_verbose "Directory \"${RVAL}\" is not in the searchpath because it doesn't exist"
+      else
+         r_add_unique_line "${paths}" "${RVAL}"
+         paths="${RVAL}"
+      fi
    fi
 
    local searchpath

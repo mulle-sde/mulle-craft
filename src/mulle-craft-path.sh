@@ -101,6 +101,13 @@ craft::path::r_mapped_toolchain()
       return 1
    fi
 
+   # When platform equals MULLE_UNAME (native build), don't use a toolchain
+   if [ "${platform}" = "${MULLE_UNAME}" ]
+   then
+      RVAL=""
+      return 0
+   fi
+
    key="MULLE_CRAFT_TOOLCHAIN"
    r_shell_indirect_expand "${key}"
    if [ ! -z "${RVAL}" ]
@@ -248,6 +255,7 @@ craft::path::r_dependencydir()
    local platform="$2"
    local configuration="$3"
    local style="$4"
+   local dependencydir="$5"
 
    include "craft::style"
 
@@ -258,7 +266,7 @@ craft::path::r_dependencydir()
                                                          "${platform}" \
                                                          "${configuration}"  \
                                                          "${style}"
-   r_filepath_concat "${DEPENDENCY_DIR}" "${RVAL}"
+   r_filepath_concat "${dependencydir}" "${RVAL}"
 }
 
 
@@ -534,6 +542,7 @@ craft::path::main()
    local sdk
    local style
 
+   # get default values
    configuration="${MULLE_CRAFT_CONFIGURATIONS%%:*}"
    configuration="${configuration:-Debug}"
    sdk="${MULLE_CRAFT_SDKS%%:*}"
@@ -576,18 +585,18 @@ craft::path::main()
             platform="$1"
          ;;
 
-         --style)
-            [ $# -eq 1 ] && craft::path::usage "Missing argument to \"$1\""
-            shift
-
-            style="$1"
-         ;;
-
          --sdk)
             [ $# -eq 1 ] && craft::path::usage "Missing argument to \"$1\""
             shift
 
             sdk="$1"
+         ;;
+
+         --style)
+            [ $# -eq 1 ] && craft::path::usage "Missing argument to \"$1\""
+            shift
+
+            style="$1"
          ;;
 
          -*)

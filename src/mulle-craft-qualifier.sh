@@ -120,7 +120,8 @@ craft::qualifier::r_craftorder_qualifier()
    r_lowercase "${version}"
    version="${RVAL}"
 
-   if [ "${platform}" = 'default' ]
+   r_lowercase "${platform}"
+   if [ "${RVAL}" = 'default' ]
    then
       platform="${MULLE_UNAME}"
    fi

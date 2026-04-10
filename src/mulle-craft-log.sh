@@ -43,32 +43,124 @@ craft::log::usage()
 Usage:
    ${MULLE_USAGE_NAME} log [options] [command] [project]
 
-   List available build logs or run arbitrary commands on them like
-   'cat' or 'grep', where 'cat' is the default.
+   Show build logs. By default shows only the most recent craft run.
+   Each craft run stores logs in a timestamped subdirectory, so previous
+   runs are preserved and never mixed with the current one.
 
-   Show last project logs with:
+   Show latest logs for the main project:
 
       ${MULLE_USAGE_NAME} log
 
-   Grep for 'error:' through all project logs with:
+   Show all logs (all projects, latest run):
+
+      ${MULLE_USAGE_NAME} log '*'
+
+   Show all logs across all projects and all runs (e.g. incremental builds):
+
+      ${MULLE_USAGE_NAME} log --all --run all
+
+   Show logs matching a wildcard pattern:
+
+      ${MULLE_USAGE_NAME} log 'Mulle*'
+
+   Grep for errors across all projects:
 
       ${MULLE_USAGE_NAME} log '*' grep 'error:'
 
+   Show warnings with 3 lines of context (file/line info):
+
+      ${MULLE_USAGE_NAME} log warnings | grep -B3 'warning:'
+
+   Or use the grep command form to get context lines directly:
+
+      ${MULLE_USAGE_NAME} log '*' grep -B3 'warning:'
+
+   Pipe log output to any tool (less, grep, awk, ...):
+
+      ${MULLE_USAGE_NAME} log | grep -B3 'warning:'
+      ${MULLE_USAGE_NAME} log | less
+
+   Show logs from the previous run:
+
+      ${MULLE_USAGE_NAME} log --run -1
+
+   Show logs from a specific run:
+
+      ${MULLE_USAGE_NAME} log --run 20260321T112305
+
 Options:
-   -c <configuration>  : restrict to configuration
-   -t <tool>           : restrict to tool
+   --all               : shortcut for project '*' (all projects)
+   -c <configuration>  : restrict to configuration (default: last used)
+   -t <tool>           : restrict to tool (cmake, make, configure, ...)
+   --run <selector>    : which run to show: latest (default), -1 (previous),
+                         -N (N runs ago), all, or a timestamp prefix
 
 Project:
-   *                   : all projects
-   ""                  : main project
-   <name>              : name of project
+   *                   : all projects including dependencies
+   ""                  : main project only (default)
+   <name>              : specific dependency by name
+   <glob>              : dependencies matching pattern (e.g. 'Mulle*')
 
 Commands:
-   list                : list available build logs
-   <tool> ...          : use cat, grep -E ack to execute on the logfiles
+   list                : list available log files
+   runs                : list available run timestamps
+   errors              : show errors from latest run across all projects
+   warnings            : show warnings from latest run across all projects
+   summary             : one-line status per project (name, run, OK/FAIL, warnings)
+   diff                : diff latest run vs previous run (main project)
+   <tool> ...          : run any command on the log files (cat, grep, ...)
 
 EOF
   exit 1
+}
+
+
+#
+# Given a .log base directory, return the latest timestamped subdirectory.
+# Falls back to basedir itself for backward compat with old flat layout.
+# Respects OPTION_RUN: latest (default), -N (relative), or timestamp prefix.
+#
+craft::log::r_latest_logdir()
+{
+   log_entry "craft::log::r_latest_logdir" "$@"
+
+   local basedir="$1"
+
+   local dirs
+
+   dirs="$(ls -1d "${basedir}"/[0-9]*.* 2>/dev/null)"
+   if [ -z "${dirs}" ]
+   then
+      RVAL="${basedir}"
+      return
+   fi
+
+   case "${OPTION_RUN:-latest}" in
+      ''|'latest')
+         RVAL="$(printf '%s\n' "${dirs}" | tail -1)"
+      ;;
+
+      'all')
+         RVAL="${dirs}"
+      ;;
+
+      '-'[0-9]*)
+         local offset count index
+         offset="${OPTION_RUN#-}"
+         count="$(printf '%s\n' "${dirs}" | grep -c .)"
+         index=$(( count - offset ))
+         [ "${index}" -lt 1 ] && index=1
+         RVAL="$(printf '%s\n' "${dirs}" | sed -n "${index}p")"
+      ;;
+
+      *)
+         RVAL="$(printf '%s\n' "${dirs}" | grep "/${OPTION_RUN}" | tail -1)"
+         if [ -z "${RVAL}" ]
+         then
+            fail "No log run matching \"${OPTION_RUN}\""
+         fi
+      ;;
+   esac
 }
 
 
@@ -176,6 +268,202 @@ craft::log::list_tool_logs()
 }
 
 
+craft::log::runs()
+{
+   log_entry "craft::log::runs" "$@"
+
+   local directories
+   local directory
+
+   directories="`craft::log::project_log_dirs`"
+   if [ ! -z "${directories}" ]
+   then
+      .foreachline directory in ${directories}
+      .do
+         ls -1d "${directory}"/[0-9]*.* 2>/dev/null \
+         | sed "s|.*\.log/||" \
+         | sed "s|^|${directory#${KITCHEN_DIR}/}: |"
+      .done
+   fi
+
+   directories="`craft::log::craftorder_log_dirs`"
+   if [ ! -z "${directories}" ]
+   then
+      .foreachline directory in ${directories}
+      .do
+         ls -1d "${directory}"/[0-9]*.* 2>/dev/null \
+         | sed "s|.*\.log/||" \
+         | sed "s|^|${directory#${CRAFTORDER_KITCHEN_DIR}/}: |"
+      .done
+   fi
+}
+
+
+#
+# Grep warning/error lines from log files, skipping cmake info lines (-- prefix)
+# and the =[PID]=> command echo lines.
+#
+craft::log::r_grep_diagnostics()
+{
+   local files="$1"   # newline-separated list of log files
+   local pattern="$2" # 'warning\|error' or 'error' etc.
+
+   local result
+   local f
+
+   .foreachline f in ${files}
+   .do
+      [ -f "${f}" ] || .continue
+
+      result="${result}$(grep -E "${pattern}" "${f}" \
+         | grep -v '^--' \
+         | grep -v '^=\[' \
+         | grep -v '^\[' )"$'\n'
+   .done
+
+   RVAL="${result}"
+}
+
+
+#
+# Print warning/error lines from the latest run of all projects,
+# prefixed with the project name.
+#
+craft::log::show_diagnostics()
+{
+   log_entry "craft::log::show_diagnostics" "$@"
+
+   local pattern="$1"   # grep -E pattern
+
+   local directories directory logdir files name
+
+   # craftorder deps first
+   directories="`craft::log::craftorder_log_dirs`"
+   if [ ! -z "${directories}" ]
+   then
+      .foreachline directory in ${directories}
+      .do
+         craft::log::r_latest_logdir "${directory}"
+         logdir="${RVAL}"
+
+         r_dirname "${directory#${CRAFTORDER_KITCHEN_DIR}/}"
+         name="${RVAL##*/}"
+
+         files="`dir_list_files "${logdir}" "*.log" "f"`"
+         craft::log::r_grep_diagnostics "${files}" "${pattern}"
+         if [ ! -z "${RVAL}" ]
+         then
+            log_info "${name}:"
+            printf "%s\n" "${RVAL}"
+         fi
+      .done
+   fi
+
+   # main project
+   directories="`craft::log::project_log_dirs`"
+   if [ ! -z "${directories}" ]
+   then
+      .foreachline directory in ${directories}
+      .do
+         craft::log::r_latest_logdir "${directory}"
+         logdir="${RVAL}"
+
+         files="`dir_list_files "${logdir}" "*.log" "f"`"
+         craft::log::r_grep_diagnostics "${files}" "${pattern}"
+         if [ ! -z "${RVAL}" ]
+         then
+            log_info "${PROJECT_NAME:-project}:"
+            printf "%s\n" "${RVAL}"
+         fi
+      .done
+   fi
+}
+
+
+#
+# One-line summary per project: name, run timestamp, status, warning count.
+#
+craft::log::summary()
+{
+   log_entry "craft::log::summary" "$@"
+
+   local directories directory logdir kitchendir name timestamp status warnings files
+
+   local all_dirs=""
+
+   # collect craftorder dirs with their kitchendir
+   directories="`craft::log::craftorder_log_dirs`"
+   if [ ! -z "${directories}" ]
+   then
+      .foreachline directory in ${directories}
+      .do
+         r_dirname "${directory#${CRAFTORDER_KITCHEN_DIR}/}"
+         name="${RVAL##*/}"
+
+         craft::log::r_latest_logdir "${directory}"
+         logdir="${RVAL}"
+
+         r_basename "${logdir}"
+         timestamp="${RVAL:-none}"
+
+         kitchendir="${directory%/.log}"
+         status="`cat "${kitchendir}/.status" 2>/dev/null`"
+         if [ -z "${status}" ]
+         then
+            status="?"
+         elif [ "${status}" = "0" ]
+         then
+            status="OK"
+         else
+            status="FAIL(${status})"
+         fi
+
+         files="`dir_list_files "${logdir}" "*.log" "f"`"
+         craft::log::r_grep_diagnostics "${files}" '[Ww]arning:'
+         warnings="$(printf '%s\n' "${RVAL}" | grep -c .)"
+
+         printf "%-40s  %-20s  %-10s  %s warnings\n" \
+            "${name}" "${timestamp}" "${status}" "${warnings}"
+      .done
+   fi
+
+   # main project
+   directories="`craft::log::project_log_dirs`"
+   if [ ! -z "${directories}" ]
+   then
+      .foreachline directory in ${directories}
+      .do
+         name="${PROJECT_NAME:-project}"
+
+         craft::log::r_latest_logdir "${directory}"
+         logdir="${RVAL}"
+
+         r_basename "${logdir}"
+         timestamp="${RVAL:-none}"
+
+         kitchendir="${directory%/.log}"
+         status="`cat "${kitchendir}/.status" 2>/dev/null`"
+         if [ -z "${status}" ]
+         then
+            status="?"
+         elif [ "${status}" = "0" ]
+         then
+            status="OK"
+         else
+            status="FAIL(${status})"
+         fi
+
+         files="`dir_list_files "${logdir}" "*.log" "f"`"
+         craft::log::r_grep_diagnostics "${files}" '[Ww]arning:'
+         warnings="$(printf '%s\n' "${RVAL}" | grep -c .)"
+
+         printf "%-40s  %-20s  %-10s  %s warnings\n" \
+            "${name}" "${timestamp}" "${status}" "${warnings}"
+      .done
+   fi
+}
+
+
 craft::log::list()
 {
    log_entry "craft::log::list" "$@"
@@ -231,7 +519,8 @@ craft::log::list()
          r_dirname "${directory#${KITCHEN_DIR}/}"
          configuration="${RVAL}"
 
-         craft::log::list_tool_logs "${OPTION_OUTPUT}" "${directory}" "" "${configuration}"
+         craft::log::r_latest_logdir "${directory}"
+         craft::log::list_tool_logs "${OPTION_OUTPUT}" "${RVAL}" "" "${configuration}"
       .done
    fi
 
@@ -253,7 +542,8 @@ craft::log::list()
          configuration="${configuration_name%%/*}"
          name="${configuration_name#*/}"
 
-         craft::log::list_tool_logs "${OPTION_OUTPUT}" "${directory}" "${name}" "${configuration}"
+         craft::log::r_latest_logdir "${directory}"
+         craft::log::list_tool_logs "${OPTION_OUTPUT}" "${RVAL}" "${name}" "${configuration}"
       .done
    fi
 }
@@ -268,87 +558,50 @@ craft::log::craftorders()
 
    shift 2
 
-   local lastvalues
+   # Translate user-supplied name to the filesystem-safe form used as the
+   # build directory name.
+   local name_fs
 
-   if [ -f "${CRAFTORDER_KITCHEN_DIR}/.mulle-craft-last" ]
-   then
-      lastvalues="`rexekutor grep -E -v '^#' "${CRAFTORDER_KITCHEN_DIR}/.mulle-craft-last"`"
-   fi
+   case "${name}" in
+      ''|'*')
+         name_fs="${name}"
+      ;;
+      *)
+         include "craft::path"
+         craft::path::r_build_directory_name "${name}"
+         name_fs="${RVAL}"
+      ;;
+   esac
 
-   local lastsdk
-   local lastplatform
-   local lastconfiguration
+   # Iterate all craftorder log dirs and filter by name pattern.
+   # We always do this per-project so r_latest_logdir gets a concrete path,
+   # not a glob that would mix timestamps across projects.
+   local directories directory depname found logdir i
 
-   lastsdk="${lastvalues%%;*}"
-   lastplatform="${lastvalues%;*}"
-   lastplatform="${lastplatform#*;}"
-   lastconfiguration="${lastvalues##*;}"
-
-   log_debug "lastvalues: ${lastsdk};${lastplatform};${lastconfiguration}"
-
-   local sdk="${OPTION_SDK}"
-   local platform="${OPTION_PLATFORM}"
-   local style="${MULLE_CRAFT_DISPENSE_STYLE:-${DISPENSE_STYLE:-auto}}"
-
-   configuration="${OPTION_CONFIGURATION}"
-   configuration="${configuration:-${lastconfiguration}}"
-   configuration="${configuration:-Release}"
-
-   sdk="${sdk:-${lastsdk}}"
-   platform="${platform:-${lastplatform}}"
-
-   sdk="${sdk:-Default}"
-   platform="${platform:-${MULLE_UNAME}}"
-
-   include "craft::style"
-
-   log_setting "sdk           : ${sdk}"
-   log_setting "platform      : ${platform}"
-   log_setting "configuration : ${configuration}"
-
-   local _kitchendir
-   local _configuration
-   local _evaledproject
-   local _name
-   local _toolchain
-
-   include "craft::path"
-
-   craft::path::__evaluate_variables "${name}" \
-                                     "${sdk}" \
-                                     "${platform}" \
-                                     "${configuration}" \
-                                     "${style}" \
-                                      "${CRAFTORDER_KITCHEN_DIR#${PWD}/}" \
-                                    'NO'
-
-   log_debug "Build directory: ${_kitchendir}"
-
-   # build/.craftorder/Debug/mulle-c11/.log/
-   local globpattern
-
-   r_filepath_concat "${_kitchendir}" ".log" "*.${OPTION_TOOL:-*}.log"
-   globpattern="${RVAL}"
-
-   log_debug "globpattern: ${globpattern}"
-
-   local found
-   local i
-
-   .foreachfile i in ${globpattern}
+   directories="`craft::log::craftorder_log_dirs`"
+   .foreachline directory in ${directories}
    .do
-      if [ -e "${i}" ] # stupid zsh, need to figure it out
-      then
-         log_info "${C_RESET_BOLD}${i}:"
-         exekutor "${cmd}" "$@" "${i}"
-         found='YES'
-      fi
+      r_dirname "${directory#${CRAFTORDER_KITCHEN_DIR}/}"
+      depname="${RVAL##*/}"
+      case "${depname}" in ${name_fs}) ;; *) .continue ;; esac
+
+      log_info "${depname}"
+      craft::log::r_latest_logdir "${directory}"
+
+      local rundir
+      .foreachline rundir in ${RVAL}
+      .do
+         .foreachfile i in "${rundir}/"*.${OPTION_TOOL:-*}.log
+         .do
+            [ -e "${i}" ] || .continue
+            log_info "${C_RESET_BOLD}${i}:"
+            exekutor "${cmd}" "$@" "${i}"
+            found='YES'
+         .done
+      .done
    .done
 
-   if [ -z "${found}" ]
-   then
-      log_verbose "No craftorder logs match for \"${name}\" (${globpattern})"
-   fi
+   [ -z "${found}" ] && log_verbose "No craftorder logs match for \"${name}\""
 }
 
 
@@ -403,24 +656,31 @@ craft::log::project()
    shell_enable_nullglob
    shell_enable_glob
 
-   log_debug "Log pattern : ${directory}/${configuration}/.log/*.${OPTION_TOOL:-*}.log"
-   logfiles="`craft::log::directories_list_files "${directory}"/${configuration}/".log/" -- "*.${OPTION_TOOL:-*}.log" `"
-   shell_disable_nullglob
+   .foreachfile logbasedir in "${directory}"/${configuration}/.log
+   .do
+      craft::log::r_latest_logdir "${logbasedir}"
 
-   log_debug "Log files   : ${logfiles}"
-
-   local i
-
-   if [ ! -z "${logfiles}" ]
-   then
-      .foreachline i in ${logfiles}
+      local rundir
+      .foreachline rundir in ${RVAL}
       .do
-         log_info "${C_RESET_BOLD}${i}:"
-         exekutor "${cmd}" "$@" "${i}"
+         log_debug "Log dir: ${rundir}"
+         logfiles="`craft::log::directories_list_files "${rundir}/" -- "*.${OPTION_TOOL:-*}.log" `"
+
+         local i
+
+         if [ ! -z "${logfiles}" ]
+         then
+            .foreachline i in ${logfiles}
+            .do
+               log_info "${C_RESET_BOLD}${i}:"
+               exekutor "${cmd}" "$@" "${i}"
+            .done
+         else
+            log_verbose "No project logs match"
+         fi
       .done
-   else
-      log_verbose "No project logs match"
-   fi
+   .done
+   shell_disable_nullglob
 }
 
 
@@ -468,6 +728,8 @@ craft::log::main()
    local OPTION_CONFIGURATION="*"
    local OPTION_TOOL="*"
    local OPTION_EXECUTABLE=""
+   local OPTION_RUN="latest"
+   local OPTION_ALL='NO'
 
    while [ $# -ne 0 ]
    do
@@ -481,6 +743,13 @@ craft::log::main()
             shift
 
             OPTION_EXECUTABLE="$1"
+         ;;
+
+         -r|--run)
+            [ $# -eq 1 ] && fail "Missing argument to \"$1\""
+            shift
+
+            OPTION_RUN="$1"
          ;;
 
          -c|--configuration)
@@ -518,6 +787,10 @@ craft::log::main()
             OPTION_TOOL="$1"
          ;;
 
+         --all)
+            OPTION_ALL='YES'
+         ;;
+
          -*)
             craft::log::usage "Unknown option \"$1\""
          ;;
@@ -530,6 +803,11 @@ craft::log::main()
       shift
    done
 
+   if [ "${OPTION_ALL}" = 'YES' ]
+   then
+      set -- '*' "$@"
+   fi
+
    if [ -z "${KITCHEN_DIR}" ]
    then
       fail "Unknown kitchen directory, specify with -k"
@@ -539,6 +817,43 @@ craft::log::main()
       list)
          shift
          craft::log::list "$@"
+      ;;
+
+      runs)
+         craft::log::runs
+      ;;
+
+      errors)
+         craft::log::show_diagnostics '[Ee]rror:'
+      ;;
+
+      warnings)
+         craft::log::show_diagnostics '[Ww]arning:'
+      ;;
+
+      diff)
+         local prev_dir cur_dir
+
+         # get latest and previous for main project log dir
+         directories="`craft::log::project_log_dirs`"
+         .foreachline directory in ${directories}
+         .do
+            cur_dir="$(ls -1d "${directory}"/[0-9]*.* 2>/dev/null | tail -1)"
+            prev_dir="$(ls -1d "${directory}"/[0-9]*.* 2>/dev/null | tail -2 | head -1)"
+         .done
+
+         if [ -z "${prev_dir}" -o "${prev_dir}" = "${cur_dir}" ]
+         then
+            log_warning "Only one run available, nothing to diff"
+         else
+            diff -u \
+               <(cat "${prev_dir}"/*.log 2>/dev/null) \
+               <(cat "${cur_dir}"/*.log 2>/dev/null)
+         fi
+      ;;
+
+      summary)
+         craft::log::summary
       ;;
 
       *)

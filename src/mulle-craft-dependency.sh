@@ -35,6 +35,31 @@
 MULLE_CRAFT_DEPENDENCY_SH='included'
 
 
+
+
+craft::dependency::usage()
+{
+   [ "$#" -ne 0 ] && log_error "$1"
+
+   cat <<EOF >&2
+Usage:
+   ${MULLE_USAGE_NAME} dependency [options] <command>
+
+   Manage the dependency directory. Useful in scripts that want to add files.
+
+Commands:
+   update  : update the dependency folder
+
+Environment:
+   DEPENDENCY_DIR             : place to put dependencies
+   MULLE_CRAFT_DISPENSE_STYLE : how to organize the dependency directory ($MULLE_CRAFT_DISPENSE_STYLE)
+
+EOF
+  exit 1
+}
+
+
+
 craft::dependency::install_tarball()
 {
    local tarball="$1"
@@ -188,7 +213,7 @@ craft::dependency::set_state()
    log_fluff "Dependency folder marked as \"${state}\""
 
    # for "install" this is superfluous and unwanted
-   if [ "${OPTION_KEEP_DEPENDENCY_STATE}" = 'YES' ]
+   if [ "${MULLE_CRAFT_KEEP_DEPENDENCY_STATE}" != 'NO' ]
    then
       redirect_exekutor "${DEPENDENCY_DIR}/.state" \
          printf "%s\n" "${state}"
@@ -363,7 +388,7 @@ craft::dependency::clean()
 
    [ -z "${DEPENDENCY_DIR}" ] && _internal_fail "DEPENDENCY_DIR not set"
 
-   if [ "${OPTION_PROTECT_DEPENDENCY}" = 'YES' ]
+   if [ "${MULLE_CRAFT_PROTECT_DEPENDENCY}" != 'NO' ]
    then
       craft::dependency::unprotect
       rmdir_safer "${DEPENDENCY_DIR}"
@@ -418,7 +443,7 @@ craft::dependency::update_begin()
 
    log_fluff "Dependency update started"
 
-   if [ "${OPTION_PROTECT_DEPENDENCY}" = 'YES' ]
+   if [ "${MULLE_CRAFT_PROTECT_DEPENDENCY}" != 'NO' ]
    then
       craft::dependency::unprotect
    fi
@@ -439,7 +464,7 @@ craft::dependency::update_fail()
 
    log_fluff "Dependency update failed"
 
-   if [ "${OPTION_PROTECT_DEPENDENCY}" = 'YES' ]
+   if [ "${MULLE_CRAFT_PROTECT_DEPENDENCY}" != 'NO' ]
    then
       craft::dependency::protect
    fi
@@ -462,7 +487,7 @@ craft::dependency::update_end()
 
    if [ "${state}" = "complete" ]
    then
-      if [ "${OPTION_PROTECT_DEPENDENCY}" = 'YES' ]
+      if [ "${MULLE_CRAFT_PROTECT_DEPENDENCY}" != 'NO' ]
       then
          case "${MULLE_UNAME}" in  
             'windows'|'mingw'|'msys')
@@ -471,7 +496,7 @@ craft::dependency::update_end()
 
             *)
                # temporarily unprotect to save state
-               if [ "${OPTION_KEEP_DEPENDENCY_STATE}" = 'YES' ]
+               if [ "${MULLE_CRAFT_KEEP_DEPENDENCY_STATE}" = 'NO' ]
                then
                   exekutor chmod ug+wX "${DEPENDENCY_DIR}"
                   exekutor chmod ug+w "${DEPENDENCY_DIR}/.state"
@@ -486,10 +511,78 @@ craft::dependency::update_end()
       craft::dependency::set_state "${state}"
    fi
 
-   if [ "${OPTION_PROTECT_DEPENDENCY}" = 'YES' ]
+   if [ "${MULLE_CRAFT_PROTECT_DEPENDENCY}" != 'NO' ]
    then
       craft::dependency::protect
    fi
+}
+
+#
+# this is for the main DEPENDENCY_DIR so platform, style etc dont come into
+#play
+#
+craft::dependency::update_main()
+{
+   while [ $# -ne 0 ]
+   do
+      case "$1" in
+         -h*|--help|help)
+            craft::dependency::update_usage
+         ;;
+
+         #
+         # style is used for tar ball install only. but we are using
+         # addiction dir for this nowadays, so this is kinda obsolete anyway
+         #
+         --style)
+            [ $# -eq 1 ] && craft::style::usage "Missing argument to \"$1\""
+            shift
+
+            MULLE_CRAFT_DISPENSE_STYLE="$1"
+         ;;
+
+         -*)
+            craft::dependency::update_usage "unknown option \"$1\""
+         ;;
+
+         *)
+            break
+         ;;
+      esac
+
+      shift
+   done
+
+   [ $# -eq 0 ] && craft::dependency::update_usage "missing command"
+
+   [ -z "${DEPENDENCY_DIR}" ] && _internal_fail "DEPENDENCY_DIR is empty"
+   [ -z "${MULLE_CRAFT_DISPENSE_STYLE}" ] && _internal_fail "MULLE_CRAFT_DISPENSE_STYLE is empty"
+
+   local cmd="$1"
+
+   shift
+
+   case "${cmd}" in
+      'begin')
+         craft::dependency::update_begin "${MULLE_CRAFT_DISPENSE_STYLE}"
+      ;;
+
+      'end')
+        [ $# -gt 1 ] && shift && craft::dependency::update_usage "superfluous arguments \"$*\" to ${cmd}"
+
+         craft::dependency::update_end "$1"
+      ;;
+
+      'fail')
+        [ $# -gt 0 ] && craft::dependency::update_usage "superfluous arguments \"$*\" to ${cmd}"
+
+         craft::dependency::update_fail
+      ;;
+
+      *)
+         craft::dependency::update_usage "unknown command \"$1\""
+      ;;
+   esac
 }
 
 
@@ -677,6 +770,30 @@ craft::dependency::r_share_path()
 }
 
 
+craft::dependency::status()
+{
+   log_entry 'craft::dependency::status' "$@"
+
+   local  print_it="$1"
+
+   local  state
+
+   state="`craft::dependency::get_state`"
+
+   log_info "${C_MAGENTA}${C_BOLD}${state}"
+   if [ "${print_it}" = 'YES' ]
+   then
+      printf "%s\n" "${state}"
+   fi
+
+   if [ "${state}" = 'complete' ]
+   then
+      return 0
+   fi
+   return 2  # distinguish from error which is 1
+}
+
+
 craft::dependency::quickstatus_main()
 {
    local  state
@@ -702,17 +819,180 @@ craft::dependency::quickstatus_main()
       shift
    done
 
-   state="`craft::dependency::get_state`"
-
-   log_info "${C_MAGENTA}${C_BOLD}${state}"
-   if [ "${OPTION_PRINT}" = 'YES' ]
-   then
-      printf "%s\n" "${state}"
-   fi
-
-   if [ "${state}" = 'complete' ]
-   then
-      return 0
-   fi
-   return 2  # distinguish from error which is 1
+   craft::dependency::status "${OPTION_PRINT}"
 }
+
+
+craft::dependency::status_main()
+{
+   local  state
+
+   local OPTION_PRINT='YES'
+
+   while [ $# -ne 0 ]
+   do
+      case "$1" in
+         -h*|--help|help)
+            build_log_usage
+         ;;
+
+         --no-print)
+            OPTION_PRINT='NO'
+         ;;
+
+         *)
+            break
+         ;;
+      esac
+
+      shift
+   done
+
+   craft::dependency::status "${OPTION_PRINT}"
+}
+
+
+craft::dependency::dir_main()
+{
+   local  state
+
+   local OPTION_CONFIGURATION='Debug'
+   local OPTION_PLATFORM="${MULLE_UNAME}"
+   local OPTION_SDK='Default'
+   local OPTION_STYLE="${MULLE_CRAFT_DISPENSE_STYLE:-auto}"
+
+   while [ $# -ne 0 ]
+   do
+      case "$1" in
+         -h*|--help|help)
+            build_log_usage
+         ;;
+
+         --release)
+            OPTION_CONFIGURATION="Release"
+         ;;
+
+         --debug)
+            # Release is fallback for Debug
+            OPTION_CONFIGURATION="Debug"
+         ;;
+
+         --configuration)
+            [ $# -eq 1 ] && craft::dependency::usage "Missing argument to \"$1\""
+            shift
+
+            # allow empty to not set
+            OPTION_CONFIGURATION="${1:-${OPTION_CONFIGURATION}}"
+         ;;
+
+         --platform)
+            [ $# -eq 1 ] && craft::dependency::usage "Missing argument to \"$1\""
+            shift
+
+            # allow empty to not set
+            OPTION_PLATFORM="${1:-${OPTION_PLATFORM}}"
+         ;;
+
+         --sdk)
+            [ $# -eq 1 ] && craft::dependency::usage "Missing argument to \"$1\""
+            shift
+
+            # allow empty to not set
+            OPTION_SDK="${1:-${OPTION_SDK}}"
+         ;;
+
+         --style)
+            [ $# -eq 1 ] && craft::dependency::usage "Missing argument to \"$1\""
+            shift
+
+            # allow empty to not set
+            OPTION_STYLE="${1:-${OPTION_STYLE}}"
+         ;;
+
+         *)
+            break
+         ;;
+      esac
+
+      shift
+   done
+
+   [ $# -eq 0 ]|| craft::dependency::usage "Superfluous arguments \"$*\""
+
+   include "craft::style"
+
+   craft::style::r_get_sdk_platform_configuration_string "${OPTION_SDK}" \
+                                                         "${OPTION_PLATFORM}" \
+                                                         "${OPTION_CONFIGURATION}" \
+                                                         "${OPTION_STYLE}"
+
+   r_filepath_concat "${DEPENDENCY_DIR}" "${RVAL}"
+   r_absolutepath "${RVAL}"
+   printf "%s\n" "${RVAL}"
+}
+
+
+craft::dependency::main()
+{
+   log_entry "craft::dependency::main" "$@"
+
+   MULLE_CRAFT_DISPENSE_STYLE="${MULLE_CRAFT_DISPENSE_STYLE:-auto}"
+
+   while [ $# -ne 0 ]
+   do
+      case "$1" in
+         -h*|--help|help)
+            craft::dependency::usage
+         ;;
+
+         --style)
+            [ $# -eq 1 ] && craft::style::usage "Missing argument to \"$1\""
+            shift
+
+            MULLE_CRAFT_DISPENSE_STYLE="$1"
+         ;;
+
+         -*)
+            craft::dependency::usage "Unknown option \"$1\""
+         ;;
+
+         *)
+            break
+         ;;
+      esac
+
+      shift
+   done
+
+   [ $# -eq 0 ] && craft::dependency::usage
+
+   local cmd="$1"
+   shift
+
+   case "${cmd}" in
+      'begin'|'end'|'fail')
+         craft::dependency::update_main "${cmd}" "$@"
+      ;;
+
+      'update')
+         craft::dependency::update_main "$@"
+      ;;
+
+      'dir')
+         craft::dependency::dir_main "$@"
+      ;;
+
+      'quickstatus')
+         craft::dependency::quickstatus_main "$@"
+      ;;
+
+      'status')
+         craft::dependency::status_main "$@"
+      ;;
+
+      *)
+         craft::dependency::usage "Unknown command \"${cmd}\""
+      ;;
+   esac
+}
+

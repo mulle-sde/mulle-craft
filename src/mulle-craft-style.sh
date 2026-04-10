@@ -235,28 +235,28 @@ craft::style::main()
             [ $# -eq 1 ] && craft::style::usage "Missing argument to \"$1\""
             shift
 
-            OPTION_CONFIGURATION="$1"
+            OPTION_CONFIGURATION="${1:-${OPTION_CONFIGURATION}}"
          ;;
 
          --platform)
             [ $# -eq 1 ] && craft::style::usage "Missing argument to \"$1\""
             shift
 
-            OPTION_PLATFORM="$1"
+            OPTION_PLATFORM="${1:-${OPTION_PLATFORM}}"
          ;;
 
          --sdk)
             [ $# -eq 1 ] && craft::style::usage "Missing argument to \"$1\""
             shift
 
-            OPTION_SDK="$1"
+            OPTION_SDK="${1:-${OPTION_SDK}}"
          ;;
 
          --style)
             [ $# -eq 1 ] && craft::style::usage "Missing argument to \"$1\""
             shift
 
-            OPTION_STYLE="$1"
+            OPTION_STYLE="${1:-${OPTION_STYLE}}"
          ;;
 
          -*)
@@ -270,6 +270,9 @@ craft::style::main()
 
       shift
    done
+
+   # Ensure OPTION_PLATFORM is never empty
+   OPTION_PLATFORM="${OPTION_PLATFORM:-${MULLE_UNAME}}"
 
    local cmd="$1"
 

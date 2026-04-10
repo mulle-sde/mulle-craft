@@ -1,6 +1,6 @@
 --build-dir ${MULLE_TMP_DIR}/build/Debug
 --configuration Debug
 --definition-dir ${MULLE_TEST_DIR}/definition
---log-dir ${MULLE_TMP_DIR}/build/Debug/.log
+--log-dir ${MULLE_TMP_DIR}/build/Debug/.log/<timestamp>
 MULLE_SDK_PATH=${MULLE_TEST_DIR}/dependency:${MULLE_TEST_DIR}/addiction
 MULLE_SDK_SUBDIR=Debug

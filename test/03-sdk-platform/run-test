@@ -31,6 +31,8 @@ run_test()
    ADDICTION_DIR="${directory}/addiction" \
    DEPENDENCY_DIR="${directory}/dependency" \
    BUILD_DIR="${directory}/build" \
+   MULLE_CRAFT_TOOLCHAIN__PLATFORM_1="${PWD}/toolchain-dummy.cmake" \
+   MULLE_CRAFT_TOOLCHAIN__PLATFORM_2="${PWD}/toolchain-dummy.cmake" \
       run_mulle_craft "$@"
 
    if [ $? -ne 0 ]

@@ -70,7 +70,7 @@ craft::donefile::r_shared_donefile()
    local platform="$2"
    local configuration="$3"
 
-   RVAL="${ADDICTION_DIR}/etc/craftorder-${sdk}--${platform}--${configuration}"
+   RVAL="${ADDICTION_DIR}/etc/done--${sdk}-${platform}-${configuration}"
 }
 
 
@@ -81,7 +81,7 @@ craft::donefile::list_shared_donefiles()
    (
       cd "${ADDICTION_DIR}/etc"
       shell_enable_nullglob
-      ls -1 craftorder-*--*--*
+      ls -1 done--*-*-*
    )
    fi
 }
@@ -93,7 +93,7 @@ craft::donefile::r_donefile()
    local platform="$2"
    local configuration="$3"
 
-   RVAL="${DEPENDENCY_DIR}/etc/craftorder-${sdk}--${platform}--${configuration}"
+   RVAL="${DEPENDENCY_DIR}/etc/done--${sdk}-${platform}-${configuration}"
 }
 
 
@@ -104,9 +104,57 @@ craft::donefile::list_donefiles()
    (
       cd "${DEPENDENCY_DIR}/etc"
       shell_enable_nullglob
-      ls -1 craftorder-*--*--*
+      ls -1 done--*-*-*
    )
    fi
+}
+
+
+craft::donefile::r_list_donefile_paths()
+{
+   local sdk="${1:-\*}"
+   local platform="${2:-${MULLE_UNAME}}"
+   local configuration="${3:-\*=}"
+
+   [ -z "${DEPENDENCY_DIR}" ] && _internal_fail "DEPENDENCY_DIR not set"
+
+   local etcdir
+
+   etcdir="${DEPENDENCY_DIR}/etc"
+   if [ ! -d "${etcdir}" ]
+   then
+      RVAL=
+      return
+   fi
+
+   local donefiles
+
+   shell_enable_nullglob
+   donefiles=$(dir_list_files "${etcdir}" "done--*-${platform}-*")
+
+   log_setting "all donefiles for platform ${platform}: ${donefiles}"
+
+   if [ "${sdk}" != '*' ]
+   then
+      donefiles="$(grep -E "done--${sdk}-*" <<< "${donefiles}")"
+   fi
+   if [ "${configuration}" != '*' ]
+   then
+      donefiles="$(grep -E "done--[a-zA-Z_][a-zA-Z0-9_]*-[a-zA-Z_][a-zA-Z0-9_]*-${configuration}" <<< "${donefiles}")"
+   fi
+   log_setting "matching donefiles: ${donefiles}"
+
+#   local donefile
+#   local donepaths
+#
+#   .foreachline donefile in ${donefiles}
+#   .do
+#      r_filepath_concat "${etcdir}" "${donefile}"
+#      r_add_line "${donepaths}" "${RVAL}"
+#      donepaths="${RVAL}"
+#   .done
+
+   RVAL="${donefiles}"
 }
 
 

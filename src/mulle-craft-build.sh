@@ -291,6 +291,38 @@ craft::build::__set_various_paths()
 }
 
 
+#
+# Create a new timestamped log subdirectory under basedir.
+# Format: YYYYMMDDTHHMMSS.N  (N bumped if dir already exists)
+#
+craft::build::r_timestamped_logdir()
+{
+   log_entry "craft::build::r_timestamped_logdir" "$@"
+
+   local basedir="$1"
+
+   mkdir_if_missing "${basedir}"
+
+   local timestamp seq logdir
+
+   timestamp="$(date '+%Y%m%dT%H%M%S')"
+   seq=0
+
+   while :
+   do
+      logdir="${basedir}/${timestamp}.${seq}"
+      if [ ! -d "${logdir}" ]
+      then
+         break
+      fi
+      seq=$(( seq + 1 ))
+   done
+
+   RVAL="${logdir}"
+}
+
+
+
 craft::build::r_project_definitiondirs()
 {
    log_entry "craft::build::r_project_definitiondirs" "$@"
@@ -436,7 +468,6 @@ craft::build::build_project()
    local name="$2"
    local marks="$3"
    local kitchendir="$4"
-   local sdk="$5"
    local platform="$6"
    local configuration="$7"
    local style="$8"
@@ -487,15 +518,27 @@ craft::build::build_project()
                                      "${style}" \
                                      'YES'
 
-   # remove old logs
+   # create timestamped log subdirectory
    local logdir
+   local logbasedir
 
    r_filepath_concat "${kitchendir}" ".log"
-   logdir="${RVAL}"
+   logbasedir="${RVAL}"
 
    case "${phase}" in
       'Singlephase'|'Headers'|'Header')
-         rmdir_safer "${logdir}"
+         craft::build::r_timestamped_logdir "${logbasedir}"
+         logdir="${RVAL}"
+      ;;
+
+      *)
+         # Compile/Link phases append to the same run's timestamped dir
+         logdir="$(ls -1d "${logbasedir}"/[0-9]*.* 2>/dev/null | tail -1)"
+         if [ -z "${logdir}" ]
+         then
+            craft::build::r_timestamped_logdir "${logbasedir}"
+            logdir="${RVAL}"
+         fi
       ;;
    esac
 
@@ -505,6 +548,12 @@ craft::build::build_project()
    local args
 
    args="${MULLE_CRAFT_MAKE_OPTIONS}"
+
+   if [ "${MULLE_VIBECODING}" = 'YES' ]
+   then
+      r_concat "${args}" "--show-log-info"
+      args="${RVAL}"
+   fi
 
    if [ ! -z "${name}" ]
    then
@@ -641,6 +690,25 @@ crafting with -f"
       args="${RVAL}"
    fi
 
+   # Add toolchain tools root if set for this platform
+   if [ ! -z "${platform}" ]
+   then
+      local varname
+      local tools_root
+
+      r_uppercase "${platform}"
+      varname="MULLE_CRAFT_CROSS_COMPILER_ROOT__${RVAL}"
+      r_shell_indirect_expand "${varname}"
+      tools_root="${RVAL}"
+
+      if [ ! -z "${tools_root}" ]
+      then
+         r_concat "${args}" "--toolchain-tools-root '${tools_root}'"
+         args="${RVAL}"
+      fi
+   fi
+
+
    if [ ! -z "${sdk}" ]
    then
       r_concat "${args}" "--sdk '${sdk}'"
@@ -772,7 +840,7 @@ crafting with -f"
 
    case ",${marks}," in
       *,no-memo,*)
-         # usally a subproject
+         # usually a subproject
          flags="${OPTION_NO_MEMO_MAKEFLAGS}"
       ;;
    esac
@@ -803,24 +871,24 @@ crafting with -f"
                        "${auxargs}" \
                        "${project}" \
                        "${destination}"
-   rval=$?
+   rc=$?
 
    MULLE_FLAG_LOG_EXEKUTOR="${old}"
 
-   if [ ${rval} -ne 0 ]
+   if [ ${rc} -ne 0 ]
    then
-      log_fluff "Build of \"${project}\" failed ($rval)"
+      log_fluff "Build of \"${project}\" failed ($rc)"
    fi
 
    if [ ! -z "${OPTION_CALLBACK}" ]
    then
       MULLE_CRAFT_PROJECT="${project}" \
       MULLE_CRAFT_DESTINATION="${destination}" \
-      MULLE_CRAFT_RVAL="${rval}" \
+      MULLE_CRAFT_RVAL="${rc}" \
       eval_exekutor "${OPTION_CALLBACK}" || fail "Callback failed"
    fi
 
-   return $rval
+   return $rc
 }
 
 
@@ -843,7 +911,7 @@ craft::build::build_dependency_with_dispense()
    local style="$8"
    local toolchain="$9"
 
-   local rval
+   local rc
    local tmpdependency_dir
 
    r_filepath_concat "${kitchendir}" ".dependency"
@@ -855,20 +923,20 @@ craft::build::build_dependency_with_dispense()
    craft::build::build_project "${cmd}" \
                                "${tmpdependency_dir}" \
                                "$@"
-   rval=$?
+   rc=$?
 
-   log_debug "build finished with $rval"
+   log_debug "build finished with $rc"
 
-   if [ "${cmd}" != 'install' -o $rval -ne 0 ]
+   if [ "${cmd}" != 'install' -o $rc -ne 0 ]
    then
-      if [ $rval -ne 0 ]
+      if [ $rc -ne 0 ]
       then
          log_verbose "Not dispensing because of non-zero exit"
       else
          log_verbose "Not dispensing because not installing"
       fi
       rmdir_safer "${tmpdependency_dir}"
-      return $rval
+      return $rc
    fi
 
    local options
@@ -921,7 +989,7 @@ craft::build::build_dependency_with_dispense()
 
    case $? in
       0)
-         log_verbose "Found dispense mapper ${C_RESET_BOLD}${mapper_file#"${MULLE_USER_PWD}/"}"
+         log_fluff "Found dispense mapper ${C_RESET_BOLD}${mapper_file#"${MULLE_USER_PWD}/"}"
          mapper_file="${RVAL}"
 
          r_concat "${options}" "--mapper-file '${mapper_file}'"
@@ -948,15 +1016,15 @@ craft::build::build_dependency_with_dispense()
                   "${options}" \
                   "${tmpdependency_dir}" \
                   "${dependency_dir}"
-   rval=$?
+   rc=$?
 
-   log_debug "dispense finished with $rval"
+   log_debug "dispense finished with $rc"
 
    rmdir_safer "${tmpdependency_dir}"
 
    # if [ -z "${PARALLEL_PHASE}" ]
    # then
-   #    if [ $rval != 1 ]
+   #    if [ $rc != 1 ]
    #    then
    #       craft::dependency::update_end || return 1
    #    else
@@ -964,7 +1032,7 @@ craft::build::build_dependency_with_dispense()
    #    fi
    # fi
 
-   return $rval
+   return $rc
 }
 
 
@@ -1033,7 +1101,8 @@ craft::build::build_craftorder_node()
    craft::path::r_dependencydir "${sdk}" \
                                 "${platform}" \
                                 "${configuration}"  \
-                                "${style}"
+                                "${style}" \
+                                "${DEPENDENCY_DIR}"
    dependency_dir="${RVAL}"
 
    #
@@ -1104,7 +1173,7 @@ craft::build::handle()
    || fail "Could not write into ${_kitchendir}"
    remove_file_if_present "${_kitchendir}/.status"
 
-   local rval
+   local rc
 
    craft::build::build_craftorder_node "${cmd}" \
                                        "${_evaledproject}" \
@@ -1118,14 +1187,19 @@ craft::build::handle()
                                        "${_toolchain}" \
                                        "${phase}" \
                                        "$@"
-   rval=$?
+   rc=$?
 
-   log_debug "${C_RESET_BOLD}Build finished with: ${C_MAGENTA}${C_BOLD}${rval}"
+   if [ $rc -eq 0 ]
+   then
+      log_debug "Build finished successfully"
+   else
+      log_debug "${C_WARNING}Build failed with ${C_RESET_BOLD}${rc}"
+   fi
 
-   redirect_exekutor "${_kitchendir}/.status" printf "%s\n" "${rval}"  \
+   redirect_exekutor "${_kitchendir}/.status" printf "%s\n" "${rc}"  \
    || fail "Could not write into ${_kitchendir}"
 
-   return ${rval}
+   return ${rc}
 }
 
 
@@ -1133,18 +1207,18 @@ craft::build::handle_rval()
 {
    log_entry "craft::build::handle_rval" "$@"
 
-   local rval="$1"
+   local errcode="$1"
    local marks="$2"
    local donefile="$3"
    local line="$4"
    local project="$5"
 
-   if [ ${rval} -eq 0 ]
+   if [ ${errcode} -eq 0 ]
    then
       case ",${marks}," in
          *,no-memo,*)
             log_debug "Not remembering success due to no-memo"
-            # usally a subproject
+            # usually a subproject
          ;;
 
          *)
@@ -1171,7 +1245,7 @@ craft::build::handle_rval()
    r_expanded_string "${project}"
    evaledproject="${RVAL}"
 
-   if [ ${rval} -eq 1 ]
+   if [ ${errcode} -eq 1 ]
    then
       if [ "${OPTION_LENIENT}" = 'NO' ]
       then
@@ -1184,13 +1258,13 @@ the enabled leniency option"
    fi
 
    # 2 is OK and we warned before
-   if [ ${rval} -eq 4 ]
+   if [ ${errcode} -eq 4 ]
    then
       log_debug "Ignoring harmless failure"
       return 0
    fi
 
-   log_debug "Build of \"${evaledproject}\" returned ${rval}"
+   log_debug "Build of \"${evaledproject}\" returned ${errcode}"
    return 1
 }
 
@@ -1217,7 +1291,7 @@ craft::build::handle_step()
 
    shift 6
 
-   local rval
+   local rc
 
    craft::build::handle "${cmd}" \
                         "${project}" \
@@ -1229,7 +1303,7 @@ craft::build::handle_step()
                         "${kitchendir}" \
                         "${phase}" \
                         "$@"
-   rval=$?
+   rc=$?
 
    local phasedonefile
 
@@ -1238,13 +1312,13 @@ craft::build::handle_step()
       phasedonefile="${donefile}"
    fi
 
-   if ! craft::build::handle_rval "${rval}" \
+   if ! craft::build::handle_rval "${rc}" \
                                   "${marks}" \
                                   "${phasedonefile}" \
                                   "${line}" \
                                   "${project}"
    then
-      redirect_append_exekutor "${statusfile}" printf "%s\n" "${project};${phase};${rval}"
+      redirect_append_exekutor "${statusfile}" printf "%s\n" "${project};${phase};${rc}"
    fi
 }
 
@@ -1406,7 +1480,7 @@ craft::build::handle_parallel()
 
          .foreachline line in ${failures}
          .do
-            project="${line%;*}"      # project;phase (remove ;rval)
+            project="${line%;*}"      # project;phase (remove ;rc)
             phase="${project#*;}"
             project="${project%;*}"
             log_error "Parallel build of \"${project}\" failed in phase \"${phase}\""
@@ -1565,21 +1639,21 @@ craft::build::_do_craftorder()
    local _donefile
    local _shared_donefile  # filled by craft::style::__have_donefiles sideeffect
 
-   local rval
+   local rc
 
-   rval=48
+   rc=48
 
    if [ "${OPTION_DONEFILES}" = 'YES' ]
    then
       include "craft::donefile"
 
       craft::donefile::__have_donefiles "${sdk}" "${platform}" "${configuration}"
-      rval=$?
+      rc=$?
 
       log_setting "donefile        : ${_donefile}"
       log_setting "shared_donefile : ${_shared_donefile}"
 
-      if [ $rval -eq 0 ]
+      if [ $rc -eq 0 ]
       then
          if ! craft::build::r_remaining_craftorder_lines "${craftorder}" \
                                                          "${_donefile}" \
@@ -1687,9 +1761,9 @@ ${C_INFO}Frameworks can not be built with multi-phase currently."
                            "${kitchendir}" \
                            "Singlephase" \
                            "$@"
-      rval=$?
+      rc=$?
 
-      if ! craft::build::handle_rval "$rval" \
+      if ! craft::build::handle_rval "$rc" \
                                      "${marks}" \
                                      "${donefile}" \
                                      "${line}" \
@@ -1704,7 +1778,7 @@ ${C_RESET_BOLD}   mulle-sde log $RVAL"
 
       if [ ! -z "${OPTION_SINGLE_DEPENDENCY}" ]
       then
-         return $rval
+         return $rc
       fi
    .done
 
@@ -1967,7 +2041,6 @@ craft::build::build_mainproject()
       .done
    fi
 
-   # we need mostly binpath here
    local _includepath
    local _frameworkspath
    local _libpath
@@ -1992,13 +2065,14 @@ craft::build::build_mainproject()
                                          "${KITCHEN_DIR}"
    kitchendir="${RVAL}"
 
+   local logbasedir
    local logdir
 
    r_filepath_concat "${kitchendir}" ".log"
-   logdir="${RVAL}"
+   logbasedir="${RVAL}"
 
-   # remove old logs
-   rmdir_safer "${logdir}"
+   craft::build::r_timestamped_logdir "${logbasedir}"
+   logdir="${RVAL}"
 
    #
    # remember what we built last so mulle-craft log can make a good guess
@@ -2071,6 +2145,24 @@ craft::build::build_mainproject()
    then
       r_concat "${options}" "--toolchain '${toolchain}'"
       options="${RVAL}"
+   fi
+
+   # Add toolchain tools root if set for this platform
+   if [ ! -z "${platform}" ]
+   then
+      local varname
+      local tools_root
+
+      r_uppercase "${platform}"
+      varname="MULLE_CRAFT_CROSS_COMPILER_ROOT__${RVAL}"
+      r_shell_indirect_expand "${varname}"
+      tools_root="${RVAL}"
+
+      if [ ! -z "${tools_root}" ]
+      then
+         r_concat "${options}" "--toolchain-tools-root '${tools_root}'"
+         options="${RVAL}"
+      fi
    fi
 
    if [ "${sdk}" != 'Default' ]
@@ -2157,7 +2249,7 @@ craft::build::build_mainproject()
       MULLE_FLAG_LOG_EXEKUTOR='YES'
    fi
 
-   local rval
+   local rc
 
    # never install the project, use mulle-make for that
    eval_rexekutor "'${MULLE_MAKE}'" \
@@ -2166,14 +2258,14 @@ craft::build::build_mainproject()
                      "build" \
                         "${options}" \
                         "${auxargs}"
-   rval=$?
+   rc=$?
 
    MULLE_FLAG_LOG_EXEKUTOR="${old}"
 
-   redirect_exekutor "${kitchendir}/.status" printf "%s\n" "${rval}" \
+   redirect_exekutor "${kitchendir}/.status" printf "%s\n" "${rc}" \
    || fail "Could not write into ${kitchendir}"
 
-   if [ $rval -ne 0 ]
+   if [ $rc -ne 0 ]
    then
       log_fluff "Project build failed"
       return 1
@@ -2285,7 +2377,6 @@ craft::build::common()
    local OPTION_CCACHE="${MULLE_CRAFT_CCACHE}"
    local OPTION_CLEAN_TMP='YES'
    local OPTION_DONEFILES='YES'
-   local OPTION_KEEP_DEPENDENCY_STATE='YES'
    local OPTION_HOOK
    local OPTION_LENIENT='NO'
    local OPTION_LIST_REMAINING='NO'
@@ -2298,7 +2389,6 @@ craft::build::common()
    local OPTION_PHASES="Headers Compile Link"
    local OPTION_PLATFORM_CRAFTINFO="${MULLE_CRAFT_PLATFORM_CRAFTINFO:-YES}"
    local OPTION_PREFERRED_LIBRARY_STYLE
-   local OPTION_PROTECT_DEPENDENCY='YES'
    local OPTION_REBUILD_BUILDORDER='NO'
    local OPTION_SINGLE_DEPENDENCY
    local OPTION_VERSION=DEFAULT
@@ -2392,7 +2482,7 @@ craft::build::common()
          ;;
 
          --no-keep-dependency-state)
-            OPTION_KEEP_DEPENDENCY_STATE='NO'
+            MULLE_CRAFT_KEEP_DEPENDENCY_STATE='NO'
          ;;
 
          --callback)
@@ -2456,11 +2546,11 @@ craft::build::common()
          ;;
 
          --protect)
-            OPTION_PROTECT_DEPENDENCY='YES'
+            MULLE_CRAFT_PROTECT_DEPENDENCY='YES'
          ;;
 
          --no-protect)
-            OPTION_PROTECT_DEPENDENCY='NO'
+            MULLE_CRAFT_PROTECT_DEPENDENCY='NO'
          ;;
 
          --no-platform|--no-platform-craftinfo)

@@ -82,6 +82,7 @@ EOF
    --kitchen-dir <dir>      : specify kitchen directory
    --definition-dir <dir>   : specify definitions directory for dependencies
    --craftorder-file <file> : specify craftorder file, mandatory for some commands
+   --platform <platform>    : override MULLE_CRAFT_PLATFORMS to build for specific platform
    --project-dir <dir>      : specify project directory
 EOF
    ) | LC_ALL=C sort
@@ -118,6 +119,10 @@ craft::setup_environment()
    case "${MULLE_VIRTUAL_ROOT}" in
       "")
          MULLE_VIRTUAL_ROOT="`pwd -P`"
+         # fixing old bad code that should die
+         MULLE_VIRTUAL_ROOT_ID="$(PATH='/bin:/usr/bin:/usr/local/bin' shasum -a 256 <<< "${MULLE_VIRTUAL_ROOT}")"
+         MULLE_VIRTUAL_ROOT_ID="${MULLE_VIRTUAL_ROOT_ID:1:12}"
+
          if [ "${MULLE_VIRTUAL_ROOT}" = "/" ]
          then
             fail "You are running this in root, which is not supported"
@@ -198,6 +203,7 @@ craft::main()
    local MULLE_FLAG_MOTD="DEFAULT"
    local FLAG_OUTSIDE_ENV='NO'
    local TEST_ENVIRONMENT='NO'
+   local MULLE_CRAFT_PROTECT_DEPENDENCY
 
    #
    # simple option handling
@@ -278,6 +284,30 @@ craft::main()
             MULLE_FLAG_MOTD='NO'
          ;;
 
+         --platform)
+            [ $# -eq 1 ] && craft::usage "Missing argument to \"$1\""
+            shift
+
+            MULLE_CRAFT_PLATFORMS="$1"
+            export MULLE_CRAFT_PLATFORMS
+         ;;
+
+         --sdk)
+            [ $# -eq 1 ] && craft::usage "Missing argument to \"$1\""
+            shift
+
+            MULLE_CRAFT_SDKS="$1"
+            export MULLE_CRAFT_SDKS
+         ;;
+
+         --configuration)
+            [ $# -eq 1 ] && craft::usage "Missing argument to \"$1\""
+            shift
+
+            MULLE_CRAFT_CONFIGURATIONS="$1"
+            export MULLE_CRAFT_CONFIGURATIONS
+         ;;
+
          --version)
             printf "%s\n" "${MULLE_EXECUTABLE_VERSION}"
             exit 0
@@ -338,31 +368,53 @@ craft::main()
    cmd="${cmd:-${MULLE_CRAFT_DEFAULT_CMD}}"
 
    case "${cmd:-project}" in
-      addiction-dir)
-         printf "%s\n" "${ADDICTION_DIR}"
+      addiction-dir|dependency-dir|kitchen-dir)
+         [ $# -ne 0 ] && craft::usage "Superfluous arguments \"$*\""
+
+         include "craft::path"
+
+         local configuration
+         local sdk
+         local platform
+         local style
+
+         configuration="${MULLE_CRAFT_CONFIGURATIONS%%:*}"
+         configuration="${configuration:-Debug}"
+         sdk="${MULLE_CRAFT_SDKS%%:*}"
+         sdk="${sdk:-Default}"
+         platform="${MULLE_CRAFT_PLATFORMS%%:*}"
+         platform="${platform:-${MULLE_UNAME}}"
+         style="${MULLE_CRAFT_DISPENSE_STYLE:-auto}"
+
+         local key
+         local directory
+
+         r_uppercase "${cmd%-dir}"
+
+         r_shell_indirect_expand "${RVAL}_DIR"
+         directory="${RVAL}"
+
+         # ok not the right functionname but does the same
+         craft::path::r_mainproject_kitchendir "${sdk}" \
+                                               "${platform}" \
+                                               "${configuration}" \
+                                               "${style}" \
+                                               "${directory}"
+         printf "%s\n" "${RVAL}"
       ;;
 
-      dependency-dir)
-         printf "%s\n" "${DEPENDENCY_DIR}"
+
+      clean)
+         # shellcheck source=src/mulle-craft-clean.sh
+         . "${MULLE_CRAFT_LIBEXEC_DIR}/mulle-craft-clean.sh"
+
+         craft::clean::main "$@"
       ;;
 
       craftorder-kitchen-dir)
-         if [ $# -eq 0 ]
-         then
-            printf "%s\n" "${CRAFTORDER_KITCHEN_DIR}"
-         else
-            include "craft::path"
+         include "craft::path"
 
-            craft::path::main "$@"
-         fi
-      ;;
-
-      kitchen-dir)
-         printf "%s\n" "${KITCHEN_DIR}"
-      ;;
-
-      libexec-dir)
-         printf "%s\n" "${MULLE_CRAFT_LIBEXEC_DIR}"
+         craft::path::main "$@"
       ;;
 
       craftorder)
@@ -372,12 +424,13 @@ craft::main()
          craft::build::craftorder_main "$@"
       ;;
 
-      clean)
-         # shellcheck source=src/mulle-craft-clean.sh
-         . "${MULLE_CRAFT_LIBEXEC_DIR}/mulle-craft-clean.sh"
+      'dependency')
+         # shellcheck source=src/mulle-craft-build.sh
+         . "${MULLE_CRAFT_LIBEXEC_DIR}/mulle-craft-dependency.sh"
 
-         craft::clean::main "$@"
+         craft::dependency::main "$@"
       ;;
+
 
       donefile|donefiles)
          # shellcheck source=src/mulle-craft-donefile.sh
@@ -386,9 +439,22 @@ craft::main()
          craft::donefile::main "$@"
       ;;
 
+      find)
+         # shellcheck source=src/mulle-craft-path.sh
+         . "${MULLE_CRAFT_LIBEXEC_DIR}/mulle-craft-craftinfo.sh"
+
+         craft::craftinfo::main "$@"
+      ;;
+
       install)
          log_info "mulle-craft doesn't install. Use mulle-make directly."
          exit 1
+      ;;
+
+      libexec-dir)
+         [ $# -ne 0 ] && craft::usage "Superfluous arguments \"$*\""
+
+         printf "%s\n" "${MULLE_CRAFT_LIBEXEC_DIR}"
       ;;
 
       list)
@@ -403,13 +469,6 @@ craft::main()
          . "${MULLE_CRAFT_LIBEXEC_DIR}/mulle-craft-log.sh"
 
          craft::log::main "$@"
-      ;;
-
-      tool-env)
-         printf "ADDICTION_DIR='%s'\n" "${ADDICTION_DIR}"
-         printf "CRAFTORDER_KITCHEN_DIR='%s'\n" "${CRAFTORDER_KITCHEN_DIR}"
-         printf "DEPENDENCY_DIR='%s'\n" "${DEPENDENCY_DIR}"
-         printf "KITCHEN_DIR='%s'\n" "${KITCHEN_DIR}"
       ;;
 
       project)
@@ -433,13 +492,6 @@ craft::main()
          craft::dependency::quickstatus_main "$@"
       ;;
 
-      find)
-         # shellcheck source=src/mulle-craft-path.sh
-         . "${MULLE_CRAFT_LIBEXEC_DIR}/mulle-craft-craftinfo.sh"
-
-         craft::craftinfo::main "$@"
-      ;;
-
       searchpath)
          # shellcheck source=src/mulle-craft-searchpath.sh
          . "${MULLE_CRAFT_LIBEXEC_DIR}/mulle-craft-searchpath.sh"
@@ -461,11 +513,23 @@ craft::main()
          craft::style::main "$@"
       ;;
 
+      tool-env)
+         # we dont "path" expand here, just raw values
+         printf "ADDICTION_DIR='%s'\n" "${ADDICTION_DIR}"
+         printf "CRAFTORDER_KITCHEN_DIR='%s'\n" "${CRAFTORDER_KITCHEN_DIR}"
+         printf "DEPENDENCY_DIR='%s'\n" "${DEPENDENCY_DIR}"
+         printf "KITCHEN_DIR='%s'\n" "${KITCHEN_DIR}"
+      ;;
+
       uname)
+         [ $# -ne 0 ] && craft::usage "Superfluous arguments \"$*\""
+
          exekutor printf "%s\n" "${MULLE_UNAME}"
       ;;
 
       version)
+         [ $# -ne 0 ] && craft::usage "Superfluous arguments \"$*\""
+
          exekutor printf "%s\n" "${MULLE_EXECUTABLE_VERSION}"
          return 0
       ;;

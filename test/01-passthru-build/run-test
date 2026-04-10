@@ -51,7 +51,9 @@ expect_content()
 
    local diffs
 
-   diffs="`diff -b "${output}" "${expect}"`"
+   diffs="`diff -b \
+      <(sed 's|\.log/[0-9]\{8\}T[0-9]\{6\}\.[0-9]*|.log/<timestamp>|g' "${output}") \
+      <(sed 's|\.log/[0-9]\{8\}T[0-9]\{6\}\.[0-9]*|.log/<timestamp>|g' "${expect}")`"
    if [ $? -ne 0 ]
    then
       # fix for mingw

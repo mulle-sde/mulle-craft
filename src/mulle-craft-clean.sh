@@ -50,6 +50,9 @@ Usage:
 
 Options:
    --touch          : touch instead of clean craftorder to force recompile
+   --platform <p>   : platform to clean for
+   --configuration <c> : configuration to clean for
+   --sdk <s>        : sdk to clean for
 
 Names:
    all              : clean kitchen folder
@@ -93,6 +96,95 @@ craft::clean::remove_directories()
 }
 
 
+
+craft::clean::remove_donefiles()
+{
+   log_entry "craft::clean::remove_donefiles" "$@"
+
+   local donefiles="$1"
+
+   local donefile
+
+   if [ ! -z "${donefiles}" ]
+   then
+      include "craft::dependency"
+
+      craft::dependency::unprotect
+
+      .foreachline donefile in ${donefiles}
+      .do
+         remove_file_if_present "${donefile}"
+      .done
+
+      craft::dependency::protect
+   fi
+}
+
+
+craft::clean::remove_item_from_donefiles()
+{
+   log_entry "craft::clean::remove_item_from_donefiles" "$@"
+
+   #
+   # these file are centralized
+   #
+   local cleantarget="$1"
+   local donefiles="$2"
+
+   local escaped
+
+   r_escaped_sed_pattern "${cleantarget}"
+   escaped="${RVAL}"
+
+   local donefile
+
+   if [ ! -z "${donefiles}" ]
+   then
+      include "craft::dependency"
+
+      craft::dependency::unprotect
+
+      .foreachline donefile in ${donefiles}
+      .do
+         # need to unprotect dependency_dir
+         inplace_sed -n -e "/^${escaped};/q;p" "${donefile}"
+         inplace_sed -n -e "/^.*\/${escaped};/q;p" "${donefile}"
+
+         # an empty donefile is bad for grep -F
+         if [ -z "`grep -E -v '^#' "${donefile}"`" ]
+         then
+            remove_file_if_present "${donefile}"
+         fi
+      .done
+
+      craft::dependency::protect
+   fi
+}
+
+
+craft::clean::remove_dependency_directory()
+{
+   log_entry "craft::clean::remove_dependency_directory" "$@"
+
+   local l_dependency_dir="$1"
+
+   if [ -d "${l_dependency_dir}" ]
+   then
+      include "craft::dependency"
+
+      craft::dependency::unprotect
+
+      craft::dependency::set_state "incomplete"
+
+      rmdir_safer "${l_dependency_dir}"
+
+      craft::dependency::protect
+   else
+      log_fluff "Dependency directory \"$1\" is not present"
+   fi
+}
+
+
 #
 # mulle-craft isn't rules so much by command line arguments
 # but uses mostly ENVIRONMENT variables
@@ -104,6 +196,12 @@ craft::clean::main()
 
    local OPTION_DEPENDENCY='DEFAULT'
    local OPTION_TOUCH='NO'
+
+   local OPTION_CONFIGURATION='Debug'
+   local OPTION_PLATFORM="${MULLE_UNAME}"
+   local OPTION_SDK='Default'
+   local OPTION_STYLE='auto'
+   local OPTION_GLOBAL='YES'
 
    while [ $# -ne 0 ]
    do
@@ -120,6 +218,41 @@ craft::clean::main()
             shift
          ;;
 
+         #
+         # quadruple of sdk/platform/configuration/style
+         #
+         --configuration)
+            [ $# -eq 1 ] && craft::style::usage "Missing argument to \"$1\""
+            shift
+
+            OPTION_CONFIGURATION="$1"
+            OPTION_GLOBAL='NO'
+         ;;
+
+         --platform)
+            [ $# -eq 1 ] && craft::style::usage "Missing argument to \"$1\""
+            shift
+
+            OPTION_PLATFORM="$1"
+            OPTION_GLOBAL='NO'
+         ;;
+
+         --sdk)
+            [ $# -eq 1 ] && craft::style::usage "Missing argument to \"$1\""
+            shift
+
+            OPTION_SDK="$1"
+            OPTION_GLOBAL='NO'
+         ;;
+
+         --style)
+            [ $# -eq 1 ] && craft::style::usage "Missing argument to \"$1\""
+            shift
+
+            OPTION_STYLE="$1"
+            OPTION_GLOBAL='NO'
+         ;;
+
          -*)
             craft::clean::usage "Unknown option \"$1\""
          ;;
@@ -134,18 +267,64 @@ craft::clean::main()
 
    [ -z "${KITCHEN_DIR}" ] && _internal_fail "KITCHEN_DIR is empty"
 
-   if [ $# -eq 0 ]
-   then
-      log_verbose "Cleaning \"${KITCHEN_DIR}\" directory"
-
-      craft::clean::remove_directory "${KITCHEN_DIR}"
-      return $?
-   fi
-
    include "craft::style"
    include "craft::path"
 
-   # centralize this into mulle-craft-environment.sh
+   # zsh upper/lower problem
+   local l_dependency_dir
+   local l_kitchen_dir
+   local l_craftorder_kitchen_dir
+   local stylesubdir
+
+   if [ "${OPTION_GLOBAL}" = 'YES' ]
+   then
+      l_dependency_dir="${DEPENDENCY_DIR}"
+      l_kitchen_dir="${KITCHEN_DIR}"
+      l_craftorder_kitchen_dir="${CRAFTORDER_KITCHEN_DIR}"
+      stylesubdir="${RVAL}"
+   else
+      craft::path::r_dependencydir "${OPTION_SDK}" \
+                                   "${OPTION_PLATFORM}" \
+                                   "${OPTION_CONFIGURATION}" \
+                                   "${OPTION_STYLE}" \
+                                   "${DEPENDENCY_DIR}"
+      l_dependency_dir="${RVAL}"
+
+
+      craft::path::r_mainproject_kitchendir "${OPTION_SDK}" \
+                                            "${OPTION_PLATFORM}" \
+                                            "${OPTION_CONFIGURATION}" \
+                                            "${OPTION_STYLE}" \
+                                            "${KITCHEN_DIR}"
+      l_kitchen_dir="${RVAL}"
+
+
+      craft::style::r_get_sdk_platform_configuration_string "${OPTION_SDK}" \
+                                                            "${OPTION_PLATFORM}" \
+                                                            "${OPTION_CONFIGURATION}" \
+                                                            "${OPTION_STYLE}"
+      stylesubdir="${RVAL}"
+
+      r_filepath_concat "${CRAFTORDER_KITCHEN_DIR}" "${stylesubdir}"
+      l_craftorder_kitchen_dir="${RVAL}"
+   fi
+
+   log_setting "DEPENDENCY_DIR           : ${DEPENDENCY_DIR}"
+   log_setting "dependency_dir           : ${l_dependency_dir}"
+   log_setting "KITCHEN_DIR              : ${KITCHEN_DIR}"
+   log_setting "kitchen_dir              : ${l_kitchen_dir}"
+   log_setting "CRAFTORDER_KITCHEN_DIR   : ${CRAFTORDER_KITCHEN_DIR}"
+   log_setting "craftorder_kitchen_dir   : ${l_craftorder_kitchen_dir}"
+
+   if [ $# -eq 0 ]
+   then
+      log_verbose "Cleaning \"${l_kitchen_dir}\" directory"
+
+      craft::clean::remove_directory "${l_kitchen_dir}"
+      return $?
+   fi
+
+   local donefiles
 
    while [ $# -ne 0 ]
    do
@@ -153,27 +332,40 @@ craft::clean::main()
          "build"|"kitchen")
             log_verbose "Cleaning \"$1\""
 
-            craft::clean::remove_directory "${KITCHEN_DIR}"
+            craft::clean::remove_directory "${l_kitchen_dir}"
             return
          ;;
 
          "craftorder")
-            log_verbose "Cleaning \"${CRAFTORDER_KITCHEN_DIR}\" directory"
+            log_verbose "Cleaning \"${l_dependency_dir}\" directory"
 
-            craft::clean::remove_directory "${CRAFTORDER_KITCHEN_DIR}"
+            craft::clean::remove_dependency_directory  "${l_dependency_dir}"
+
+            log_verbose "Cleaning \"${l_craftorder_kitchen_dir}\" directory"
+
+            craft::clean::remove_directory "${l_craftorder_kitchen_dir}"
+
+
+            include "craft::donefile"
+
+            craft::donefile::r_list_donefile_paths "${OPTION_SDK}" \
+                                                   "${OPTION_PLATFORM}" \
+                                                   "${OPTION_CONFIGURATION}"
+            donefiles="${RVAL}"
+            craft::clean::remove_donefiles "${donefiles}"
          ;;
 
          "dependency")
-            log_verbose "Cleaning \"${DEPENDENCY_DIR}\" directory"
+            log_verbose "Cleaning \"${l_dependency_dir}\" directory"
 
-            craft::clean::remove_directory "${DEPENDENCY_DIR}"
+            craft::clean::remove_dependency_directory "${l_dependency_dir}"
          ;;
 
          "project")
             log_verbose "Cleaning project"
 
             shell_enable_nullglob
-            for i in "${KITCHEN_DIR}"/*
+            for i in "${l_kitchen_dir}"/*
             do
                if [ -d "${i}" ]
                then
@@ -191,34 +383,6 @@ craft::clean::main()
             local cleantarget
 
             cleantarget="$1"
-
-            local escaped
-            local donefile
-#            local targets
-#            local matches
-#
-#            r_escaped_grep_pattern "$1"
-#            escaped="${RVAL}"
-#
-#            for donefile in "${CRAFTORDER_KITCHEN_DIR}"/*/.mulle-craft-built
-#            do
-#               matches="`rexekutor sed -s -e 's/^\([^;]*);/\1/' -e 's/^.*\//' "${donefile}"`"
-#               r_add_line "${targets}" "${matches}"
-#               targets="${RVAL}"
-#            done
-#
-#            log_fluff "Available clean targets: `sort -u <<< "${targets}"`"
-#
-#            if ! rexekutor grep -F -x -s -q "${cleantarget}" <<< "${targets}"
-#            then
-#               fail "Unknown clean target \"${cleantarget}\".
-#${C_VERBOSE}
-#Available targets:
-#   ${C_RESET}
-#   `cat "${targets}" | sort -u | sed 's/^/   /'`
-#"
-#            fi
-
             log_verbose "Cleaning target \"${cleantarget}\""
 
             local directory
@@ -229,35 +393,20 @@ craft::clean::main()
             if [ "${OPTION_TOUCH}" = 'NO' ]
             then
                shell_enable_nullglob
-               craft::clean::remove_directories "${CRAFTORDER_KITCHEN_DIR}"/*/"${directory}" \
-                                  "${CRAFTORDER_KITCHEN_DIR}"/*/*/"${directory}"
+               craft::clean::remove_directories "$l_craftorder_kitchen_dir}"/*/"${directory}" \
+                                                "$l_craftorder_kitchen_dir}"/*/*/"${directory}"
                shell_disable_nullglob
             fi
 
-            r_escaped_sed_pattern "${cleantarget}"
-            escaped="${RVAL}"
+            local donefiles
 
-            .foreachfile donefile in "${DEPENDENCY_DIR}/etc"/craftorder-*
-            .do
-               if [ -f "${donefile}" ]
-               then
-                  include "craft::dependency"
+            include "craft::donefile"
 
-                  # need to unprotect dependency_dir
-                  craft::dependency::unprotect
-
-                     inplace_sed -n -e "/^${escaped};/q;p" "${donefile}"
-                     inplace_sed -n -e "/^.*\/${escaped};/q;p" "${donefile}"
-
-                     # an empty donefile is bad for grep -F
-                     if [ -z "`grep -E -v '^#' "${donefile}"`" ]
-                     then
-                        remove_file_if_present "${donefile}"
-                     fi
-
-                  craft::dependency::protect
-               fi
-            .done
+            craft::donefile::r_list_donefile_paths "${OPTION_SDK}" \
+                                                   "${OPTION_PLATFORM}" \
+                                                   "${OPTION_CONFIGURATION}"
+            donefiles="${RVAL}"
+            craft::clean::remove_item_from_donefiles "${cleantarget}" "${donefiles}"
 
             log_debug "Done cleaning"
          ;;

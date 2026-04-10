@@ -36,6 +36,12 @@ _emit_defines()
          -N|-L*)
          ;;
 
+         --log-dir)
+            shift
+            mkdir -p "$1" 2>/dev/null
+            printf "%s %s\n" "--log-dir" "$1"
+         ;;
+
          --*-dir|--configuration|--sdk)
             printf "%s %s\n" "$1" "$2"
             shift
