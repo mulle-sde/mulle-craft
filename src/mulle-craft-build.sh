@@ -775,6 +775,30 @@ crafting with -f"
       args="${RVAL}"
    fi
 
+   #
+   # pass sourcetree config name to cmake, so multi-config projects
+   # can select the correct reflect directory
+   #
+   if [ ! -z "${name}" ]
+   then
+      include "case"
+
+      local _config_identifier
+      local _config_value
+
+      r_smart_file_upcase_identifier "${name}"
+      _config_identifier="MULLE_SOURCETREE_CONFIG_NAME_${RVAL}"
+
+      r_shell_indirect_expand "${_config_identifier}"
+      _config_value="${RVAL}"
+
+      if [ ! -z "${_config_value}" ]
+      then
+         r_concat "${args}" "-DMULLE_SOURCETREE_CONFIG_NAME='${_config_value}'"
+         args="${RVAL}"
+      fi
+   fi
+
    local sdk_path
 
    craft::path::r_get_mulle_sdk_path "${sdk}" "${platform}" "${configuration}" 'auto'
@@ -2136,6 +2160,11 @@ craft::build::build_mainproject()
       r_concat "${options}" "--mulle-test"
       options="${RVAL}"
    fi
+   if [ "${OPTION_SYNTAX_CHECK}" = 'YES' ]
+   then
+      r_concat "${options}" "--syntax-check"
+      options="${RVAL}"
+   fi
    if [ "${platform}" != "${MULLE_UNAME}" ]
    then
       r_concat "${options}" "--platform '${platform}'"
@@ -2382,6 +2411,7 @@ craft::build::common()
    local OPTION_LIST_REMAINING='NO'
    local OPTION_LOCAL_CRAFTINFO="${MULLE_CRAFT_LOCAL_CRAFTINFO:-YES}"
    local OPTION_MULLE_TEST='NO'
+   local OPTION_SYNTAX_CHECK='NO'
    local OPTION_PARALLEL='YES'
    local OPTION_PARALLEL_LINK='YES'
    local OPTION_PARALLEL_MAKE='YES'
@@ -2598,6 +2628,10 @@ craft::build::common()
             OPTION_MULLE_TEST='YES'
          ;;
 
+         --syntax-check)
+            OPTION_SYNTAX_CHECK='YES'
+         ;;
+
          --platform|--platforms)
             [ $# -eq 1 ] && craft::build::usage "Missing argument to \"$1\""
             shift
@@ -2751,8 +2785,9 @@ ${currentenv}"
    [ "${OPTION_USE_PROJECT}" = 'YES' ] || _internal_fail "hein ?"
 
    # don't build if only headers are built for example
-   case "${OPTION_PHASES}" in
-      *Link*)
+   # but always build for --syntax-check
+   case "${OPTION_SYNTAX_CHECK}:${OPTION_PHASES}" in
+      YES:*|*:*Link*)
          if ! craft::build::do_mainproject "$@"
          then
             return 1

@@ -393,8 +393,8 @@ craft::clean::main()
             if [ "${OPTION_TOUCH}" = 'NO' ]
             then
                shell_enable_nullglob
-               craft::clean::remove_directories "$l_craftorder_kitchen_dir}"/*/"${directory}" \
-                                                "$l_craftorder_kitchen_dir}"/*/*/"${directory}"
+               craft::clean::remove_directories "${l_craftorder_kitchen_dir}"/*/"${directory}" \
+                                                "${l_craftorder_kitchen_dir}"/*/*/"${directory}"
                shell_disable_nullglob
             fi
 

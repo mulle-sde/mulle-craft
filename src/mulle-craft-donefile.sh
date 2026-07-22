@@ -70,6 +70,11 @@ craft::donefile::r_shared_donefile()
    local platform="$2"
    local configuration="$3"
 
+   if [ "${platform}" = 'Default' ]
+   then
+      platform="${MULLE_UNAME}"
+   fi
+
    RVAL="${ADDICTION_DIR}/etc/done--${sdk}-${platform}-${configuration}"
 }
 
@@ -92,6 +97,11 @@ craft::donefile::r_donefile()
    local sdk="$1"
    local platform="$2"
    local configuration="$3"
+
+   if [ "${platform}" = 'Default' ]
+   then
+      platform="${MULLE_UNAME}"
+   fi
 
    RVAL="${DEPENDENCY_DIR}/etc/done--${sdk}-${platform}-${configuration}"
 }
@@ -131,6 +141,32 @@ craft::donefile::r_list_donefile_paths()
 
    shell_enable_nullglob
    donefiles=$(dir_list_files "${etcdir}" "done--*-${platform}-*")
+
+   #
+   # Compatibility: historically, native platform donefiles appeared with
+   # "Default" as platform. Match both spellings so target-clean truncates
+   # either variant.
+   #
+   local alternate_platform
+   case "${platform}" in
+      "${MULLE_UNAME}")
+         alternate_platform='Default'
+      ;;
+      Default)
+         alternate_platform="${MULLE_UNAME}"
+      ;;
+   esac
+   if [ ! -z "${alternate_platform}" ]
+   then
+      local alternate_donefiles
+      alternate_donefiles=$(dir_list_files "${etcdir}" "done--*-${alternate_platform}-*")
+      if [ ! -z "${alternate_donefiles}" ]
+      then
+         donefiles="$(printf "%s\n%s\n" "${donefiles}" "${alternate_donefiles}" \
+            | sed '/^$/d' \
+            | sort -u)"
+      fi
+   fi
 
    log_setting "all donefiles for platform ${platform}: ${donefiles}"
 
@@ -368,5 +404,3 @@ craft::donefile::main()
       fi
    fi
 }
-
-
