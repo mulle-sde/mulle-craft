@@ -1,0 +1,108 @@
+#! /bin/sh
+
+[ "${TRACE}" = 'YES' ] && set -x && : "$0" "$@"
+
+###   ###   ###   ###   ###   ###   ###   ###   ###   ###   ###   ###   ###
+MULLE_BASHFUNCTIONS_LIBEXEC_DIR="`mulle-bashfunctions libexec-dir`" || exit 1
+export MULLE_BASHFUNCTIONS_LIBEXEC_DIR
+. "${MULLE_BASHFUNCTIONS_LIBEXEC_DIR}/mulle-boot.sh" || exit 1
+. "${MULLE_BASHFUNCTIONS_LIBEXEC_DIR}/mulle-bashfunctions.sh" || exit 1
+###   ###   ###   ###   ###   ###   ###   ###   ###   ###   ###   ###   ###
+
+
+run_mulle_craft()
+{
+   exekutor "${MULLE_CRAFT}" ${MULLE_CRAFT_FLAGS} "$@"
+}
+
+
+main()
+{
+   MULLE_CRAFT_FLAGS="$@"
+
+   _options_mini_main "$@" && set -x
+
+   MULLE_UNAME='linux'
+   export MULLE_UNAME
+
+   local directory
+   local dependency_dir
+   local stash_dir
+   local done_debug
+   local done_legacy
+   local done_other
+
+   r_make_tmp_directory || exit 1
+   directory="${RVAL}"
+
+   dependency_dir="${directory}/dependency"
+   stash_dir="${directory}/stash"
+   done_debug="${dependency_dir}/etc/done--Default-linux-Debug"
+   done_legacy="${dependency_dir}/etc/done--Default-Default-Debug"
+   done_other="${dependency_dir}/etc/done--Default-macos-Debug"
+
+   rexekutor mkdir -p "${dependency_dir}/etc" "${stash_dir}" || exit 1
+
+   redirect_exekutor "${done_debug}" printf "%s\n" \
+      "alpha;" \
+      "mulle-objc-runtime;" \
+      "omega;" || exit 1
+
+   redirect_exekutor "${done_other}" printf "%s\n" \
+      "${stash_dir}/alpha;" \
+      "${stash_dir}/mulle-objc-runtime;" \
+      "${stash_dir}/omega;" || exit 1
+
+   redirect_exekutor "${done_legacy}" printf "%s\n" \
+      "${stash_dir}/alpha;" \
+      "${stash_dir}/mulle-objc-runtime;" \
+      "${stash_dir}/omega;" || exit 1
+
+   DEPENDENCY_DIR="${dependency_dir}" \
+   KITCHEN_DIR="${directory}/kitchen" \
+   CRAFTORDER_KITCHEN_DIR="${directory}/craftorder" \
+   MULLE_SOURCETREE_STASH_DIR="${stash_dir}" \
+      run_mulle_craft -s clean --platform linux mulle-objc-runtime || exit 1
+
+   grep -q "^alpha;$" "${done_debug}" || fail "Expected alpha to remain in Debug donefile"
+   grep -q "mulle-objc-runtime;" "${done_debug}" && fail "Target line not removed in Debug donefile"
+   grep -q "omega;" "${done_debug}" && fail "Following lines not removed in Debug donefile"
+
+   rexekutor chmod -R u+w "${dependency_dir}" || exit 1
+
+   redirect_exekutor "${done_debug}" printf "%s\n" \
+      "${stash_dir}/alpha;" \
+      "${stash_dir}/mulle-objc-runtime;" \
+      "${stash_dir}/omega;" || exit 1
+
+   DEPENDENCY_DIR="${dependency_dir}" \
+   KITCHEN_DIR="${directory}/kitchen" \
+   CRAFTORDER_KITCHEN_DIR="${directory}/craftorder" \
+   MULLE_SOURCETREE_STASH_DIR="${stash_dir}" \
+      run_mulle_craft -s clean --platform linux mulle-objc-runtime || exit 1
+
+   grep -q "/alpha;$" "${done_debug}" || fail "Expected alpha path to remain in Debug donefile"
+   grep -q "/mulle-objc-runtime;" "${done_debug}" && fail "Target path line not removed in Debug donefile"
+   grep -q "/omega;" "${done_debug}" && fail "Following path lines not removed in Debug donefile"
+
+   grep -q "/alpha;$" "${done_legacy}" || fail "Expected alpha path to remain in legacy donefile"
+   grep -q "/mulle-objc-runtime;" "${done_legacy}" && fail "Target path line not removed in legacy donefile"
+   grep -q "/omega;" "${done_legacy}" && fail "Following path lines not removed in legacy donefile"
+
+   grep -q "/mulle-objc-runtime;" "${done_other}" || fail "Non-selected platform donefile should not change"
+   grep -q "/omega;" "${done_other}" || fail "Non-selected platform donefile should not truncate"
+
+   log_info "----- ALL PASSED -----"
+
+   rmdir_safer "${directory}"
+}
+
+
+init()
+{
+   MULLE_CRAFT="${MULLE_CRAFT:-${PWD}/../../mulle-craft}"
+}
+
+
+init "$@"
+main "$@"

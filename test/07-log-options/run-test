@@ -1,0 +1,77 @@
+#! /bin/sh
+
+[ "${TRACE}" = 'YES' ] && set -x && : "$0" "$@"
+
+###   ###   ###   ###   ###   ###   ###   ###   ###   ###   ###   ###   ###
+MULLE_BASHFUNCTIONS_LIBEXEC_DIR="`mulle-bashfunctions libexec-dir`" || exit 1
+export MULLE_BASHFUNCTIONS_LIBEXEC_DIR
+. "${MULLE_BASHFUNCTIONS_LIBEXEC_DIR}/mulle-boot.sh" || exit 1
+. "${MULLE_BASHFUNCTIONS_LIBEXEC_DIR}/mulle-bashfunctions.sh" || exit 1
+###   ###   ###   ###   ###   ###   ###   ###   ###   ###   ###   ###   ###
+
+
+run_mulle_craft()
+{
+   MULLE_TMP_DIR="${directory}" \
+   MULLE_TEST_DIR="${PWD}" \
+   MULLE_MAKE="${PWD}/../mock-mulle-make" \
+   BUILD_DIR="${builddir}" \
+   KITCHEN_DIR="${builddir}" \
+      exekutor "${MULLE_CRAFT}" ${MULLE_CRAFT_FLAGS} "$@"
+}
+
+
+main()
+{
+   MULLE_CRAFT_FLAGS="$@"
+   _options_mini_main "$@" && set -x
+
+   local directory
+
+   r_make_tmp_directory || exit 1
+   directory="${RVAL}"
+
+   local builddir
+
+   builddir="${directory}/build"
+
+   # create a build so there are logs to show
+   run_mulle_craft project --style auto --debug
+
+   #
+   # Test 1: --all --run all must not error with "--run: command not found"
+   #
+   local output
+
+   output="$(run_mulle_craft log --all --run all 2>&1)"
+   case "${output}" in
+      *"command not found"*)
+         fail "Test 1: --all --run all produced 'command not found': ${output}"
+      ;;
+   esac
+   log_verbose "----- #1 PASSED (--all --run all does not error) -----"
+
+   #
+   # Test 2: --run all --all must also work (order independent)
+   #
+   output="$(run_mulle_craft log --run all --all 2>&1)"
+   case "${output}" in
+      *"command not found"*)
+         fail "Test 2: --run all --all produced 'command not found': ${output}"
+      ;;
+   esac
+   log_verbose "----- #2 PASSED (--run all --all does not error) -----"
+
+   log_info "----- ALL PASSED -----"
+   rmdir_safer "${directory}"
+}
+
+
+init()
+{
+   MULLE_CRAFT="${MULLE_CRAFT:-${PWD}/../../mulle-craft}"
+}
+
+
+init "$@"
+main "$@"

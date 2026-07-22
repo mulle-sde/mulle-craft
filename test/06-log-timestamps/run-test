@@ -1,0 +1,123 @@
+#! /bin/sh
+
+[ "${TRACE}" = 'YES' ] && set -x && : "$0" "$@"
+
+###   ###   ###   ###   ###   ###   ###   ###   ###   ###   ###   ###   ###
+MULLE_BASHFUNCTIONS_LIBEXEC_DIR="`mulle-bashfunctions libexec-dir`" || exit 1
+export MULLE_BASHFUNCTIONS_LIBEXEC_DIR
+. "${MULLE_BASHFUNCTIONS_LIBEXEC_DIR}/mulle-boot.sh" || exit 1
+. "${MULLE_BASHFUNCTIONS_LIBEXEC_DIR}/mulle-bashfunctions.sh" || exit 1
+###   ###   ###   ###   ###   ###   ###   ###   ###   ###   ###   ###   ###
+
+
+run_mulle_craft()
+{
+   MULLE_TMP_DIR="${directory}" \
+   MULLE_TEST_DIR="${PWD}" \
+   MULLE_MAKE="${PWD}/../mock-mulle-make" \
+   BUILD_DIR="${builddir}" \
+      exekutor "${MULLE_CRAFT}" ${MULLE_CRAFT_FLAGS} "$@"
+}
+
+
+main()
+{
+   MULLE_CRAFT_FLAGS="$@"
+   _options_mini_main "$@" && set -x
+
+   local directory
+
+   r_make_tmp_directory || exit 1
+   directory="${RVAL}"
+
+   local builddir logbasedir
+
+   builddir="${directory}/build"
+   logbasedir="${builddir}/Debug/.log"
+
+   #
+   # Test 1: First craft creates a timestamped subdir
+   #
+   run_mulle_craft project --style auto --debug
+
+   local dirs count
+
+   dirs="$(find "${logbasedir}" -maxdepth 1 -name '[0-9]*.*' -type d 2>/dev/null)"
+   count="$(printf '%s\n' "${dirs}" | grep -c .)"
+
+   [ "${count}" -eq 1 ] || fail "Test 1: expected 1 timestamped dir, got ${count}"
+   log_verbose "----- #1 PASSED (timestamped dir created) -----"
+
+   #
+   # Test 2: Second craft creates a second timestamped subdir
+   #
+   sleep 1
+
+   run_mulle_craft project --style auto --debug
+
+   dirs="$(find "${logbasedir}" -maxdepth 1 -name '[0-9]*.*' -type d 2>/dev/null)"
+   count="$(printf '%s\n' "${dirs}" | grep -c .)"
+
+   [ "${count}" -eq 2 ] || fail "Test 2: expected 2 timestamped dirs, got ${count}"
+   log_verbose "----- #2 PASSED (second run creates new dir) -----"
+
+   #
+   # Test 3: Timestamp format is YYYYMMDDTHHMMSS.N
+   #
+   local latest basename
+
+   latest="$(find "${logbasedir}" -maxdepth 1 -name '[0-9]*.*' -type d 2>/dev/null | sort | tail -1)"
+   r_basename "${latest}"
+   basename="${RVAL}"
+
+   if ! printf '%s\n' "${basename}" | grep -qE '^[0-9]{8}T[0-9]{6}\.[0-9]+$'
+   then
+      fail "Test 3: unexpected timestamp format: ${basename}"
+   fi
+   log_verbose "----- #3 PASSED (timestamp format correct) -----"
+
+   #
+   # Test 4: Same-second collision gets sequence number bumped
+   #         Mock date so craft sees the same timestamp we pre-create.
+   #
+   local ts="${basename%.*}"   # strip .N suffix
+   local collision_dir="${logbasedir}/${ts}.0"
+
+   mkdir_if_missing "${collision_dir}"
+
+   local mock_bin
+   r_make_tmp_directory || exit 1
+   mock_bin="${RVAL}"
+
+   cat > "${mock_bin}/date" <<EOF
+#!/bin/sh
+case "\$*" in
+   *%Y*) printf '%s\n' "${ts}" ;;
+   *)    exec /bin/date "\$@" ;;
+esac
+EOF
+   chmod +x "${mock_bin}/date"
+
+   PATH="${mock_bin}:${PATH}" run_mulle_craft project --style auto --debug
+
+   rm -rf "${mock_bin}"
+
+   if [ ! -d "${logbasedir}/${ts}.1" ]
+   then
+      fail "Test 4: expected ${ts}.1 to be created for collision"
+   fi
+   log_verbose "----- #4 PASSED (collision gets .1 suffix) -----"
+
+   log_info "----- ALL PASSED -----"
+   rmdir_safer "${directory}"
+}
+
+
+init()
+{
+   MULLE_CRAFT="${MULLE_CRAFT:-${PWD}/../../mulle-craft}"
+}
+
+
+init "$@"
+main "$@"
