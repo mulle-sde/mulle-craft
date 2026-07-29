@@ -1116,6 +1116,18 @@ craft::build::build_craftorder_node()
       esac
    fi
 
+   #
+   # no-actual-build: the node is in the craftorder so its subdependencies
+   # get built, but the node itself produces nothing. Used for dependency
+   # convenience wrappers.
+   #
+   case ",${marks}," in
+      *',no-actual-build,'*)
+         log_fluff "Not building \"${name}\" (no-actual-build)"
+         return 0
+      ;;
+   esac
+
 
    #
    # Figure out where to dispense into
