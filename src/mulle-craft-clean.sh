@@ -45,8 +45,8 @@ Usage:
 
    Remove craft products. By default KITCHEN_DIR is removed, which will
    rebuild everything. You can also specify the names of the projects to clean
-   and rebuild. There are four special names: "all",
-   "craftorder", dependency", "project".
+   There are five special names: "all",
+   "craftorder", "dependency", "dependency-store", and "project".
 
 Options:
    --touch          : touch instead of clean craftorder to force recompile
@@ -57,7 +57,8 @@ Options:
 Names:
    all              : clean kitchen folder
    craftorder       : clean craftorder only
-   dependency       : clean dependency folder
+   dependency       : clean dependency folder for the selected context
+   dependency-store : clean the complete configured dependency store
    project          : clean main project
 
 Environment:
@@ -185,6 +186,29 @@ craft::clean::remove_dependency_directory()
 }
 
 
+craft::clean::remove_dependency_store()
+{
+   log_entry "craft::clean::remove_dependency_store" "$@"
+
+   #
+   # DEPENDENCY_DIR is contextual and may already name a qualified child such
+   # as dependency/Debug. Prefer the explicitly configured dependency location,
+   # then the current DEPENDENCY_DIR (which is the unqualified value in the
+   # high-level mulle-sde environment), and finally the project default.
+   #
+   local dependency_store_dir
+
+   dependency_store_dir="${MULLE_CRAFT_DEPENDENCY_DIR:-${DEPENDENCY_DIR:-}}"
+   if [ -z "${dependency_store_dir}" ]
+   then
+      dependency_store_dir="${MULLE_VIRTUAL_ROOT}/${MULLE_CRAFT_DEPENDENCY_DIRNAME:-dependency}"
+   fi
+
+   log_verbose "Cleaning the complete dependency store \"${dependency_store_dir}\""
+   craft::clean::remove_dependency_directory "${dependency_store_dir}"
+}
+
+
 #
 # mulle-craft isn't rules so much by command line arguments
 # but uses mostly ENVIRONMENT variables
@@ -283,12 +307,12 @@ craft::clean::main()
       l_craftorder_kitchen_dir="${CRAFTORDER_KITCHEN_DIR}"
       stylesubdir="${RVAL}"
    else
-      craft::path::r_dependencydir "${OPTION_SDK}" \
-                                   "${OPTION_PLATFORM}" \
-                                   "${OPTION_CONFIGURATION}" \
-                                   "${OPTION_STYLE}" \
-                                   "${DEPENDENCY_DIR}"
-      l_dependency_dir="${RVAL}"
+      craft::path::set_dependency_directories "${OPTION_SDK}" \
+                                                "${OPTION_PLATFORM}" \
+                                                "${OPTION_CONFIGURATION}" \
+                                                "${OPTION_STYLE}" \
+                                                "${DEPENDENCY_DIR}"
+      l_dependency_dir="${MULLE_CRAFT_DEPENDENCY_QUALIFIED_DIR}"
 
 
       craft::path::r_mainproject_kitchendir "${OPTION_SDK}" \
@@ -325,6 +349,8 @@ craft::clean::main()
    fi
 
    local donefiles
+   local cleantarget
+   local directory
 
    while [ $# -ne 0 ]
    do
@@ -361,6 +387,10 @@ craft::clean::main()
             craft::clean::remove_dependency_directory "${l_dependency_dir}"
          ;;
 
+         "dependency-store")
+            craft::clean::remove_dependency_store
+         ;;
+
          "project")
             log_verbose "Cleaning project"
 
@@ -380,12 +410,8 @@ craft::clean::main()
          ;;
 
          *)
-            local cleantarget
-
             cleantarget="$1"
             log_verbose "Cleaning target \"${cleantarget}\""
-
-            local directory
 
             craft::path::r_build_directory_name "${cleantarget}"
             directory="${RVAL}"
@@ -397,8 +423,6 @@ craft::clean::main()
                                                 "${l_craftorder_kitchen_dir}"/*/*/"${directory}"
                shell_disable_nullglob
             fi
-
-            local donefiles
 
             include "craft::donefile"
 

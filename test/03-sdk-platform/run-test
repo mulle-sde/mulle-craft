@@ -84,7 +84,27 @@ main()
    filename="${directory}/dependency/SDK_B-PLATFORM_1/Debug/share/foo.txt"
    [ -f "${filename}" ] || _internal_fail "expected file \"${filename}\" missing"
 
-   log_verbose "----- #2 PASSED -----"
+   local output
+
+   output="$(MULLE_UNAME=linux \
+            MULLE_VIRTUAL_ROOT="${directory}" \
+            MULLE_SQUELCH_ENVIRONMENT_WARNING=YES \
+            DEPENDENCY_DIR="${directory}/dependency" \
+            KITCHEN_DIR="${directory}/build" \
+            MULLE_CRAFT_CONFIGURATIONS=Debug \
+            MULLE_CRAFT_SDKS=SDK_A \
+            MULLE_CRAFT_PLATFORMS=PLATFORM_1 \
+            MULLE_CRAFT_DISPENSE_STYLE=strict \
+               "${MULLE_CRAFT}" -s tool-env)"
+
+   printf '%s\n' "${output}" | grep -Fqx \
+      "MULLE_CRAFT_DEPENDENCY_UNQUALIFIED_DIR='${directory}/dependency'" \
+      || fail "tool-env did not report the unqualified dependency directory"
+   printf '%s\n' "${output}" | grep -Fqx \
+      "MULLE_CRAFT_DEPENDENCY_QUALIFIED_DIR='${directory}/dependency/SDK_A-PLATFORM_1/Debug'" \
+      || fail "tool-env did not report the qualified dependency directory"
+
+   log_verbose "----- #3 PASSED -----"
 
    log_info "----- ALL PASSED -----"
    cd ..

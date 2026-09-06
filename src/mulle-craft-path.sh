@@ -247,6 +247,33 @@ craft::path::r_dependency_subdir()
 }
 
 
+craft::path::set_dependency_directories()
+{
+   log_entry "craft::path::set_dependency_directories" "$@"
+
+   local sdk="$1"
+   local platform="$2"
+   local configuration="$3"
+   local style="$4"
+   local dependencydir="$5"
+
+   [ -z "${dependencydir}" ] && _internal_fail "dependencydir is empty"
+
+   #
+   # DEPENDENCY_DIR is contextual at process boundaries. These two names are
+   # controller-side bookkeeping for the input and the resolved destination.
+   #
+   MULLE_CRAFT_DEPENDENCY_UNQUALIFIED_DIR="${dependencydir}"
+
+   craft::path::r_dependencydir "${sdk}" \
+                                "${platform}" \
+                                "${configuration}" \
+                                "${style}" \
+                                "${MULLE_CRAFT_DEPENDENCY_UNQUALIFIED_DIR}"
+   MULLE_CRAFT_DEPENDENCY_QUALIFIED_DIR="${RVAL}"
+}
+
+
 craft::path::r_dependencydir()
 {
    log_entry "craft::path::r_dependencydir" "$@"

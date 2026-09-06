@@ -139,7 +139,6 @@ craft::status::output_names_with_status()
    local phase
    local project
    local state
-   local rc
 
    local terse
 
@@ -151,11 +150,23 @@ craft::status::output_names_with_status()
 
    include "craft::path"
 
+   local actual_name
+   local marks
+   local in_donefile
+   local has_kitchen
+   local has_dependency
+   local age_info
+   local is_craftinfo
+   local skip_platform
+   local dep_path
+   local dep_mtime
+   local now_time
+   local age_seconds
+   local missing
+
    .foreachline name in ${all_names}
    .do
       # Extract name and marks
-      local actual_name
-      local marks
       IFS=";" read actual_name marks <<< "${name}"
 
       #
@@ -217,12 +228,12 @@ craft::status::output_names_with_status()
          esac
       fi
 
-      local in_donefile='NO'
-      local has_kitchen='NO'
-      local has_dependency='NO'
-      local age_info=""
-      local is_craftinfo='NO'
-      local skip_platform='NO'
+      in_donefile='NO'
+      has_kitchen='NO'
+      has_dependency='NO'
+      age_info=""
+      is_craftinfo='NO'
+      skip_platform='NO'
 
       # Check if this dependency should be skipped for this platform
       case ",${marks}," in
@@ -259,7 +270,7 @@ craft::status::output_names_with_status()
       # 1. include/${name}/ subdirectory
       # 2. lib/lib${name}.a library file (if name doesn't start with "lib")
       # 3. lib/${name}.a library file (if name starts with "lib")
-      local dep_path="${DEPENDENCY_DIR}/${_configuration}/include/${actual_name}"
+      dep_path="${DEPENDENCY_DIR}/${_configuration}/include/${actual_name}"
       if [ -d "${dep_path}" ]
       then
          has_dependency='YES'
@@ -283,13 +294,11 @@ craft::status::output_names_with_status()
       # Calculate age from dependency dir if found
       if [ "${has_dependency}" = 'YES' -a "${OPTION_COLOR}" = 'YES' ]
       then
-         local dep_mtime
          dep_mtime="$(stat -c %Y "${dep_path}" 2>/dev/null || stat -f %m "${dep_path}" 2>/dev/null)"
          if [ ! -z "${dep_mtime}" ]
          then
-            local now_time
             now_time="$(date +%s)"
-            local age_seconds=$((now_time - dep_mtime))
+            age_seconds=$((now_time - dep_mtime))
 
             # Format age
             if [ ${age_seconds} -lt 60 ]
@@ -349,7 +358,7 @@ craft::status::output_names_with_status()
          state="-"
 
          # Build missing list (renamed: kitchen→started, done→crafted, dependency→installed)
-         local missing=""
+         missing=""
          if [ "${has_kitchen}" = 'NO' ]
          then
             missing="started"

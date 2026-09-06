@@ -22,8 +22,26 @@ main()
 
    _options_mini_main "$@" && set -x
 
-   MULLE_UNAME='linux'
-   export MULLE_UNAME
+   #
+   # Use the real host platform as the "active" platform, so that in-place
+   # file editing (inplace_sed) picks the correct BSD/GNU sed branch. Forcing
+   # a foreign MULLE_UNAME (e.g. linux) would route macOS/BSD hosts into the
+   # GNU "sed -i''" branch, which mangles files on BSD sed.
+   #
+   local active_platform
+   local other_platform
+
+   active_platform="${MULLE_UNAME}"
+   # a platform guaranteed to differ from the host
+   case "${MULLE_UNAME}" in
+      windows)
+         other_platform='linux'
+      ;;
+
+      *)
+         other_platform='windows'
+      ;;
+   esac
 
    local directory
    local dependency_dir
@@ -37,9 +55,9 @@ main()
 
    dependency_dir="${directory}/dependency"
    stash_dir="${directory}/stash"
-   done_debug="${dependency_dir}/etc/done--Default-linux-Debug"
+   done_debug="${dependency_dir}/etc/done--Default-${active_platform}-Debug"
    done_legacy="${dependency_dir}/etc/done--Default-Default-Debug"
-   done_other="${dependency_dir}/etc/done--Default-macos-Debug"
+   done_other="${dependency_dir}/etc/done--Default-${other_platform}-Debug"
 
    rexekutor mkdir -p "${dependency_dir}/etc" "${stash_dir}" || exit 1
 
@@ -62,7 +80,7 @@ main()
    KITCHEN_DIR="${directory}/kitchen" \
    CRAFTORDER_KITCHEN_DIR="${directory}/craftorder" \
    MULLE_SOURCETREE_STASH_DIR="${stash_dir}" \
-      run_mulle_craft -s clean --platform linux mulle-objc-runtime || exit 1
+      run_mulle_craft -s clean --platform "${active_platform}" mulle-objc-runtime || exit 1
 
    grep -q "^alpha;$" "${done_debug}" || fail "Expected alpha to remain in Debug donefile"
    grep -q "mulle-objc-runtime;" "${done_debug}" && fail "Target line not removed in Debug donefile"
@@ -79,7 +97,7 @@ main()
    KITCHEN_DIR="${directory}/kitchen" \
    CRAFTORDER_KITCHEN_DIR="${directory}/craftorder" \
    MULLE_SOURCETREE_STASH_DIR="${stash_dir}" \
-      run_mulle_craft -s clean --platform linux mulle-objc-runtime || exit 1
+      run_mulle_craft -s clean --platform "${active_platform}" mulle-objc-runtime || exit 1
 
    grep -q "/alpha;$" "${done_debug}" || fail "Expected alpha path to remain in Debug donefile"
    grep -q "/mulle-objc-runtime;" "${done_debug}" && fail "Target path line not removed in Debug donefile"
@@ -91,6 +109,22 @@ main()
 
    grep -q "/mulle-objc-runtime;" "${done_other}" || fail "Non-selected platform donefile should not change"
    grep -q "/omega;" "${done_other}" || fail "Non-selected platform donefile should not truncate"
+
+   # The store operation must use the configured unqualified location even
+   # when the child-process DEPENDENCY_DIR is already qualified.
+   local store_dir="${directory}/dependency-store"
+   local qualified_store_dir="${store_dir}/Debug"
+
+   rexekutor mkdir -p "${qualified_store_dir}/lib" "${store_dir}/etc" || exit 1
+   rexekutor touch "${store_dir}/.state" "${store_dir}/etc/done--Default-${active_platform}-Debug" || exit 1
+
+   DEPENDENCY_DIR="${qualified_store_dir}" \
+   MULLE_CRAFT_DEPENDENCY_DIR="${store_dir}" \
+   MULLE_VIRTUAL_ROOT="${directory}" \
+   KITCHEN_DIR="${directory}/kitchen" \
+      run_mulle_craft -s clean dependency-store || exit 1
+
+   [ ! -e "${store_dir}" ] || fail "dependency-store clean left the unqualified store behind"
 
    log_info "----- ALL PASSED -----"
 

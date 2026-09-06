@@ -43,25 +43,33 @@ craft::log::usage()
 Usage:
    ${MULLE_USAGE_NAME} log [options] [command] [project]
 
-   Show build logs. By default shows only the most recent craft run.
+   Show build logs. By default shows a step table of the most recent
+   craft run: one line per build step (headers/compile/link, configure/
+   build/install), in craftorder (causal build order), with a stable
+   step number and the first error inlined for any failed project.
    Each craft run stores logs in a timestamped subdirectory, so previous
    runs are preserved and never mixed with the current one.
 
-   Show latest logs for the main project:
+   Show the step table for the last run:
 
       ${MULLE_USAGE_NAME} log
 
-   Show all logs (all projects, latest run):
+   Show the full output of a single step from that table:
 
-      ${MULLE_USAGE_NAME} log '*'
+      ${MULLE_USAGE_NAME} log 9
 
-   Show all logs across all projects and all runs (e.g. incremental builds):
+   Show all logs of one project (main or dependency):
 
-      ${MULLE_USAGE_NAME} log --all --run all
+      ${MULLE_USAGE_NAME} log mulle-atexit
 
-   Show logs matching a wildcard pattern:
+   Show all logs matching a wildcard pattern:
 
       ${MULLE_USAGE_NAME} log 'Mulle*'
+
+   Show the old unfiltered dump instead of the step table:
+
+      ${MULLE_USAGE_NAME} log --raw
+      ${MULLE_USAGE_NAME} log --raw '*'
 
    Grep for errors across all projects:
 
@@ -77,8 +85,8 @@ Usage:
 
    Pipe log output to any tool (less, grep, awk, ...):
 
-      ${MULLE_USAGE_NAME} log | grep -B3 'warning:'
-      ${MULLE_USAGE_NAME} log | less
+      ${MULLE_USAGE_NAME} log --raw | grep -B3 'warning:'
+      ${MULLE_USAGE_NAME} log --raw | less
 
    Show logs from the previous run:
 
@@ -90,6 +98,7 @@ Usage:
 
 Options:
    --all               : shortcut for project '*' (all projects)
+   --raw               : unfiltered dump of all matching logfiles
    -c <configuration>  : restrict to configuration (default: last used)
    -t <tool>           : restrict to tool (cmake, make, configure, ...)
    --run <selector>    : which run to show: latest (default), -1 (previous),
@@ -97,17 +106,18 @@ Options:
 
 Project:
    *                   : all projects including dependencies
-   ""                  : main project only (default)
+   ""                  : main project only (raw dump default)
    <name>              : specific dependency by name
    <glob>              : dependencies matching pattern (e.g. 'Mulle*')
 
 Commands:
+   <n>                 : show full output of step <n> from the step table
+   diff                : diff latest run vs previous run (main project)
+   errors              : show errors from latest run across all projects
    list                : list available log files
    runs                : list available run timestamps
-   errors              : show errors from latest run across all projects
+   status              : show the step table (same as the bare default)
    warnings            : show warnings from latest run across all projects
-   summary             : one-line status per project (name, run, OK/FAIL, warnings)
-   diff                : diff latest run vs previous run (main project)
    <tool> ...          : run any command on the log files (cat, grep, ...)
 
 EOF
@@ -128,7 +138,20 @@ craft::log::r_latest_logdir()
 
    local dirs
 
-   dirs="$(ls -1d "${basedir}"/[0-9]*.* 2>/dev/null)"
+   #
+   # Guard against a non-existent basedir. Under zsh a failing glob
+   # ("[0-9]*.*") aborts with a fatal "no matches found" (nomatch) that
+   # 2>/dev/null can not suppress, and the literal pattern then leaks into
+   # downstream find calls. dir_list_files expands the glob safely and only
+   # when the directory exists.
+   #
+   if [ ! -d "${basedir}" ]
+   then
+      RVAL="${basedir}"
+      return
+   fi
+
+   dirs="`dir_list_files "${basedir}" '[0-9]*.*' 'd'`"
    if [ -z "${dirs}" ]
    then
       RVAL="${basedir}"
@@ -248,7 +271,7 @@ craft::log::list_tool_logs()
       cmdline="${cmdline} -c \"${configuration}\""
    fi
 
-   .foreachline i in `dir_list_files "${logdir}" "*.log" "f"`
+   .foreachline i in `[ -d "${logdir}" ] && dir_list_files "${logdir}" "*.log" "f"`
    .do
       if [ "${mode}" = "CMD" ]
       then
@@ -300,28 +323,220 @@ craft::log::runs()
 
 
 #
+# Read the craftorder file (if present) and emit the on-disk (filesystem-safe)
+# names of dependencies in build order, one per line. This lets the status
+# view present projects in the order they are actually built, instead of an
+# arbitrary filesystem scan order.
+#
+# The craftorder file is written by mulle-sde/mulle-sourcetree during
+# `reflect`, one absolute dependency source path (plus marks) per line, e.g.:
+#    /path/to/stash/mulle-atexit;no-import,no-singlephase
+#
+craft::log::r_craftorder_names()
+{
+   log_entry "craft::log::r_craftorder_names" "$@"
+
+   local craftorderfile
+
+   craftorderfile="${CRAFTORDER_FILE}"
+   if [ -z "${craftorderfile}" -o "${craftorderfile}" = "NONE" ]
+   then
+      craftorderfile="${DEPENDENCY_DIR:-dependency}/etc/craftorder"
+   fi
+
+   if [ ! -f "${craftorderfile}" ]
+   then
+      RVAL=""
+      return 1
+   fi
+
+   include "craft::path"
+
+   local line
+   local filepath
+   local name
+   local result
+
+   .foreachline line in `grep -E -v '^#' "${craftorderfile}" 2>/dev/null`
+   .do
+      filepath="${line%%;*}"
+      [ -z "${filepath}" ] && .continue
+
+      r_basename "${filepath}"
+      name="${RVAL}"
+
+      craft::path::r_build_directory_name "${name}"
+      r_add_line "${result}" "${RVAL}"
+      result="${RVAL}"
+   .done
+
+   RVAL="${result}"
+}
+
+
+#
 # Grep warning/error lines from log files, skipping cmake info lines (-- prefix)
 # and the =[PID]=> command echo lines.
+#
+# Matches both compiler-style diagnostics ("file.c:12: error: ...") and
+# CMake-style diagnostics ("CMake Error at CMakeLists.txt:32 (message):"),
+# which lack a trailing colon after "error"/"warning" and put the actual
+# message on the following (indented) lines. For CMake-style hits we pull
+# in a few lines of trailing context so the message is not lost.
 #
 craft::log::r_grep_diagnostics()
 {
    local files="$1"   # newline-separated list of log files
-   local pattern="$2" # 'warning\|error' or 'error' etc.
+   local pattern="$2" # 'warning' or 'error' etc. (no trailing colon)
 
    local result
    local f
+   local hit
+   local found='NO'
+   local cmake_hit
 
    .foreachline f in ${files}
    .do
       [ -f "${f}" ] || .continue
+      [ -s "${f}" ] || .continue
 
-      result="${result}$(grep -E "${pattern}" "${f}" \
+      # 1) compiler-style: "...error: message" (colon required)
+      hit="$(grep -E "${pattern}:" "${f}" \
          | grep -v '^--' \
          | grep -v '^=\[' \
-         | grep -v '^\[' )"$'\n'
+         | grep -v '^\[' )"
+
+      # 2) cmake-style: "CMake Error at ..." / "CMake Warning ..." with
+      #    the message body on the next few indented/blank lines.
+      cmake_hit="$(grep -E -A5 "^CMake (${pattern})" "${f}" 2>/dev/null)"
+
+      if [ ! -z "${hit}" ] || [ ! -z "${cmake_hit}" ]
+      then
+         found='YES'
+         if [ ! -z "${result}" ]
+         then
+            result="${result}"$'\n'
+         fi
+         if [ ! -z "${hit}" ]
+         then
+            result="${result}${hit}"
+         fi
+         if [ ! -z "${cmake_hit}" ]
+         then
+            [ ! -z "${result}" ] && result="${result}"$'\n'
+            result="${result}${cmake_hit}"
+         fi
+      fi
    .done
 
+   if [ "${found}" = 'NO' ]
+   then
+      RVAL=""
+      return 1
+   fi
+
    RVAL="${result}"
+}
+
+
+#
+# Determine the build phase and operation for a single log file.
+#
+# The operation (configure/build/install/run/...) is read directly off the
+# filename, since mulle-make's plugins already name their logs after the
+# tool invocation that produced them (make::common::r_build_log_name),
+# e.g. 00.configure.log, 01.make.log, 00.cmake.log, 01.cmake.log, ...
+# This works uniformly across all mulle-make plugins (cmake, make,
+# configure, autoconf, meson, script, xcodebuild), not just cmake.
+#
+# The phase (HEADERS/COMPILE/LINK) is a cmake-only concept: every other
+# plugin explicitly refuses --phase (see e.g. plugins/configure.sh,
+# plugins/make.sh). So phase is only ever populated when the log's tool
+# is cmake and its recorded command line happens to carry
+# -DMULLE_MAKE_PHASE=..., and is empty for every other tool. It is not
+# guessed or carried forward for non-cmake tools.
+#
+craft::log::r_step_info()
+{
+   log_entry "craft::log::r_step_info" "$@"
+
+   local logfile="$1"
+
+   local tool
+
+   r_extensionless_basename "${logfile}"     # NN.tool
+   tool="${RVAL#*.}"                         # tool
+
+   local operation
+
+   case "${tool}" in
+      cmake)
+         local firstline
+
+         firstline="$(head -1 "${logfile}" 2>/dev/null)"
+
+         case "${firstline}" in
+            *' --build '*|*' --build ')  operation="build" ;;
+            *' --install '*)             operation="install" ;;
+            *)                           operation="configure" ;;
+         esac
+      ;;
+
+      *)
+         # for every other plugin, the tool name itself is the operation
+         # (configure, make, autoconf, meson, ninja, script, xcodebuild, ...)
+         operation="${tool}"
+      ;;
+   esac
+
+   local phase
+
+   if [ "${tool}" = "cmake" ]
+   then
+      firstline="${firstline:-$(head -1 "${logfile}" 2>/dev/null)}"
+
+      phase="${firstline#*MULLE_MAKE_PHASE=}"
+      case "${phase}" in
+         "${firstline}")
+            phase=""
+         ;;
+         *)
+            phase="${phase%% *}"
+            phase="${phase%%\'*}"
+         ;;
+      esac
+   fi
+
+   RVAL="${phase};${operation}"
+}
+
+
+#
+# Return 0 and the first diagnostic line (with a couple of lines of context
+# for cmake-style multi-line errors) found in a single log file, or 1 if
+# the file is clean.
+#
+craft::log::r_first_diagnostic()
+{
+   log_entry "craft::log::r_first_diagnostic" "$@"
+
+   local logfile="$1"
+
+   [ -s "${logfile}" ] || return 1
+
+   local hit
+
+   hit="$(grep -m1 -E -A2 '^CMake (Error|Warning)' "${logfile}" 2>/dev/null)"
+   if [ -z "${hit}" ]
+   then
+      hit="$(grep -m1 -E '[Ee]rror:|[Ww]arning:' "${logfile}" \
+         | grep -v '^--' | grep -v '^=\[' | grep -v '^\[' )"
+   fi
+
+   [ -z "${hit}" ] && return 1
+
+   RVAL="${hit}"
+   return 0
 }
 
 
@@ -349,11 +564,10 @@ craft::log::show_diagnostics()
          r_dirname "${directory#${CRAFTORDER_KITCHEN_DIR}/}"
          name="${RVAL##*/}"
 
-         files="`dir_list_files "${logdir}" "*.log" "f"`"
-         craft::log::r_grep_diagnostics "${files}" "${pattern}"
-         if [ ! -z "${RVAL}" ]
+         files="`[ -d "${logdir}" ] && dir_list_files "${logdir}" "*.log" "f"`"
+         if craft::log::r_grep_diagnostics "${files}" "${pattern}"
          then
-            log_info "${name}:"
+            printf "%s\n" "${C_RESET_BOLD}${name}:${C_RESET}"
             printf "%s\n" "${RVAL}"
          fi
       .done
@@ -368,11 +582,10 @@ craft::log::show_diagnostics()
          craft::log::r_latest_logdir "${directory}"
          logdir="${RVAL}"
 
-         files="`dir_list_files "${logdir}" "*.log" "f"`"
-         craft::log::r_grep_diagnostics "${files}" "${pattern}"
-         if [ ! -z "${RVAL}" ]
+         files="`[ -d "${logdir}" ] && dir_list_files "${logdir}" "*.log" "f"`"
+         if craft::log::r_grep_diagnostics "${files}" "${pattern}"
          then
-            log_info "${PROJECT_NAME:-project}:"
+            printf "%s\n" "${C_RESET_BOLD}${PROJECT_NAME:-project}:${C_RESET}"
             printf "%s\n" "${RVAL}"
          fi
       .done
@@ -381,17 +594,119 @@ craft::log::show_diagnostics()
 
 
 #
-# One-line summary per project: name, run timestamp, status, warning count.
 #
-craft::log::summary()
+# Print the numbered step table (phase, operation, size) for a single
+# project's latest run, and if the project FAILed, the first diagnostic
+# found in that run. "index" is a running counter across the whole status
+# view, so each step can be addressed later as `mulle-sde log <n>`.
+#
+# Sets RVAL to the updated index and NR_STEP_LOGFILES/NR_STEP_INDEX arrays
+# (STEP_INDEX_<n>=logfile) so callers can resolve `log <n>` afterwards.
+#
+craft::log::r_print_project_steps()
 {
-   log_entry "craft::log::summary" "$@"
+   log_entry "craft::log::r_print_project_steps" "$@"
 
-   local directories directory logdir kitchendir name timestamp status warnings files
+   local name="$1"
+   local logdir="$2"
+   local statuscode="$3"
+   local index="$4"
 
-   local all_dirs=""
+   local files
+   local f
+   local phase
+   local operation
+   local info
+   local lastphase
+   local size
 
-   # collect craftorder dirs with their kitchendir
+   files="`[ -d "${logdir}" ] && dir_list_files "${logdir}" "*.log" "f"`"
+
+   [ -z "${files}" ] && { RVAL="${index}"; return; }
+
+   local firsthit
+   local firsthit_index
+
+   .foreachline f in ${files}
+   .do
+      [ -s "${f}" ] || .continue
+
+      craft::log::r_step_info "${f}"
+      info="${RVAL}"
+      phase="${info%%;*}"
+      operation="${info#*;}"
+
+      if [ -z "${phase}" ]
+      then
+         phase="${lastphase}"
+      else
+         lastphase="${phase}"
+      fi
+
+      size="$(file_size_in_bytes "${f}")"
+
+      index=$(( index + 1 ))
+
+      # remember mapping index -> logfile for `log <n>` lookups. This is a
+      # fresh index file per status() run (truncated by the caller before
+      # the first step), since indices are only meaningful for one call.
+      printf "%s\t%s\n" "${index}" "${f}" >> "${MULLE_CRAFT_LOG_STEP_INDEX_FILE:-/dev/null}"
+
+      if craft::log::r_first_diagnostic "${f}" && [ -z "${firsthit}" ]
+      then
+         firsthit="${RVAL}"
+         firsthit_index="${index}"
+      fi
+
+      printf "  %3s  %-24s %-9s %-10s %6s bytes\n" \
+         "${index}" \
+         "${name}" \
+         "${phase:--}" \
+         "${operation}" \
+         "${size:-0}"
+   .done
+
+   if [ ! -z "${firsthit}" ]
+   then
+      local firsthit_line1
+      local firsthit_line2
+
+      firsthit_line1="$(printf '%s\n' "${firsthit}" | head -1)"
+      firsthit_line2="$(printf '%s\n' "${firsthit}" | sed -n '2p')"
+
+      r_trim_whitespace "${firsthit_line2}"
+      firsthit_line2="${RVAL}"
+
+      if [ ! -z "${firsthit_line2}" ]
+      then
+         printf "%s\n" "${C_ERROR}       -> step ${firsthit_index}: ${firsthit_line1}${C_RESET}"
+         printf "%s\n" "${C_ERROR}          ${firsthit_line2}${C_RESET}"
+      else
+         printf "%s\n" "${C_ERROR}       -> step ${firsthit_index}: ${firsthit_line1}${C_RESET}"
+      fi
+   fi
+
+   RVAL="${index}"
+}
+
+
+#
+# Build the ordered list of "name<TAB>directory" pairs for all craftorder
+# dependency .log directories: craftorder-file order first, then any
+# leftover directories the craftorder file doesn't know about (stale file,
+# or CRAFTORDER_FILE not found), in filesystem scan order.
+#
+craft::log::r_ordered_dependency_logdirs()
+{
+   log_entry "craft::log::r_ordered_dependency_logdirs" "$@"
+
+   local directories
+   local directory
+   local name
+
+   local map_names=""
+   local map_dirs=""
+
    directories="`craft::log::craftorder_log_dirs`"
    if [ ! -z "${directories}" ]
    then
@@ -400,34 +715,136 @@ craft::log::summary()
          r_dirname "${directory#${CRAFTORDER_KITCHEN_DIR}/}"
          name="${RVAL##*/}"
 
+         r_add_line "${map_names}" "${name}"
+         map_names="${RVAL}"
+         r_add_line "${map_dirs}" "${directory}"
+         map_dirs="${RVAL}"
+      .done
+   fi
+
+   local orderednames
+
+   craft::log::r_craftorder_names
+   orderednames="${RVAL}"
+
+   local result=""
+   local seen=""
+   local wantname
+   local n
+   local i
+
+   if [ ! -z "${orderednames}" ]
+   then
+      .foreachline wantname in ${orderednames}
+      .do
+         i=0
+         .foreachline n in ${map_names}
+         .do
+            i=$(( i + 1 ))
+            [ "${n}" = "${wantname}" ] || .continue
+
+            r_add_line "${seen}" "${wantname}"
+            seen="${RVAL}"
+
+            r_line_at_index "${map_dirs}" $(( i - 1 ))
+            directory="${RVAL}"
+
+            r_betwixt $'\t' "${wantname}" "${directory}"
+            r_add_line "${result}" "${RVAL}"
+            result="${RVAL}"
+            break
+         .done
+      .done
+   fi
+
+   if [ ! -z "${map_names}" ]
+   then
+      i=0
+      .foreachline n in ${map_names}
+      .do
+         i=$(( i + 1 ))
+
+         if [ ! -z "${seen}" ] && find_line "${seen}" "${n}"
+         then
+            .continue
+         fi
+
+         r_line_at_index "${map_dirs}" $(( i - 1 ))
+         directory="${RVAL}"
+
+         r_betwixt $'\t' "${n}" "${directory}"
+         r_add_line "${result}" "${RVAL}"
+         result="${RVAL}"
+      .done
+   fi
+
+   RVAL="${result}"
+}
+
+
+#
+# The default `mulle-sde log` view: one line per build step, in craftorder
+# (i.e. causal build order, not filesystem/mtime order), each with a stable
+# numeric index so a single step can be inspected with `mulle-sde log <n>`.
+# Failed projects get the first diagnostic line inlined; a final summary
+# line gives the overall run verdict.
+#
+craft::log::status()
+{
+   log_entry "craft::log::status" "$@"
+
+   local index=0
+   local total=0
+   local failed=0
+   local run_timestamp
+
+   # index file mapping displayed step numbers to actual logfile paths;
+   # rewritten on every status() run since the numbering is only stable
+   # for the run that produced it
+   MULLE_CRAFT_LOG_STEP_INDEX_FILE="${KITCHEN_DIR}/.log-step-index"
+   redirect_exekutor "${MULLE_CRAFT_LOG_STEP_INDEX_FILE}" printf ""
+
+   printf "  %3s  %-24s %-9s %-10s %s\n" "#" "project" "phase" "step" "size"
+
+   local pairs
+   local pair
+   local name
+   local directory
+   local logdir
+   local kitchendir
+   local statuscode
+
+   craft::log::r_ordered_dependency_logdirs
+   pairs="${RVAL}"
+
+   if [ ! -z "${pairs}" ]
+   then
+      .foreachline pair in ${pairs}
+      .do
+         r_split "${pair}" $'\t'
+         name="${RVAL[0]}"
+         directory="${RVAL[1]}"
+
          craft::log::r_latest_logdir "${directory}"
          logdir="${RVAL}"
 
          r_basename "${logdir}"
-         timestamp="${RVAL:-none}"
+         [ -z "${run_timestamp}" ] && run_timestamp="${RVAL}"
 
          kitchendir="${directory%/.log}"
-         status="`cat "${kitchendir}/.status" 2>/dev/null`"
-         if [ -z "${status}" ]
-         then
-            status="?"
-         elif [ "${status}" = "0" ]
-         then
-            status="OK"
-         else
-            status="FAIL(${status})"
-         fi
+         statuscode="`cat "${kitchendir}/.status" 2>/dev/null`"
 
-         files="`dir_list_files "${logdir}" "*.log" "f"`"
-         craft::log::r_grep_diagnostics "${files}" '[Ww]arning:'
-         warnings="$(printf '%s\n' "${RVAL}" | grep -c .)"
+         total=$(( total + 1 ))
+         [ "${statuscode}" != "0" ] && [ ! -z "${statuscode}" ] && failed=$(( failed + 1 ))
 
-         printf "%-40s  %-20s  %-10s  %s warnings\n" \
-            "${name}" "${timestamp}" "${status}" "${warnings}"
+         craft::log::r_print_project_steps "${name}" "${logdir}" "${statuscode}" "${index}"
+         index="${RVAL}"
       .done
    fi
 
-   # main project
+   # main project, always last
+   local directories
+
    directories="`craft::log::project_log_dirs`"
    if [ ! -z "${directories}" ]
    then
@@ -439,28 +856,33 @@ craft::log::summary()
          logdir="${RVAL}"
 
          r_basename "${logdir}"
-         timestamp="${RVAL:-none}"
+         [ -z "${run_timestamp}" ] && run_timestamp="${RVAL}"
 
          kitchendir="${directory%/.log}"
-         status="`cat "${kitchendir}/.status" 2>/dev/null`"
-         if [ -z "${status}" ]
-         then
-            status="?"
-         elif [ "${status}" = "0" ]
-         then
-            status="OK"
-         else
-            status="FAIL(${status})"
-         fi
+         statuscode="`cat "${kitchendir}/.status" 2>/dev/null`"
 
-         files="`dir_list_files "${logdir}" "*.log" "f"`"
-         craft::log::r_grep_diagnostics "${files}" '[Ww]arning:'
-         warnings="$(printf '%s\n' "${RVAL}" | grep -c .)"
+         total=$(( total + 1 ))
+         [ "${statuscode}" != "0" ] && [ ! -z "${statuscode}" ] && failed=$(( failed + 1 ))
 
-         printf "%-40s  %-20s  %-10s  %s warnings\n" \
-            "${name}" "${timestamp}" "${status}" "${warnings}"
+         craft::log::r_print_project_steps "${name}" "${logdir}" "${statuscode}" "${index}"
+         index="${RVAL}"
       .done
+   else
+      printf "\n  (main project not crafted for configuration \"${OPTION_CONFIGURATION}\")\n"
    fi
+
+   echo
+
+   if [ "${failed}" -gt 0 ]
+   then
+      printf "%s\n" "${C_ERROR}run ${run_timestamp:-?}: ${failed} of ${total} projects FAILED${C_RESET}"
+   else
+      printf "%s\n" "${C_VERBOSE}run ${run_timestamp:-?}: ${total} of ${total} projects OK${C_RESET}"
+   fi
+
+   log_vibe "${MULLE_USAGE_NAME} log <n>            full output of step <n>"
+   log_vibe "${MULLE_USAGE_NAME} log <project>      all steps of one project"
+   log_vibe "${MULLE_USAGE_NAME} log --raw          unfiltered dump"
 }
 
 
@@ -576,7 +998,7 @@ craft::log::craftorders()
    # Iterate all craftorder log dirs and filter by name pattern.
    # We always do this per-project so r_latest_logdir gets a concrete path,
    # not a glob that would mix timestamps across projects.
-   local directories directory depname found logdir i
+   local directories directory depname found logdir i rundir
 
    directories="`craft::log::craftorder_log_dirs`"
    .foreachline directory in ${directories}
@@ -585,16 +1007,16 @@ craft::log::craftorders()
       depname="${RVAL##*/}"
       case "${depname}" in ${name_fs}) ;; *) .continue ;; esac
 
-      log_info "${depname}"
+      printf "%s\n" "${C_RESET_BOLD}${depname}${C_RESET}"
       craft::log::r_latest_logdir "${directory}"
 
-      local rundir
       .foreachline rundir in ${RVAL}
       .do
          .foreachfile i in "${rundir}/"*.${OPTION_TOOL:-*}.log
          .do
             [ -e "${i}" ] || .continue
-            log_info "${C_RESET_BOLD}${i}:"
+            [ -s "${i}" ] || .continue
+            printf "%s\n" "${C_RESET_BOLD}${i}:${C_RESET}"
             exekutor "${cmd}" "$@" "${i}"
             found='YES'
          .done
@@ -627,6 +1049,7 @@ craft::log::directories_list_files()
 
    .foreachline directory in ${directories}
    .do
+      [ -d "${directory}" ] || .continue
       dir_list_files "${directory}" "$@"
    .done
 }
@@ -641,7 +1064,7 @@ craft::log::project()
 
    [ $# -ne 0 ] && shift
 
-   log_info "${PROJECT_NAME:-${PWD}}"
+   printf "%s\n" "${C_RESET_BOLD}${PROJECT_NAME:-${PWD}}${C_RESET}"
 
    local configuration
 
@@ -650,29 +1073,34 @@ craft::log::project()
 
    local logfiles
    local directory
+   local rundir
+   local i
 
    directory="${KITCHEN_DIR#${PWD}/}"
 
    shell_enable_nullglob
    shell_enable_glob
 
+   local found_logbasedir='NO'
+
    .foreachfile logbasedir in "${directory}"/${configuration}/.log
    .do
+      [ -d "${logbasedir}" ] || .continue
+
+      found_logbasedir='YES'
       craft::log::r_latest_logdir "${logbasedir}"
 
-      local rundir
       .foreachline rundir in ${RVAL}
       .do
          log_debug "Log dir: ${rundir}"
          logfiles="`craft::log::directories_list_files "${rundir}/" -- "*.${OPTION_TOOL:-*}.log" `"
 
-         local i
-
          if [ ! -z "${logfiles}" ]
          then
             .foreachline i in ${logfiles}
             .do
-               log_info "${C_RESET_BOLD}${i}:"
+               [ -s "${i}" ] || .continue
+               printf "%s\n" "${C_RESET_BOLD}${i}:${C_RESET}"
                exekutor "${cmd}" "$@" "${i}"
             .done
          else
@@ -681,6 +1109,11 @@ craft::log::project()
       .done
    .done
    shell_disable_nullglob
+
+   if [ "${found_logbasedir}" = 'NO' ]
+   then
+      printf "%s\n" "  (main project not crafted for configuration \"${configuration}\")"
+   fi
 }
 
 
@@ -717,6 +1150,49 @@ craft::log::command()
 
 
 #
+# `mulle-sde log <n>` - show the full output of step <n> from the last
+# `status` view. Relies on the index file status() writes; if it's absent
+# or stale (e.g. a craft happened in between), say so instead of guessing.
+#
+craft::log::step()
+{
+   log_entry "craft::log::step" "$@"
+
+   local index="$1"
+   local cmd="${2:-cat}"
+
+   [ $# -gt 0 ] && shift
+   [ $# -gt 0 ] && shift
+
+   local indexfile
+   local logfile
+
+   indexfile="${KITCHEN_DIR}/.log-step-index"
+
+   if [ ! -f "${indexfile}" ]
+   then
+      fail "No step index available. Run ${C_RESET_BOLD}mulle-sde log${C_ERROR} first."
+   fi
+
+   logfile="$(awk -F'\t' -v n="${index}" '$1 == n { print $2 }' "${indexfile}")"
+
+   if [ -z "${logfile}" ]
+   then
+      fail "No such step \"${index}\". Run ${C_RESET_BOLD}mulle-sde log${C_ERROR} to see valid step numbers."
+   fi
+
+   if [ ! -f "${logfile}" ]
+   then
+      fail "Step \"${index}\" refers to \"${logfile}\", which no longer exists. \
+Run ${C_RESET_BOLD}mulle-sde log${C_ERROR} again to refresh step numbers."
+   fi
+
+   printf "%s\n" "${C_RESET_BOLD}${logfile}:${C_RESET}"
+   exekutor "${cmd}" "$@" "${logfile}"
+}
+
+
+#
 # mulle-craft isn't ruled so much by command line arguments
 # but uses mostly ENVIRONMENT variables
 # These are usually provided with mulle-sde
@@ -730,6 +1206,7 @@ craft::log::main()
    local OPTION_EXECUTABLE=""
    local OPTION_RUN="latest"
    local OPTION_ALL='NO'
+   local OPTION_RAW='NO'
 
    while [ $# -ne 0 ]
    do
@@ -791,6 +1268,10 @@ craft::log::main()
             OPTION_ALL='YES'
          ;;
 
+         --raw)
+            OPTION_RAW='YES'
+         ;;
+
          -*)
             craft::log::usage "Unknown option \"$1\""
          ;;
@@ -824,11 +1305,11 @@ craft::log::main()
       ;;
 
       errors)
-         craft::log::show_diagnostics '[Ee]rror:'
+         craft::log::show_diagnostics '[Ee]rror'
       ;;
 
       warnings)
-         craft::log::show_diagnostics '[Ww]arning:'
+         craft::log::show_diagnostics '[Ww]arning'
       ;;
 
       diff)
@@ -852,8 +1333,34 @@ craft::log::main()
          fi
       ;;
 
-      summary)
-         craft::log::summary
+      summary|status)
+         shift
+         craft::log::status "$@"
+      ;;
+
+      [0-9]*)
+         local step="$1"
+
+         shift
+         craft::log::step "${step}" "$@"
+      ;;
+
+      '')
+         if [ "${OPTION_RAW}" = 'YES' ]
+         then
+            craft::log::command "$@"
+         else
+            craft::log::status
+         fi
+      ;;
+
+      '*')
+         if [ $# -le 1 ] && [ "${OPTION_RAW}" != 'YES' ]
+         then
+            craft::log::status
+         else
+            craft::log::command "$@"
+         fi
       ;;
 
       *)

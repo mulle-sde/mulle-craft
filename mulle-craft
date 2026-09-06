@@ -36,7 +36,7 @@
 [ "${TRACE}" = 'YES' -o "${MULLE_CRAFT_TRACE}" = 'YES' ] && set -x && : "$0" "$@"
 
 
-MULLE_EXECUTABLE_VERSION=4.0.1
+MULLE_EXECUTABLE_VERSION=4.1.0
 
 #
 # Determine location of own libexec directory. Which is `src` in development
@@ -142,6 +142,7 @@ craft::setup_environment()
 
    DEPENDENCY_DIR="${DEPENDENCY_DIR:-${MULLE_CRAFT_DEPENDENCY_DIR}}"
    DEPENDENCY_DIR="${DEPENDENCY_DIR:-${MULLE_VIRTUAL_ROOT}/${MULLE_CRAFT_DEPENDENCY_DIRNAME:-dependency}}"
+   MULLE_CRAFT_DEPENDENCY_UNQUALIFIED_DIR="${DEPENDENCY_DIR}"
 
    ADDICTION_DIR="${ADDICTION_DIR:-${MULLE_CRAFT_ADDICTION_DIR}}"
    ADDICTION_DIR="${ADDICTION_DIR:-${MULLE_VIRTUAL_ROOT}/${MULLE_CRAFT_ADDICTION_DIRNAME:-addiction}}"
@@ -515,10 +516,39 @@ craft::main()
 
       tool-env)
          # we dont "path" expand here, just raw values
+         include "craft::path"
+
+         local tool_env_configuration
+         local tool_env_sdk
+         local tool_env_platform
+         local tool_env_style
+
+         tool_env_configuration="${MULLE_CRAFT_CONFIGURATIONS%%:*}"
+         tool_env_configuration="${tool_env_configuration:-Debug}"
+         tool_env_sdk="${MULLE_CRAFT_SDKS%%:*}"
+         tool_env_sdk="${tool_env_sdk:-Default}"
+         tool_env_platform="${MULLE_CRAFT_PLATFORMS%%:*}"
+         tool_env_platform="${tool_env_platform:-${MULLE_UNAME}}"
+         tool_env_style="${MULLE_CRAFT_DISPENSE_STYLE:-auto}"
+
+         craft::path::set_dependency_directories "${tool_env_sdk}" \
+                                                   "${tool_env_platform}" \
+                                                   "${tool_env_configuration}" \
+                                                   "${tool_env_style}" \
+                                                   "${MULLE_CRAFT_DEPENDENCY_UNQUALIFIED_DIR}"
+
          printf "ADDICTION_DIR='%s'\n" "${ADDICTION_DIR}"
          printf "CRAFTORDER_KITCHEN_DIR='%s'\n" "${CRAFTORDER_KITCHEN_DIR}"
          printf "DEPENDENCY_DIR='%s'\n" "${DEPENDENCY_DIR}"
          printf "KITCHEN_DIR='%s'\n" "${KITCHEN_DIR}"
+         printf "MULLE_CRAFT_DEPENDENCY_UNQUALIFIED_DIR='%s'\n" \
+                "${MULLE_CRAFT_DEPENDENCY_UNQUALIFIED_DIR}"
+         printf "MULLE_CRAFT_DEPENDENCY_QUALIFIED_DIR='%s'\n" \
+                "${MULLE_CRAFT_DEPENDENCY_QUALIFIED_DIR}"
+         printf "MULLE_CRAFT_SDK='%s'\n" "${tool_env_sdk}"
+         printf "MULLE_CRAFT_PLATFORM='%s'\n" "${tool_env_platform}"
+         printf "MULLE_CRAFT_CONFIGURATION='%s'\n" "${tool_env_configuration}"
+         printf "MULLE_CRAFT_DISPENSE_STYLE='%s'\n" "${tool_env_style}"
       ;;
 
       uname)

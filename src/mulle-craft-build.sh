@@ -1134,12 +1134,12 @@ craft::build::build_craftorder_node()
    #
    local dependency_dir
 
-   craft::path::r_dependencydir "${sdk}" \
-                                "${platform}" \
-                                "${configuration}"  \
-                                "${style}" \
-                                "${DEPENDENCY_DIR}"
-   dependency_dir="${RVAL}"
+   craft::path::set_dependency_directories "${sdk}" \
+                                             "${platform}" \
+                                             "${configuration}" \
+                                             "${style}" \
+                                             "${DEPENDENCY_DIR}"
+   dependency_dir="${MULLE_CRAFT_DEPENDENCY_QUALIFIED_DIR}"
 
    #
    # Depending on marks, either install and dispense or just install
@@ -2734,6 +2734,7 @@ craft::build::common()
    then
       r_absolutepath "${DEPENDENCY_DIR}"
       DEPENDENCY_DIR="${RVAL}"
+      MULLE_CRAFT_DEPENDENCY_UNQUALIFIED_DIR="${DEPENDENCY_DIR}"
    fi
 
    filenameenv="${KITCHEN_DIR}/.mulle-craft"
