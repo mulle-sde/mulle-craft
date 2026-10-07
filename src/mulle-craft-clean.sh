@@ -60,10 +60,12 @@ Names:
    dependency       : clean dependency folder for the selected context
    dependency-store : clean the complete configured dependency store
    project          : clean main project
+   shared-dependency-store : clean the opt-in shared dependency store
 
 Environment:
    KITCHEN_DIR      : place for craft products and by-products
    DEPENDENCY_DIR   : place to put dependencies into (generally required)
+   MULLE_CRAFT_SHARED_DEPENDENCY_DIR : opt-in shared dependency store root
 EOF
   exit 1
 }
@@ -204,8 +206,52 @@ craft::clean::remove_dependency_store()
       dependency_store_dir="${MULLE_VIRTUAL_ROOT}/${MULLE_CRAFT_DEPENDENCY_DIRNAME:-dependency}"
    fi
 
+   r_absolutepath "${dependency_store_dir}"
+   dependency_store_dir="${RVAL}"
+
+   #
+   # The shared dependency store lives outside of the projects and must
+   # survive "clean tidy"/"gravetidy" (which clean the dependency store).
+   # Refuse to remove it implicitly, even if someone nested it there.
+   #
+   if [ ! -z "${MULLE_CRAFT_SHARED_DEPENDENCY_DIR:-}" ]
+   then
+      local l_shared_dir
+
+      r_absolutepath "${MULLE_CRAFT_SHARED_DEPENDENCY_DIR}"
+      l_shared_dir="${RVAL}"
+
+      case "${l_shared_dir}" in
+         "${dependency_store_dir}"|"${dependency_store_dir}"/*)
+            fail "Refusing to clean the shared dependency store \"${l_shared_dir}\" as \
+part of the dependency store.
+${C_INFO}Use 'mulle-craft clean shared-dependency-store' to remove it explicitly."
+         ;;
+      esac
+   fi
+
    log_verbose "Cleaning the complete dependency store \"${dependency_store_dir}\""
    craft::clean::remove_dependency_directory "${dependency_store_dir}"
+}
+
+
+#
+# This is the ONLY way to remove the shared dependency store. It is
+# deliberately not part of "tidy"/"gravetidy".
+#
+craft::clean::remove_shared_dependency_store()
+{
+   log_entry "craft::clean::remove_shared_dependency_store" "$@"
+
+   if [ -z "${MULLE_CRAFT_SHARED_DEPENDENCY_DIR:-}" ]
+   then
+      log_verbose "No shared dependency store is configured"
+      return 0
+   fi
+
+   include "craft::store"
+
+   craft::store::remove
 }
 
 
@@ -389,6 +435,10 @@ craft::clean::main()
 
          "dependency-store")
             craft::clean::remove_dependency_store
+         ;;
+
+         "shared-dependency-store"|"shared")
+            craft::clean::remove_shared_dependency_store
          ;;
 
          "project")

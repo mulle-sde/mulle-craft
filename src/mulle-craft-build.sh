@@ -69,6 +69,8 @@ Environment:
    CRAFTINFO_PATH             : places to find craftinfos
    DEPENDENCY_DIR             : place to put dependencies into
    DEPENDENCY_TARBALLS        : tarballs to install into dependency, ':' sep
+   MULLE_CRAFT_SHARED_DEPENDENCY_DIR : opt-in shared dependency store (empty => off)
+   MULLE_CRAFT_SHARED_DRY_RUN : YES => report shared store hits, but do not restore
    MULLE_CRAFT_MAKE_FLAGS     : additional flags passed to mulle-make
    MULLE_CRAFT_CONFIGURATIONS : configurations to build, ':' separated
    MULLE_CRAFT_DISPENSE_STYLE : how to install into dependency (none)
@@ -1078,7 +1080,7 @@ craft::build::build_craftorder_node()
    local platform="$6"
    local configuration="$7"
    local style="$8"
-#   local toolchain="$9"
+   local toolchain="$9"
 #   local phase="$10"
 
    # no-platform- no-build, no-build-... will be filtered out in the
@@ -1142,6 +1144,82 @@ craft::build::build_craftorder_node()
    dependency_dir="${MULLE_CRAFT_DEPENDENCY_QUALIFIED_DIR}"
 
    #
+   # Shared dependency store (opt-in, see mulle-craft-store.sh).
+   #
+   # On a hit the node is restored from the store instead of built. On a miss
+   # the node is built normally and the files it contributed are captured.
+   #
+   local store_key
+   local store_node
+   local store_claim
+   local store_before
+   local store_stamp
+
+   store_key=""
+   store_node=""
+   store_claim='NO'
+   store_before=""
+   store_stamp=""
+
+   include "craft::store"
+
+   if craft::store::is_enabled && [ "${cmd}" = 'install' ]
+   then
+      if craft::store::r_node_key "${project}" \
+                                    "${name}" \
+                                    "${marks}" \
+                                    "${sdk}" \
+                                    "${platform}" \
+                                    "${configuration}" \
+                                    "${style}" \
+                                    "${toolchain}"
+      then
+         store_key="${RVAL}"
+
+         craft::store::r_node_dir "${store_key}"
+         store_node="${RVAL}"
+
+         if craft::store::has "${store_node}"
+         then
+            craft::store::log_event "HIT" "${name}" "${store_key}"
+
+            if [ "${MULLE_CRAFT_SHARED_DRY_RUN:-}" != 'YES' ]
+            then
+               log_verbose "Restoring ${C_MAGENTA}${C_BOLD}${name}${C_VERBOSE} from shared store"
+
+               if ! craft::store::restore "${dependency_dir}" "${store_node}"
+               then
+                  fail "Could not restore \"${name}\" from the shared dependency store"
+               fi
+
+               return 0
+            fi
+         else
+            craft::store::log_event "MISS" "${name}" "${store_key}"
+
+            if craft::store::claim "${store_node}"
+            then
+               store_claim='YES'
+
+               _r_make_tmp_in_dir "${KITCHEN_DIR}" ".store-before" "f" || exit 1
+               store_before="${RVAL}"
+               craft::store::_write_manifest "${dependency_dir}" "${store_before}"
+
+               _r_make_tmp_in_dir "${KITCHEN_DIR}" ".store-stamp" "f" || exit 1
+               store_stamp="${RVAL}"
+               touch "${store_stamp}"
+            else
+               craft::store::log_event "BUSY" "${name}" "${store_key}"
+            fi
+         fi
+      else
+         craft::store::log_event "SKIP" "${name}" "${RVAL}"
+      fi
+   fi
+
+   local rc
+
+   #
    # Depending on marks, either install and dispense or just install
    #
    case ",${marks}," in
@@ -1150,15 +1228,35 @@ craft::build::build_craftorder_node()
          craft::build::build_dependency_with_dispense "${cmd}" \
                                                       "${dependency_dir}" \
                                                       "$@"
-         return $?
+         rc=$?
+      ;;
+
+      *)
+         log_verbose "Build ${C_MAGENTA}${C_BOLD}${name}${C_VERBOSE}"
+         craft::build::build_project "${cmd}" \
+                                     "${dependency_dir}" \
+                                     "$@"
+         rc=$?
       ;;
    esac
 
-   log_verbose "Build ${C_MAGENTA}${C_BOLD}${name}${C_VERBOSE}"
-   craft::build::build_project "${cmd}" \
-                               "${dependency_dir}" \
-                               "$@"
-   return $?
+   if [ "${store_claim}" = 'YES' ]
+   then
+      if [ ${rc} -eq 0 ]
+      then
+         if ! craft::store::capture "${dependency_dir}" \
+                                    "${store_node}" \
+                                    "${store_before}" \
+                                    "${store_stamp}"
+         then
+            log_warning "Could not populate the shared dependency store with \"${name}\""
+         fi
+      fi
+
+      craft::store::release "${store_node}"
+   fi
+
+   return ${rc}
 }
 
 
@@ -1945,6 +2043,12 @@ craft::build::do_craftorder()
    .done
 
    craft::dependency::update_end 'complete' || exit 1  # CORRECT
+
+   if [ ! -z "${MULLE_CRAFT_SHARED_DEPENDENCY_DIR:-}" ]
+   then
+      include "craft::store"
+      craft::store::print_summary
+   fi
 }
 
 
@@ -2222,7 +2326,7 @@ craft::build::build_mainproject()
       ;;
 
       *)
-         .foreachitem script in ${OPTION_ALLOW_SCRIPTS}
+         .foreachpath script in ${OPTION_ALLOW_SCRIPTS}
          .do
             r_concat "${options}" "--allow-build-script '${script}'"
             options="${RVAL}"
@@ -2501,7 +2605,7 @@ craft::build::common()
                then
                   OPTION_ALLOW_SCRIPTS="${RVAL}"
                else
-                  r_comma_concat "${OPTION_ALLOW_SCRIPTS}" "$1"
+                  r_colon_concat "${OPTION_ALLOW_SCRIPTS}" "$1"
                   OPTION_ALLOW_SCRIPTS="${RVAL}"
                fi
             fi
@@ -2768,6 +2872,7 @@ ${currentenv}"
    include "craft::searchpath"
    include "craft::qualifier"
    include "craft::dependency"
+   include "craft::store"
 
    if [ "${OPTION_USE_CRAFTORDER}" = 'YES' ]
    then
