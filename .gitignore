@@ -28,3 +28,4 @@ build-*/
 dox/reference/*.html
 dox.unreleased
 .roam/
+build-dir
