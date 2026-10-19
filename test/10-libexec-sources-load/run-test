@@ -1,0 +1,72 @@
+#! /bin/sh
+#
+# Every "*.sh" in the mulle-craft libexec directory is a library that
+# mulle-craft sources. Sourcing one may define functions and set variables and
+# must do nothing else.
+#
+# A line of prose that lost its "#" - which is easy to do when a long comment
+# is reflowed - executes at load time instead and prints a "command not found"
+# on top of every craft. Nothing else catches that: the syntax is perfectly
+# valid, so "bash -n" is happy, and the message does not change any exit code,
+# so every functional test still passes.
+#
+[ "${TRACE}" = 'YES' ] && set -x && : "$0" "$@"
+
+###   ###   ###   ###   ###   ###   ###   ###   ###   ###   ###   ###   ###
+MULLE_BASHFUNCTIONS_LIBEXEC_DIR="`mulle-bashfunctions libexec-dir`" || exit 1
+export MULLE_BASHFUNCTIONS_LIBEXEC_DIR
+. "${MULLE_BASHFUNCTIONS_LIBEXEC_DIR}/mulle-boot.sh" || exit 1
+. "${MULLE_BASHFUNCTIONS_LIBEXEC_DIR}/mulle-bashfunctions.sh" || exit 1
+###   ###   ###   ###   ###   ###   ###   ###   ###   ###   ###   ###   ###
+
+
+check_file()
+{
+   local shell="$1"
+   local file="$2"
+   local output
+   local rc
+
+   command -v "${shell}" > /dev/null 2>&1 || return 0   # not installed, fine
+
+   output="`"${shell}" -c ". \"${file}\"" 2>&1`"
+   rc=$?
+
+   [ -z "${output}" ] || \
+      fail "\"${file##*/}\" is not silent when sourced by ${shell}: ${output}"
+
+   [ "${rc}" = '0' ] || \
+      fail "\"${file##*/}\" did not source cleanly under ${shell} (rc=${rc})"
+}
+
+
+main()
+{
+   local libexec
+   local file
+   local count
+
+   libexec="`mulle-craft libexec-dir`" || exit 1
+   log_verbose "libexec: ${libexec}"
+
+   count='0'
+
+   for file in "${libexec}"/*.sh
+   do
+      [ -f "${file}" ] || continue
+
+      check_file bash "${file}"
+      check_file zsh "${file}"
+
+      count=$(( count + 1 ))
+   done
+
+   [ "${count}" != '0' ] || fail "no library found in \"${libexec}\""
+
+   log_verbose "----- ${count} libraries source silently -----"
+
+   log_info "----- ALL PASSED -----"
+}
+
+
+main "$@"

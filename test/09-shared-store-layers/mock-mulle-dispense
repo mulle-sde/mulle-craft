@@ -1,0 +1,54 @@
+#! /usr/bin/env bash
+#
+# A minimal stand-in for `mulle-dispense dispense [--move] <srcdir> <dstdir>`.
+# The shared store test only needs the "no-inplace" path to move its products
+# into the dependency directory, it does not test mulle-dispense itself.
+#
+[ "${TRACE}" = 'YES' ] && set -x
+
+move='NO'
+
+while [ $# -ne 0 ]
+do
+   case "$1" in
+      '--move')
+         move='YES'
+         shift
+      ;;
+
+      'dispense'|'copy')
+         shift
+      ;;
+
+      -*)
+         # --header-dir, --mapper-file, ... consume their argument
+         case "$1" in
+            '--header-dir'|'--mapper-file'|'--name')
+               shift
+            ;;
+         esac
+         shift
+      ;;
+
+      *)
+         break
+      ;;
+   esac
+done
+
+srcdir="$1"
+dstdir="$2"
+
+[ -z "${srcdir}" ] && exit 0
+[ -d "${srcdir}" ] || exit 0
+
+mkdir -p "${dstdir}" || exit 1
+
+if [ "${move}" = 'YES' ]
+then
+   mv "${srcdir}"/* "${dstdir}"/ 2> /dev/null
+else
+   cp -R "${srcdir}"/* "${dstdir}"/ 2> /dev/null
+fi
+
+exit 0

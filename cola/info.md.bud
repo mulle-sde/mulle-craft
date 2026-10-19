@@ -78,7 +78,7 @@ If mulle-craft finds no info-folder there then a project specific
 
 *mulle-craft* builds dependencies in various configuration such as
 unoptimized (Debug) or optimized (Release). It can also craft for multiple
-SDKs and platforms. If only a single depedency folder destination were to be
+SDKs and platforms. If only a single dependency folder destination were to be
 used the outputs of the various configurations would clobber each other.
 That's where the *dispense style* comes into play.
 

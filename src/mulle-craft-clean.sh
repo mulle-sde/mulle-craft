@@ -48,6 +48,10 @@ Usage:
    There are five special names: "all",
    "craftorder", "dependency", "dependency-store", and "project".
 
+   A named node is also forgotten in the writable layers of the opt-in shared
+   dependency store, so that the rebuild it forces is not answered from the
+   cache again. A node that is not stored is not an error.
+
 Options:
    --touch          : touch instead of clean craftorder to force recompile
    --platform <p>   : platform to clean for
@@ -60,12 +64,23 @@ Names:
    dependency       : clean dependency folder for the selected context
    dependency-store : clean the complete configured dependency store
    project          : clean main project
-   shared-dependency-store : clean the opt-in shared dependency store
+   shared-dependency-store : clean the WRITABLE layer of the opt-in shared
+                    dependency store (read-only layers are left alone). With
+                    MULLE_CRAFT_SHARED_REMOVE_NODES it forgets just those
+                    nodes instead, in every layer
 
 Environment:
    KITCHEN_DIR      : place for craft products and by-products
    DEPENDENCY_DIR   : place to put dependencies into (generally required)
-   MULLE_CRAFT_SHARED_DEPENDENCY_DIR : opt-in shared dependency store root
+   MULLE_CRAFT_SHARED_DEPENDENCY_PATH : ':' separated store layers, first is
+                    read first, last is written to
+   MULLE_CRAFT_SHARED_DEPENDENCY_DIR  : single store root (compatibility)
+   MULLE_CRAFT_SHARED_REMOVE_ALL_LAYERS : YES => remove all layers
+   MULLE_CRAFT_SHARED_REMOVE_FORCE      : YES => also remove read-only layers
+   MULLE_CRAFT_SHARED_REMOVE_NODES      : ':' separated node names => forget
+                    those nodes (in every layer) instead of a whole layer
+   MULLE_CRAFT_SHARED_REMOVE_DRY_RUN    : YES => only show what would be
+                    forgotten
 EOF
   exit 1
 }
@@ -212,22 +227,29 @@ craft::clean::remove_dependency_store()
    #
    # The shared dependency store lives outside of the projects and must
    # survive "clean tidy"/"gravetidy" (which clean the dependency store).
-   # Refuse to remove it implicitly, even if someone nested it there.
+   # Refuse to remove it implicitly, even if someone nested it there. With
+   # layers every single layer has to be checked, not just the writable one.
    #
-   if [ ! -z "${MULLE_CRAFT_SHARED_DEPENDENCY_DIR:-}" ]
+   include "craft::store"
+
+   if craft::store::r_layers
    then
+      local l_layers
       local l_shared_dir
 
-      r_absolutepath "${MULLE_CRAFT_SHARED_DEPENDENCY_DIR}"
-      l_shared_dir="${RVAL}"
+      r_split "${RVAL}" ':'
+      l_layers=( "${RVAL[@]}" )
 
-      case "${l_shared_dir}" in
-         "${dependency_store_dir}"|"${dependency_store_dir}"/*)
-            fail "Refusing to clean the shared dependency store \"${l_shared_dir}\" as \
+      for l_shared_dir in "${l_layers[@]}"
+      do
+         case "${l_shared_dir}" in
+            "${dependency_store_dir}"|"${dependency_store_dir}"/*)
+               fail "Refusing to clean the shared dependency store layer \"${l_shared_dir}\" as \
 part of the dependency store.
 ${C_INFO}Use 'mulle-craft clean shared-dependency-store' to remove it explicitly."
-         ;;
-      esac
+            ;;
+         esac
+      done
    fi
 
    log_verbose "Cleaning the complete dependency store \"${dependency_store_dir}\""
@@ -243,15 +265,44 @@ craft::clean::remove_shared_dependency_store()
 {
    log_entry "craft::clean::remove_shared_dependency_store" "$@"
 
-   if [ -z "${MULLE_CRAFT_SHARED_DEPENDENCY_DIR:-}" ]
+   include "craft::store"
+
+   if ! craft::store::is_enabled
    then
       log_verbose "No shared dependency store is configured"
       return 0
    fi
 
-   include "craft::store"
+   #
+   # Only the writable (= last) layer belongs to this environment. Read-only
+   # layers are only picked from and are left alone, unless explicitly
+   # requested (this tool prefers environment variables over arguments):
+   #
+   #    MULLE_CRAFT_SHARED_REMOVE_ALL_LAYERS=YES  remove every layer
+   #    MULLE_CRAFT_SHARED_REMOVE_FORCE=YES       also a read-only layer
+   #
+   #    MULLE_CRAFT_SHARED_REMOVE_NODES="a:b"     forget just these nodes
+   #    MULLE_CRAFT_SHARED_REMOVE_DRY_RUN=YES      only report
+   #
+   # A node list turns this into an invalidation: the named nodes are forgotten
+   # in every layer, so that the next craft rebuilds them. Used by
+   # "mulle-sde shared invalidate".
+   #
+   local options
+   local nodes
 
-   craft::store::remove
+   [ "${MULLE_CRAFT_SHARED_REMOVE_ALL_LAYERS:-}" = 'YES' ] && options="--all-layers"
+   [ "${MULLE_CRAFT_SHARED_REMOVE_FORCE:-}" = 'YES' ]      && options="${options} --force"
+   [ "${MULLE_CRAFT_SHARED_REMOVE_DRY_RUN:-}" = 'YES' ]    && options="${options} --dry-run"
+
+   nodes="${MULLE_CRAFT_SHARED_REMOVE_NODES:-}"
+   if [ ! -z "${nodes}" ]
+   then
+      log_verbose "Invalidating shared dependency store nodes \"${nodes}\""
+   fi
+
+   # shellcheck disable=SC2086
+   craft::store::remove ${options} ${nodes}
 }
 
 
@@ -438,7 +489,12 @@ craft::clean::main()
          ;;
 
          "shared-dependency-store"|"shared")
-            craft::clean::remove_shared_dependency_store
+            #
+            # this one propagates its status: forgetting a node that is not
+            # there (or that lives in a read-only layer) has to fail, or the
+            # caller believes the next craft will rebuild
+            #
+            craft::clean::remove_shared_dependency_store || return 1
          ;;
 
          "project")
@@ -481,6 +537,16 @@ craft::clean::main()
                                                    "${OPTION_CONFIGURATION}"
             donefiles="${RVAL}"
             craft::clean::remove_item_from_donefiles "${cleantarget}" "${donefiles}"
+
+            #
+            # The products are gone, but a shared store would answer the next
+            # craft from its cache again, which would undo this clean. mulle-craft
+            # owns the store, so it forgets the node here as well. Tolerant: a
+            # node that is not stored just means there is no cache in the way.
+            #
+            include "craft::store"
+
+            craft::store::forget_node "${cleantarget}"
 
             log_debug "Done cleaning"
          ;;

@@ -1,0 +1,1466 @@
+#! /bin/sh
+
+[ "${TRACE}" = 'YES' ] && set -x && : "$0" "$@"
+
+###   ###   ###   ###   ###   ###   ###   ###   ###   ###   ###   ###   ###
+MULLE_BASHFUNCTIONS_LIBEXEC_DIR="`mulle-bashfunctions libexec-dir`" || exit 1
+export MULLE_BASHFUNCTIONS_LIBEXEC_DIR
+. "${MULLE_BASHFUNCTIONS_LIBEXEC_DIR}/mulle-boot.sh" || exit 1
+. "${MULLE_BASHFUNCTIONS_LIBEXEC_DIR}/mulle-bashfunctions.sh" || exit 1
+###   ###   ###   ###   ###   ###   ###   ###   ###   ###   ###   ###   ###
+
+
+FIXTURE=''
+MOCK=''
+MULLE_LOG=''
+
+#
+# Layered shared dependency store:
+#
+#   * a node is looked up in every layer, the LAST layer that has it wins
+#   * only the LAST layer is written to, everything before it is read-only
+#
+# A node is stored as one gzipped tar archive per layer:
+#
+#   <layer>/<name>/<sdk>-<platform>-<configuration>-<hash>.tgz
+#   <layer>/<name>/<sdk>-<platform>-<configuration>-<hash>.prefix
+#
+# The test builds the same dependency with a mock mulle-make, so that the
+# "build" is a real install of a deterministic file, which the store then
+# captures and restores.
+#
+run_craft()
+{
+   local directory="$1"    # scratch dir for this craft
+   local layers="$2"       # MULLE_CRAFT_SHARED_DEPENDENCY_PATH
+   local log="$3"          # where the mock mulle-make appends its calls
+
+   shift 3
+
+   rm -rf "${directory}"
+   mkdir -p "${directory}"
+
+   (
+      cd "${FIXTURE}" || exit 1
+
+      #
+      # remaining arguments are NAME=value pairs for the crafted project,
+      # e.g. OTHER_CFLAGS=--coverage
+      #
+      if [ $# -ne 0 ]
+      then
+         export "$@" || exit 1
+      fi
+
+      MULLE_MAKE="${MOCK}" \
+      MULLE_MAKE_LOG="${log}" \
+      DEPENDENCY_DIR="${directory}/dependency" \
+      ADDICTION_DIR="${directory}/addiction" \
+      KITCHEN_DIR="${directory}/kitchen" \
+      MULLE_TMP_DIR="${directory}" \
+      BUILD_DIR="${directory}/build" \
+      MULLE_CRAFT_SHARED_DEPENDENCY_PATH="${layers}" \
+         exekutor "${MULLE_CRAFT}" --craftorder-file "${CRAFTORDER:-${FIXTURE}/craftorder}" craftorder \
+                                    --platform "${MULLE_UNAME}" --sdk Default --debug
+   ) > "${directory}/craft.log" 2>&1 || {
+      cat "${directory}/craft.log" >&2
+      fail "Craft in \"${directory}\" failed"
+   }
+}
+
+
+#
+# "mulle-craft clean <name>" in the fixture environment: the same environment
+# as run_craft, so that the shared store is configured the same way. #19 uses it
+# to assert that cleaning a node also forgets it in the store.
+#
+run_clean()
+{
+   local directory="$1"    # scratch dir for this clean
+   local layers="$2"       # MULLE_CRAFT_SHARED_DEPENDENCY_PATH
+   local log="$3"          # where the output goes
+
+   shift 3
+
+   rm -rf "${directory}"
+   mkdir -p "${directory}"
+
+   (
+      cd "${FIXTURE}" || exit 1
+
+      DEPENDENCY_DIR="${directory}/dependency" \
+      ADDICTION_DIR="${directory}/addiction" \
+      KITCHEN_DIR="${directory}/kitchen" \
+      CRAFTORDER_KITCHEN_DIR="${directory}/craftorder-kitchen" \
+      MULLE_TMP_DIR="${directory}" \
+      BUILD_DIR="${directory}/build" \
+      MULLE_CRAFT_SHARED_DEPENDENCY_PATH="${layers}" \
+         exekutor "${MULLE_CRAFT}" clean "$@"
+   ) > "${log}" 2>&1
+}
+
+
+#
+# the scratch tree: a git checkout (the store refuses non-git) plus the local
+# sourcetree entry that makes "dep" craftable
+#
+make_fixture()
+{
+   local directory="$1"
+
+   rexekutor mkdir -p "${directory}/dep" \
+                        "${directory}/.mulle/etc/sourcetree" \
+                        "${directory}/.mulle/share/env" || exit 1
+
+   redirect_exekutor "${directory}/dep/CMakeLists.txt" printf "%s\n" \
+      'cmake_minimum_required(VERSION 3.0)' 'project(dep)' || exit 1
+
+   (
+      cd "${directory}/dep" &&
+      git init -q . &&
+      git add -A &&
+      git -c user.email=test@test -c user.name=test commit -qm 'dep 1'
+   ) || exit 1
+
+   : > "${directory}/.mulle/share/env/environment.sh"
+
+   redirect_exekutor "${directory}/.mulle/etc/sourcetree/config" printf "%s\n" \
+      "dep;local;no-delete,no-dependency;11111111-1111-1111-1111-111111111111;;;;;" || exit 1
+
+   redirect_exekutor "${directory}/craftorder" printf "%s\n" 'dep' || exit 1
+
+   FIXTURE="${directory}"
+}
+
+
+#
+# #15 needs a graph in which a declared dependency is a constituent of an
+# amalgamation: mulle-sourcetree then removes the node of its own name from the
+# craftorder and everything links against the amalgamation instead. The
+# craftorder itself is written by hand ("amalgam" first, so that the provider
+# is built before the node that resolves through it), because only mulle-sourcetree
+# could produce it.
+#
+make_amalgam_fixture()
+{
+   local directory="$1"
+
+   rexekutor mkdir -p "${directory}/amalgam/.mulle/etc/sourcetree" || exit 1
+
+   redirect_exekutor "${directory}/amalgam/CMakeLists.txt" printf "%s\n" \
+      'cmake_minimum_required(VERSION 3.0)' 'project(amalgam)' || exit 1
+
+   #
+   # "src/dep" is the shadow of "dep", see craft::store::r_craftorder_providers
+   #
+   redirect_exekutor "${directory}/amalgam/.mulle/etc/sourcetree/config" printf "%s\n" \
+      'src/dep;local;no-build,no-descend,no-header,no-import,no-link,no-share,no-share-shirk;22222222-2222-2222-2222-222222222222;;;;;' || exit 1
+
+   (
+      cd "${directory}/amalgam" &&
+      git init -q . &&
+      git add -A &&
+      git -c user.email=test@test -c user.name=test commit -qm 'amalgam 1'
+   ) || exit 1
+
+   redirect_exekutor "${directory}/craftorder-amalgam" printf "%s\n" \
+      'amalgam' 'dep' || exit 1
+}
+
+
+make_mock()
+{
+   local directory="$1"
+
+   MOCK="${directory}/mock-mulle-make"
+   redirect_exekutor "${MOCK}" cat > /dev/null || exit 1
+   rexekutor cp "${PWD}/mock-mulle-make" "${MOCK}" || exit 1
+   rexekutor chmod 755 "${MOCK}" || exit 1
+
+   MOCK_DISPENSE="${directory}/mock-mulle-dispense"
+   rexekutor cp "${PWD}/mock-mulle-dispense" "${MOCK_DISPENSE}" || exit 1
+   rexekutor chmod 755 "${MOCK_DISPENSE}" || exit 1
+}
+
+
+#
+# helpers
+#
+make_calls()
+{
+   if [ -f "$1" ]
+   then
+      grep -c '' "$1"
+   else
+      echo 0
+   fi
+}
+
+
+image_of()
+{
+   (
+      cd "$1" &&
+      find . -type f | LC_ALL=C sort | while IFS= read -r i
+      do
+         printf '%s %s\n' "$i" "`cksum "$i"`"
+      done
+   )
+}
+
+
+#
+# like image_of, but without the pkg-config metadata: a .pc file names the
+# absolute prefix it lives under, so two dependency directories can never be
+# byte identical. That those prefixes are rewritten correctly is asserted in
+# #10.
+#
+image_of_products()
+{
+   (
+      cd "$1" &&
+      find . -type f -not -path '*/pkgconfig/*.pc' | LC_ALL=C sort | \
+      while IFS= read -r i
+      do
+         printf '%s %s\n' "$i" "`cksum "$i"`"
+      done
+   )
+}
+
+
+key_of()
+{
+   local events="$1"
+   local event="$2"
+
+   sed -n "s|^${event};[^;]*;\([^;]*\).*|\1|p" "${events}" | tail -1
+}
+
+
+main()
+{
+   local option
+   local directory
+   local scratch
+   local base
+   local top
+   local make_log
+   local make_log_b
+   local events
+   local rev
+   local key1
+   local key2
+   local key8a
+   local key8c
+   local image
+   local defs
+   local poison
+   local race
+   local exact
+   local prefix
+   local pcfile
+   local dispensed
+   local pid_a
+   local misses
+   local busy
+   local locks
+   local invbase
+   local invscratch
+   local dry
+   local unusablebase
+   local unusabletop
+   local grapha
+   local graphb
+   local key15a
+   local key15b
+   local eventualbase
+   local eventualtop
+   local lockbase
+   local locktop
+   local deadpid
+   local failbase
+   local locklog
+   local busy_before
+   local busy_after
+   local cleanbase
+   local dirtybase
+   local qualifier
+   local key3
+
+   for option in "$@"
+   do
+      case "${option}" in
+         -*)
+         ;;
+      esac
+   done
+
+   r_make_tmp_directory || exit 1
+   directory="${RVAL}"
+
+   make_mock "${directory}"
+   make_fixture "${directory}/fixture"
+
+   scratch="${directory}/scratch"
+   base="${directory}/base"
+   top="${directory}/top"
+
+   rev="`git -C "${FIXTURE}/dep" rev-parse HEAD`"
+   log_verbose "dependency revision: ${rev}"
+
+   #
+   # #1  Populate the *base* layer by crafting with that single layer. This is
+   #     how a "common fate" base gets its content. It is the writable layer
+   #     here, because it is the only (and therefore last) one.
+   #
+   make_log="${directory}/make-1.log"
+   run_craft "${scratch}/one" "${base}" "${make_log}" || exit 1
+
+   [ "`make_calls "${make_log}"`" = '1' ] || fail "#1 expected 1 build, got `make_calls "${make_log}"`"
+
+   events="${base}/.events"
+   [ -f "${events}" ] || fail "#1 no event log in the base layer"
+
+   key1="`key_of "${events}" 'MISS'`"
+   [ ! -z "${key1}" ] || fail "#1 no MISS was recorded"
+   [ -f "${base}/${key1}.tgz" ] || fail "#1 the base layer holds no entry for ${key1}"
+   log_verbose "----- #1 PASSED (base populated) -----"
+
+   #
+   # From now on the base is read-only. That is what its position in the list
+   # already means, but marking it makes it explicit and testable.
+   #
+   redirect_exekutor "${base}/.read-only" printf "%s\n" 'read-only' || exit 1
+
+   #
+   # #2  base:top, the key is in base -> HIT from base, top must stay empty.
+   #
+   image="`image_of "${base}"`"
+   make_log="${directory}/make-2.log"
+   run_craft "${scratch}/two" "${base}:${top}" "${make_log}" || exit 1
+
+   [ "`make_calls "${make_log}"`" = '0' ] || fail "#2 the node was built although the base layer has it"
+   grep -q "^HIT;" "${top}/.events" || fail "#2 no HIT was recorded"
+   grep -q ";${base}\$" "${top}/.events" || fail "#2 the HIT does not name the base layer"
+   grep -q "^MISS;" "${top}/.events" && fail "#2 a MISS was recorded for a node the base layer has"
+   [ ! -e "${top}/${key1}.tgz" ] || fail "#2 the top layer was written although the base layer answered"
+
+   #
+   # the copy line names the layer it picked from, which is the whole point of
+   # a layered store: "did this come from the base or was it built here?"
+   #
+   grep -Fq "from shared store (${base})" "${scratch}/two/craft.log" || \
+      fail "#2 the copy line does not name the base layer"
+
+   [ "`image_of "${base}"`" = "${image}" ] || fail "#2 the read-only base layer changed"
+   log_verbose "----- #2 PASSED (picked from the base layer) -----"
+
+   #
+   # #3  A different variant (flavor) is not in base -> MISS -> published into
+   #     the *last* layer. The base must not be touched.
+   #
+   image="`image_of "${base}"`"
+   make_log="${directory}/make-3.log"
+   (
+      cd "${FIXTURE}" &&
+      MULLE_MAKE="${MOCK}" \
+      MULLE_MAKE_LOG="${make_log}" \
+      DEPENDENCY_DIR="${scratch}/three/dependency" \
+      ADDICTION_DIR="${scratch}/three/addiction" \
+      KITCHEN_DIR="${scratch}/three/kitchen" \
+      MULLE_TMP_DIR="${scratch}/three" \
+      BUILD_DIR="${scratch}/three/build" \
+      MULLE_CRAFT_SHARED_FLAVOR='two' \
+      MULLE_CRAFT_SHARED_DEPENDENCY_PATH="${base}:${top}" \
+         exekutor "${MULLE_CRAFT}" --craftorder-file "${FIXTURE}/craftorder" craftorder \
+                                    --platform "${MULLE_UNAME}" --sdk Default --debug
+   ) > "${scratch}/three.log" 2>&1 || {
+      cat "${scratch}/three.log" >&2
+      fail "#3 craft failed"
+   }
+
+   [ "`make_calls "${make_log}"`" = '1' ] || fail "#3 expected 1 build for the new flavor"
+
+   key2="`key_of "${top}/.events" 'MISS'`"
+   [ ! -z "${key2}" ] || fail "#3 no MISS was recorded"
+   [ "${key2}" != "${key1}" ] || fail "#3 the flavor did not change the key"
+   [ -f "${top}/${key2}.tgz" ] || fail "#3 the node was not published into the top layer"
+   [ ! -e "${base}/${key2}.tgz" ] || fail "#3 the node was published into the read-only base layer"
+   [ "`image_of "${base}"`" = "${image}" ] || fail "#3 the read-only base layer changed"
+   log_verbose "----- #3 PASSED (writes go to the last layer only) -----"
+
+   #
+   # #4  Same key, fresh dependency dir -> restored from the top layer,
+   #     byte identical, no build.
+   #
+   make_log="${directory}/make-4.log"
+   MULLE_CRAFT_SHARED_FLAVOR='two' run_craft "${scratch}/four" "${base}:${top}" "${make_log}" || exit 1
+
+   [ "`make_calls "${make_log}"`" = '0' ] || fail "#4 the node was built although the top layer has it"
+   grep -q ";${top}\$" "${top}/.events" || fail "#4 the HIT does not name the top layer"
+
+   #
+   # The user is told per node what happened, the hit/miss bookkeeping of the
+   # event log is not spilled into a normal craft.
+   #
+   grep -q 'Copy .*dep.* from shared store' "${scratch}/four/craft.log" || \
+      fail "#4 the copy from the shared store was not reported to the user"
+   grep -Fq "from shared store (${top})" "${scratch}/four/craft.log" || \
+      fail "#4 the copy line does not name the layer it came from"
+
+   #
+   # ... and for which sdk/platform/configuration, because a node is stored
+   # once per each of those. Without it a native and a cross build report the
+   # very same copy line twice, with nothing to tell them apart. The expected
+   # string is derived from the key, so the two can not drift apart.
+   #
+   qualifier="${key1#*/}"
+   qualifier="${qualifier%-*}"
+
+   grep -Fq "from shared store (${top}) [${qualifier}]" "${scratch}/four/craft.log" || \
+      fail "#4 the copy line does not name the sdk/platform/configuration it is for"
+   grep -q 'Shared store' "${scratch}/four/craft.log" && \
+      fail "#4 the store summary is shown without -v"
+
+   #
+   # Compare file set *and* content, pkg-config metadata excepted (see
+   # image_of_products). Empty directories would be invisible here either way
+   # because only files are listed; #10 asserts them explicitly.
+   #
+   image_of_products "${scratch}/three/dependency" > "${directory}/four.expected"
+   image_of_products "${scratch}/four/dependency"  > "${directory}/four.actual"
+
+   diff -u "${directory}/four.expected" "${directory}/four.actual" >&2 || \
+      fail "#4 restored files are not byte identical"
+   log_verbose "----- #4 PASSED (hit in the last layer restores identical files) -----"
+
+   #
+   # #5  The same key in two layers: the LAST layer wins, so that what the
+   #     current run built beats a stale base. This pins the read order down.
+   #
+   #
+   # plant a *different* archive for the same key in the earlier layer: if the
+   # read order were wrong, its POISONED header would win
+   #
+   poison="${directory}/poison"
+   rexekutor mkdir -p "${poison}/include" "${base}/dep" || exit 1
+   redirect_exekutor "${poison}/include/dep.h" printf "%s\n" 'POISONED' || exit 1
+   rexekutor chmod -R a-w "${poison}" || exit 1
+   ( cd "${poison}" && exekutor "${TAR:-tar}" -czf "${base}/${key2}.tgz" . ) || exit 1
+   redirect_exekutor "${base}/${key2}.prefix" printf "%s\n" "${poison}" || exit 1
+
+   make_log="${directory}/make-5.log"
+   MULLE_CRAFT_SHARED_FLAVOR='two' run_craft "${scratch}/five" "${base}:${top}" "${make_log}" || exit 1
+
+   [ "`make_calls "${make_log}"`" = '0' ] || fail "#5 the node was built"
+   grep -q 'POISONED' "${scratch}/five/dependency/Debug/include/dep.h" && \
+      fail "#5 the earlier layer won, expected the last layer to win"
+   grep -q 'name=dep' "${scratch}/five/dependency/Debug/include/dep.h" || \
+      fail "#5 the restored file has unexpected content"
+   grep -q ";${top}\$" "${top}/.events" || fail "#5 the HIT does not name the last layer"
+   log_verbose "----- #5 PASSED (last layer wins) -----"
+
+   #
+   # #6  A store whose only layer is read-only is a pure consumer: it picks,
+   #     it never publishes. Since the writable layer must not be touched, the
+   #     event log has to go elsewhere (MULLE_CRAFT_SHARED_EVENTS_FILE).
+   #
+   image="`image_of "${base}"`"
+   make_log="${directory}/make-6.log"
+   (
+      cd "${FIXTURE}" &&
+      MULLE_MAKE="${MOCK}" \
+      MULLE_MAKE_LOG="${make_log}" \
+      DEPENDENCY_DIR="${scratch}/six/dependency" \
+      ADDICTION_DIR="${scratch}/six/addiction" \
+      KITCHEN_DIR="${scratch}/six/kitchen" \
+      MULLE_TMP_DIR="${scratch}/six" \
+      BUILD_DIR="${scratch}/six/build" \
+      MULLE_CRAFT_SHARED_FLAVOR='three' \
+      MULLE_CRAFT_SHARED_EVENTS_FILE="${directory}/six.events" \
+      MULLE_CRAFT_SHARED_DEPENDENCY_PATH="${base}" \
+         exekutor "${MULLE_CRAFT}" --craftorder-file "${FIXTURE}/craftorder" craftorder \
+                                    --platform "${MULLE_UNAME}" --sdk Default --debug
+   ) > "${scratch}/six.log" 2>&1 || {
+      cat "${scratch}/six.log" >&2
+      fail "#6 craft failed"
+   }
+
+   [ "`make_calls "${make_log}"`" = '1' ] || fail "#6 the node was not built although nothing had it"
+   grep -q '^RO;' "${directory}/six.events" || fail "#6 no RO (read-only) event was recorded"
+   grep -q 'Shared store' "${scratch}/six.log" && \
+      fail "#6 the store summary is shown without -v"
+
+   #
+   # Nothing may be published into (or written to) the read-only layer.
+   #
+   [ "`image_of "${base}"`" = "${image}" ] || fail "#6 the read-only layer changed"
+   log_verbose "----- #6 PASSED (read-only layer is a pure consumer) -----"
+
+   #
+   # #7  Cleaning removes the writable layer and leaves the read-only ones.
+   #
+   (
+      cd "${FIXTURE}" &&
+      MULLE_CRAFT_SHARED_DEPENDENCY_PATH="${base}:${top}" \
+      DEPENDENCY_DIR="${scratch}/seven/dependency" \
+      KITCHEN_DIR="${scratch}/seven/kitchen" \
+         exekutor "${MULLE_CRAFT}" -s clean shared-dependency-store
+   ) > "${scratch}/seven.log" 2>&1 || {
+      cat "${scratch}/seven.log" >&2
+      fail "#7 clean shared-dependency-store failed"
+   }
+
+   [ ! -e "${top}" ] || fail "#7 the writable layer was not removed"
+   [ -f "${base}/.read-only" ] || fail "#7 the read-only layer was removed"
+
+   #
+   # and an explicit request for all layers still refuses the read-only one
+   #
+   (
+      cd "${FIXTURE}" &&
+      MULLE_CRAFT_SHARED_REMOVE_ALL_LAYERS='YES' \
+      MULLE_CRAFT_SHARED_DEPENDENCY_PATH="${base}:${top}" \
+      DEPENDENCY_DIR="${scratch}/seven/dependency" \
+      KITCHEN_DIR="${scratch}/seven/kitchen" \
+         exekutor "${MULLE_CRAFT}" -s clean shared-dependency-store
+   ) > "${scratch}/seven-b.log" 2>&1 || {
+      cat "${scratch}/seven-b.log" >&2
+      fail "#7 clean with --all-layers failed"
+   }
+
+   [ -d "${base}" ] || fail "#7 the read-only layer was removed without --force"
+
+   (
+      cd "${FIXTURE}" &&
+      MULLE_CRAFT_SHARED_REMOVE_ALL_LAYERS='YES' \
+      MULLE_CRAFT_SHARED_REMOVE_FORCE='YES' \
+      MULLE_CRAFT_SHARED_DEPENDENCY_PATH="${base}:${top}" \
+      DEPENDENCY_DIR="${scratch}/seven/dependency" \
+      KITCHEN_DIR="${scratch}/seven/kitchen" \
+         exekutor "${MULLE_CRAFT}" -s clean shared-dependency-store
+   ) > "${scratch}/seven-c.log" 2>&1 || {
+      cat "${scratch}/seven-c.log" >&2
+      fail "#7 forced clean failed"
+   }
+
+   [ ! -e "${base}" ] || fail "#7 the read-only layer survived a forced --all-layers clean"
+   log_verbose "----- #7 PASSED (clean owns the writable layer only) -----"
+
+   #
+   # #8  Build affecting defines are part of the key. Without this a coverage
+   #     or mulle-test run would silently be answered by a plain entry - the
+   #     wrong artifact, and worse, one that looks like success.
+   #
+   defs="${directory}/defs"
+
+   make_log="${directory}/make-8a.log"
+   run_craft "${scratch}/eight-a" "${defs}" "${make_log}" || exit 1
+
+   [ "`make_calls "${make_log}"`" = '1' ] || fail "#8a expected 1 build for a plain node"
+
+   key8a="`key_of "${defs}/.events" 'MISS'`"
+   [ ! -z "${key8a}" ] || fail "#8a no MISS was recorded"
+   [ -f "${defs}/${key8a}.tgz" ] || fail "#8a the plain node was not published"
+
+   make_log="${directory}/make-8b.log"
+   run_craft "${scratch}/eight-b" "${defs}" "${make_log}" || exit 1
+
+   [ "`make_calls "${make_log}"`" = '0' ] || fail "#8b the plain node was rebuilt although the store has it"
+
+   #
+   # OTHER_CFLAGS reaches mulle-make through the environment (that is how
+   # mulle-sde injects --coverage). It must change the key.
+   #
+   make_log="${directory}/make-8c.log"
+   run_craft "${scratch}/eight-c" "${defs}" "${make_log}" 'OTHER_CFLAGS=--coverage' || exit 1
+
+   [ "`make_calls "${make_log}"`" = '1' ] || \
+      fail "#8c a coverage build reused the plain store entry"
+   grep -q 'OTHER_CFLAGS=\[--coverage\]' "${make_log}" || \
+      fail "#8c OTHER_CFLAGS did not reach mulle-make"
+
+   key8c="`key_of "${defs}/.events" 'MISS'`"
+   [ ! -z "${key8c}" ] || fail "#8c no MISS was recorded"
+   [ "${key8c}" != "${key8a}" ] || fail "#8c OTHER_CFLAGS did not change the key"
+   [ -f "${defs}/${key8c}.tgz" ] || fail "#8c the coverage node was not published"
+
+   #
+   # MULLE_CRAFT_SHARED_KEY_DEFINES is the escape hatch for defines the
+   # whitelist does not know about.
+   #
+   make_log="${directory}/make-8d.log"
+   run_craft "${scratch}/eight-d" "${defs}" "${make_log}" 'MULLE_CRAFT_SHARED_KEY_DEFINES=-DNDEBUG' || exit 1
+
+   [ "`make_calls "${make_log}"`" = '1' ] || \
+      fail "#8d MULLE_CRAFT_SHARED_KEY_DEFINES did not change the key"
+   [ "`key_of "${defs}/.events" 'MISS'`" != "${key8c}" ] || fail "#8d the escape hatch did not change the key"
+
+   #
+   # ... and a repeat of #8c hits the coverage entry, not the plain one.
+   #
+   make_log="${directory}/make-8e.log"
+   run_craft "${scratch}/eight-e" "${defs}" "${make_log}" 'OTHER_CFLAGS=--coverage' || exit 1
+
+   [ "`make_calls "${make_log}"`" = '0' ] || \
+      fail "#8e the coverage node was rebuilt although the store has it"
+   grep -q "^HIT;dep;${key8c};" "${defs}/.events" || fail "#8e the coverage entry was not hit"
+   log_verbose "----- #8 PASSED (defines are part of the key) -----"
+
+   #
+   # #9  Two publishers race for the same node. Exactly one may claim it, the
+   #     other has to stand down (BUSY) and above all nobody may leave a stale
+   #     lock behind that would block the node forever.
+   #
+   race="${directory}/race"
+
+   make_log="${directory}/make-9a.log"
+   make_log_b="${directory}/make-9b.log"
+
+   (
+      cd "${FIXTURE}" &&
+      MULLE_MAKE="${MOCK}" \
+      MULLE_MAKE_LOG="${make_log}" \
+      MULLE_MAKE_SLEEP='3' \
+      DEPENDENCY_DIR="${scratch}/nine-a/dependency" \
+      ADDICTION_DIR="${scratch}/nine-a/addiction" \
+      KITCHEN_DIR="${scratch}/nine-a/kitchen" \
+      MULLE_TMP_DIR="${scratch}/nine-a" \
+      BUILD_DIR="${scratch}/nine-a/build" \
+      MULLE_CRAFT_SHARED_DEPENDENCY_PATH="${race}" \
+         exekutor "${MULLE_CRAFT}" --craftorder-file "${FIXTURE}/craftorder" craftorder \
+                                    --platform "${MULLE_UNAME}" --sdk Default --debug
+   ) > "${scratch}/nine-a.log" 2>&1 &
+   pid_a=$!
+
+   #
+   # start the second publisher while the first is still building
+   #
+   sleep 1
+
+   (
+      cd "${FIXTURE}" &&
+      MULLE_MAKE="${MOCK}" \
+      MULLE_MAKE_LOG="${make_log_b}" \
+      DEPENDENCY_DIR="${scratch}/nine-b/dependency" \
+      ADDICTION_DIR="${scratch}/nine-b/addiction" \
+      KITCHEN_DIR="${scratch}/nine-b/kitchen" \
+      MULLE_TMP_DIR="${scratch}/nine-b" \
+      BUILD_DIR="${scratch}/nine-b/build" \
+      MULLE_CRAFT_SHARED_DEPENDENCY_PATH="${race}" \
+         exekutor "${MULLE_CRAFT}" --craftorder-file "${FIXTURE}/craftorder" craftorder \
+                                    --platform "${MULLE_UNAME}" --sdk Default --debug
+   ) > "${scratch}/nine-b.log" 2>&1 || {
+      cat "${scratch}/nine-b.log" >&2
+      fail "#9 the second publisher failed"
+   }
+
+   wait "${pid_a}" || {
+      cat "${scratch}/nine-a.log" >&2
+      fail "#9 the first publisher failed"
+   }
+
+   #
+   # Both saw a miss (the loser logs MISS before it tries to claim), but only
+   # one published and only one found the lock to be taken.
+   #
+   misses="`grep -c '^MISS;' "${race}/.events"`"
+   [ "${misses}" = '2' ] || fail "#9 expected 2 MISS, got ${misses}"
+
+   busy="`grep -c '^BUSY;' "${race}/.events"`"
+   [ "${busy}" = '1' ] || fail "#9 expected exactly 1 BUSY, got ${busy}"
+
+   [ "`make_calls "${make_log}"`" = '1' ] || fail "#9 the first publisher did not build"
+   [ "`make_calls "${make_log_b}"`" = '1' ] || fail "#9 the second publisher did not build"
+
+   locks="`find "${race}" -name '*.lock' | grep -c ''`"
+   [ "${locks}" = '0' ] || fail "#9 a stale lock was left behind: `find "${race}" -name '*.lock'`"
+
+   [ "`find "${race}" -name '*.tgz' | grep -c ''`" = '1' ] || \
+      fail "#9 expected exactly one published archive"
+
+   #
+   # and the winner's entry is usable afterwards
+   #
+   make_log="${directory}/make-9c.log"
+   run_craft "${scratch}/nine-c" "${race}" "${make_log}" || exit 1
+
+   [ "`make_calls "${make_log}"`" = '0' ] || \
+      fail "#9 a later craft rebuilt the node the winner published"
+   log_verbose "----- #9 PASSED (concurrent publishers, no stale lock) -----"
+
+   #
+   # #10 A store entry is the staging directory verbatim. So it holds what the
+   #     manifest based capture could not: empty directories, and the recorded
+   #     build prefix, which is replaced on materialization.
+   #
+   exact="${directory}/exact"
+
+   make_log="${directory}/make-10a.log"
+   run_craft "${scratch}/ten-a" "${exact}" "${make_log}" || exit 1
+
+   [ "`make_calls "${make_log}"`" = '1' ] || fail "#10a expected 1 build"
+
+   key1="`key_of "${exact}/.events" 'MISS'`"
+   [ ! -z "${key1}" ] || fail "#10a no MISS was recorded"
+
+   [ -f "${exact}/${key1}.tgz" ] || fail "#10a the node was not archived"
+   tar -tzf "${exact}/${key1}.tgz" | grep -q 'share/emptydir/' || \
+      fail "#10a the empty directory was not captured"
+   tar -tzf "${exact}/${key1}.tgz" | grep -q 'lib/pkgconfig/dep.pc' || \
+      fail "#10a the pkg-config file was not captured"
+   [ -f "${exact}/${key1}.prefix" ] || fail "#10a no build prefix was recorded"
+
+   prefix="`cat "${exact}/${key1}.prefix"`"
+   case "${prefix}" in
+      */.dependency)
+      ;;
+
+      *)
+         fail "#10a expected the staging directory to be recorded, got ${prefix}"
+      ;;
+   esac
+
+   #
+   # ... and the freshly built node was materialized with that prefix replaced
+   #
+   pcfile="${scratch}/ten-a/dependency/Debug/lib/pkgconfig/dep.pc"
+
+   [ -f "${pcfile}" ] || fail "#10a the node was not materialized into the dependency dir"
+   grep -q "^prefix=${scratch}/ten-a/dependency/Debug\$" "${pcfile}" || \
+      fail "#10a the prefix was not rewritten on materialization: `cat "${pcfile}"`"
+   grep -q '/\.dependency' "${pcfile}" && \
+      fail "#10a the staging prefix leaked into the dependency dir"
+   [ -d "${scratch}/ten-a/dependency/Debug/share/emptydir" ] || \
+      fail "#10a the empty directory was not materialized"
+
+   #
+   # a hit into another project has to rewrite the prefix to *its* dependency
+   # directory, which is why the prefix is stored in the entry at all
+   #
+   make_log="${directory}/make-10b.log"
+   run_craft "${scratch}/ten-b" "${exact}" "${make_log}" || exit 1
+
+   [ "`make_calls "${make_log}"`" = '0' ] || fail "#10b the node was rebuilt"
+
+   pcfile="${scratch}/ten-b/dependency/Debug/lib/pkgconfig/dep.pc"
+
+   [ -f "${pcfile}" ] || fail "#10b the pkg-config file was not restored"
+   grep -q "^prefix=${scratch}/ten-b/dependency/Debug\$" "${pcfile}" || \
+      fail "#10b the restored prefix still names the old prefix: `cat "${pcfile}"`"
+   [ -d "${scratch}/ten-b/dependency/Debug/share/emptydir" ] || \
+      fail "#10b the empty directory was not restored"
+   log_verbose "----- #10 PASSED (exact entry, prefix rewritten) -----"
+
+   #
+   # #11 A node that needs "no-inplace" (dispense) handling is never shared.
+   #     There must be no such thing in the store, so a no-inplace node is
+   #     dispensed straight into the dependency directory, never archived, and
+   #     a repeated craft builds it again instead of hitting an archive.
+   #
+   #     The craftorder line is "project;marks", so the mark goes there.
+   #
+   redirect_exekutor "${FIXTURE}/craftorder" printf "%s\n" 'dep;no-inplace' || exit 1
+
+   dispensed="${directory}/dispensed"
+
+   make_log="${directory}/make-11a.log"
+   run_craft "${scratch}/eleven-a" "${dispensed}" "${make_log}" \
+      "MULLE_DISPENSE=${MOCK_DISPENSE}" || exit 1
+
+   [ "`make_calls "${make_log}"`" = '1' ] || fail "#11a expected 1 build"
+
+   #
+   # the products reached the dependency directory...
+   #
+   [ -n "`find "${scratch}/eleven-a/dependency" -type f 2> /dev/null | head -1`" ] || \
+      fail "#11a dispense produced nothing in the dependency dir"
+
+   #
+   # ...but nothing was archived: a no-inplace node must not enter the store
+   #
+   if [ -d "${dispensed}" ]
+   then
+      [ -z "`find "${dispensed}" -name '*.tgz' 2> /dev/null | head -1`" ] || \
+         fail "#11a a no-inplace node was published into the store"
+   fi
+
+   #
+   # a repeat builds again, there is no archive to hit
+   #
+   make_log="${directory}/make-11b.log"
+   run_craft "${scratch}/eleven-b" "${dispensed}" "${make_log}" \
+      "MULLE_DISPENSE=${MOCK_DISPENSE}" || exit 1
+
+   [ "`make_calls "${make_log}"`" = '1' ] || \
+      fail "#11b a no-inplace node was served from an archive"
+
+   log_verbose "----- #11 PASSED (no-inplace nodes are never shared) -----"
+
+   #
+   # #12 Invalidate forgets a node in every layer, so that the next craft
+   #     rebuilds it. This is the manual answer to the one thing the key can
+   #     not know: the revisions of a node's dependencies.
+   #
+   #     #11 left a no-inplace mark in the craftorder, take it out again.
+   #
+   redirect_exekutor "${FIXTURE}/craftorder" printf "%s\n" 'dep' || exit 1
+
+   invbase="${directory}/invbase"
+   invscratch="${directory}/invscratch"
+
+   make_log="${directory}/make-12a.log"
+   run_craft "${scratch}/twelve-a" "${invbase}" "${make_log}" || exit 1
+
+   [ "`make_calls "${make_log}"`" = '1' ] || fail "#12a expected 1 build"
+
+   key1="`key_of "${invbase}/.events" 'MISS'`"
+   [ ! -z "${key1}" ] || fail "#12a no MISS was recorded"
+   [ -f "${invbase}/${key1}.tgz" ] || fail "#12a the node was not published"
+
+   redirect_exekutor "${invbase}/.read-only" printf "%s\n" 'read-only' || exit 1
+
+   #
+   # ... a repeat is answered by the read-only base
+   #
+   make_log="${directory}/make-12b.log"
+   run_craft "${scratch}/twelve-b" "${invbase}:${invscratch}" "${make_log}" || exit 1
+
+   [ "`make_calls "${make_log}"`" = '0' ] || fail "#12b the node was rebuilt"
+   grep -q ";${invbase}\$" "${invscratch}/.events" || fail "#12b the HIT does not name the base"
+
+   #
+   # a node that is nowhere to be found can not be invalidated: that has to
+   # fail, otherwise the caller believes the next craft will rebuild
+   #
+   rexekutor mkdir -p "${invscratch}" || exit 1
+
+   (
+      cd "${FIXTURE}" &&
+      MULLE_CRAFT_SHARED_REMOVE_NODES='nosuchnode' \
+      MULLE_CRAFT_SHARED_DEPENDENCY_PATH="${invscratch}" \
+         exekutor "${MULLE_CRAFT}" -s clean shared-dependency-store
+   ) > "${scratch}/twelve-nosuch.log" 2>&1 && \
+      fail "#12 invalidating an unknown node did not fail"
+
+   log_verbose "----- #12a/-b PASSED (unknown node fails) -----"
+
+   #
+   # a read-only layer is left alone without --force, and that is reported as
+   # a failure too, because the node would keep answering the lookup
+   #
+   (
+      cd "${FIXTURE}" &&
+      MULLE_CRAFT_SHARED_REMOVE_NODES='dep' \
+      MULLE_CRAFT_SHARED_DEPENDENCY_PATH="${invbase}:${invscratch}" \
+         exekutor "${MULLE_CRAFT}" clean shared-dependency-store
+   ) > "${scratch}/twelve-refuse.log" 2>&1 && \
+      fail "#12 invalidating in a read-only layer did not fail"
+
+   [ -f "${invbase}/${key1}.tgz" ] || \
+      fail "#12 the read-only layer was invalidated without --force"
+   grep -q 'read-only' "${scratch}/twelve-refuse.log" || \
+      fail "#12 the refusal was not explained"
+
+   #
+   # ... and with --force it is forgotten there as well
+   #
+   (
+      cd "${FIXTURE}" &&
+      MULLE_CRAFT_SHARED_REMOVE_NODES='dep' \
+      MULLE_CRAFT_SHARED_REMOVE_FORCE='YES' \
+      MULLE_CRAFT_SHARED_DEPENDENCY_PATH="${invbase}:${invscratch}" \
+         exekutor "${MULLE_CRAFT}" -s clean shared-dependency-store
+   ) > "${scratch}/twelve-force.log" 2>&1 || {
+      cat "${scratch}/twelve-force.log" >&2
+      fail "#12 forced invalidation failed"
+   }
+
+   [ ! -e "${invbase}/dep" ] || fail "#12 the node was not forgotten in the read-only layer"
+
+   #
+   # now the node is really gone: the next craft rebuilds it, and because the
+   # base may not be written to the fresh node lands in the writable layer
+   #
+   make_log="${directory}/make-12c.log"
+   run_craft "${scratch}/twelve-c" "${invbase}:${invscratch}" "${make_log}" || exit 1
+
+   [ "`make_calls "${make_log}"`" = '1' ] || \
+      fail "#12 the invalidated node was not rebuilt"
+   [ -f "${invscratch}/${key1}.tgz" ] || \
+      fail "#12 the rebuilt node was not published into the writable layer"
+   [ ! -e "${invbase}/dep" ] || fail "#12 the read-only layer was written to"
+
+   #
+   # a node in the writable layer needs no ceremony at all (and the read-only
+   # layer holds nothing, so it must not refuse anything)
+   #
+   (
+      cd "${FIXTURE}" &&
+      MULLE_CRAFT_SHARED_REMOVE_NODES='dep' \
+      MULLE_CRAFT_SHARED_DEPENDENCY_PATH="${invbase}:${invscratch}" \
+         exekutor "${MULLE_CRAFT}" -s clean shared-dependency-store
+   ) > "${scratch}/twelve-writable.log" 2>&1 || {
+      cat "${scratch}/twelve-writable.log" >&2
+      fail "#12 invalidating in the writable layer failed"
+   }
+
+   [ ! -e "${invscratch}/dep" ] || \
+      fail "#12 the node was not forgotten in the writable layer"
+
+   make_log="${directory}/make-12d.log"
+   run_craft "${scratch}/twelve-d" "${invbase}:${invscratch}" "${make_log}" || exit 1
+
+   [ "`make_calls "${make_log}"`" = '1' ] || \
+      fail "#12 the node in the writable layer was not rebuilt"
+
+   log_verbose "----- #12 PASSED (invalidate forgets a node everywhere) -----"
+
+   #
+   # #13 A dry run reports what it would forget and forgets nothing.
+   #
+   dry="${directory}/dry"
+
+   make_log="${directory}/make-13a.log"
+   run_craft "${scratch}/thirteen-a" "${dry}" "${make_log}" || exit 1
+
+   [ "`make_calls "${make_log}"`" = '1' ] || fail "#13a expected 1 build"
+
+   key1="`key_of "${dry}/.events" 'MISS'`"
+   [ -f "${dry}/${key1}.tgz" ] || fail "#13a the node was not published"
+
+   (
+      cd "${FIXTURE}" &&
+      MULLE_CRAFT_SHARED_REMOVE_NODES='dep' \
+      MULLE_CRAFT_SHARED_REMOVE_DRY_RUN='YES' \
+      MULLE_CRAFT_SHARED_DEPENDENCY_PATH="${dry}" \
+         exekutor "${MULLE_CRAFT}" clean shared-dependency-store
+   ) > "${scratch}/thirteen-dry.log" 2>&1 || {
+      cat "${scratch}/thirteen-dry.log" >&2
+      fail "#13 the dry run failed"
+   }
+
+   [ -f "${dry}/${key1}.tgz" ] || fail "#13 the dry run removed the node"
+   grep -q 'Would forget' "${scratch}/thirteen-dry.log" || \
+      fail "#13 the dry run did not report what it would forget"
+
+   #
+   # ... and the node is still usable afterwards
+   #
+   make_log="${directory}/make-13b.log"
+   run_craft "${scratch}/thirteen-b" "${dry}" "${make_log}" || exit 1
+
+   [ "`make_calls "${make_log}"`" = '0' ] || \
+      fail "#13 the node was rebuilt after a dry run"
+
+   log_verbose "----- #13 PASSED (dry run forgets nothing) -----"
+
+   #
+   # #14 An entry that needs a library this dependency directory does not have
+   #     is not served. This is the one thing the key cannot see: two
+   #     workspaces can build a node from the same revision with the same
+   #     settings and still get different bytes, because one has libfoo.so as a
+   #     library of its own while the other has it folded into libcore.so.
+   #
+   unusablebase="${directory}/unusable-base"
+   unusabletop="${directory}/unusable-top"
+
+   make_log="${directory}/make-14a.log"
+   run_craft "${scratch}/fourteen-a" "${unusablebase}" "${make_log}" || exit 1
+
+   [ "`make_calls "${make_log}"`" = '1' ] || fail "#14a expected 1 build"
+
+   key1="`key_of "${unusablebase}/.events" 'MISS'`"
+   [ -f "${unusablebase}/${key1}.tgz" ] || fail "#14a the node was not published"
+
+   #
+   # the mock installs a static library only, so there is nothing to check and
+   # no sidecar is written
+   #
+   [ ! -e "${unusablebase}/${key1}.needed" ] || \
+      fail "#14a a \".needed\" sidecar was written although the products are self contained"
+
+   #
+   # ... now declare that this entry needs a library that is nowhere to be found
+   #
+   redirect_exekutor "${unusablebase}/${key1}.needed" printf "%s\n" \
+      'libmulle-allocator.so.9' || exit 1
+
+   make_log="${directory}/make-14b.log"
+   run_craft "${scratch}/fourteen-b" "${unusablebase}:${unusabletop}" "${make_log}" || exit 1
+
+   [ "`make_calls "${make_log}"`" = '1' ] || \
+      fail "#14b an entry that can not be used here was served anyway"
+   grep -q 'does not fit here' "${scratch}/fourteen-b/craft.log" || \
+      fail "#14b the unusable entry was passed over silently"
+   grep -q 'libmulle-allocator.so.9' "${scratch}/fourteen-b/craft.log" || \
+      fail "#14b the missing library was not named"
+   [ -f "${unusabletop}/${key1}.tgz" ] || \
+      fail "#14b the node was not published into the writable layer"
+   [ -f "${unusablebase}/${key1}.tgz" ] || \
+      fail "#14b the unusable entry was removed"
+
+   #
+   # ... and from now on the copy of the writable layer answers (the last layer
+   # wins), so the store healed itself
+   #
+   make_log="${directory}/make-14c.log"
+   run_craft "${scratch}/fourteen-c" "${unusablebase}:${unusabletop}" "${make_log}" || exit 1
+
+   [ "`make_calls "${make_log}"`" = '0' ] || \
+      fail "#14c the node was rebuilt although the writable layer has it now"
+   grep -Fq "from shared store (${unusabletop})" "${scratch}/fourteen-c/craft.log" || \
+      fail "#14c the copy line does not name the writable layer"
+
+   #
+   # ... and the entry itself was fine all along: the same entry *is* served
+   # once the dependency directory provides what it declares
+   #
+   #
+   # the qualified dependency directory of this craft, see
+   # MULLE_CRAFT_DEPENDENCY_QUALIFIED_DIR
+   #
+   rexekutor mkdir -p "${scratch}/fourteen-d/dependency/Debug/lib" || exit 1
+   redirect_exekutor "${scratch}/fourteen-d/dependency/Debug/lib/libmulle-allocator.so.9" \
+      printf "%s\n" 'not a real library' || exit 1
+
+   make_log="${directory}/make-14d.log"
+   (
+      cd "${FIXTURE}" &&
+      MULLE_MAKE="${MOCK}" \
+      MULLE_MAKE_LOG="${make_log}" \
+      DEPENDENCY_DIR="${scratch}/fourteen-d/dependency" \
+      ADDICTION_DIR="${scratch}/fourteen-d/addiction" \
+      KITCHEN_DIR="${scratch}/fourteen-d/kitchen" \
+      MULLE_TMP_DIR="${scratch}/fourteen-d" \
+      BUILD_DIR="${scratch}/fourteen-d/build" \
+      MULLE_CRAFT_SHARED_DEPENDENCY_PATH="${unusablebase}" \
+         exekutor "${MULLE_CRAFT}" --craftorder-file "${FIXTURE}/craftorder" craftorder \
+                                    --platform "${MULLE_UNAME}" --sdk Default --debug
+   ) > "${scratch}/fourteen-d.log" 2>&1 || {
+      cat "${scratch}/fourteen-d.log" >&2
+      fail "#14d craft failed"
+   }
+
+   [ "`make_calls "${make_log}"`" = '0' ] || \
+      fail "#14d an entry was rebuilt although its requirements are met"
+   grep -Fq "from shared store (${unusablebase})" "${scratch}/fourteen-d.log" || \
+      fail "#14d the entry was not served"
+
+   log_verbose "----- #14 PASSED (an entry is only served when it is usable here) -----"
+
+   #
+   # #15 The key also carries the resolution decisions of the graph it is built
+   #     in (see craft::store::r_craftorder_providers). "dep" is a library of
+   #     its own in a graph without amalgamations, but in a graph that has one
+   #     it is a constituent of it and everything links against the
+   #     amalgamation instead. Same source, same marks - different products, so
+   #     the two graphs must not share an entry.
+   #
+   make_amalgam_fixture "${FIXTURE}"
+
+   grapha="${directory}/graph-a"
+   graphb="${directory}/graph-b"
+
+   make_log="${directory}/make-15a.log"
+   run_craft "${scratch}/fifteen-a" "${grapha}" "${make_log}" || exit 1
+
+   [ "`make_calls "${make_log}"`" = '1' ] || fail "#15a expected 1 build"
+
+   key15a="`key_of "${grapha}/.events" 'MISS'`"
+   [ ! -z "${key15a}" ] || fail "#15a no MISS was recorded"
+   [ -f "${grapha}/${key15a}.tgz" ] || fail "#15a the node was not published"
+
+   #
+   # the amalgamation and the node that resolves through it, in one graph
+   #
+   make_log="${directory}/make-15b.log"
+   CRAFTORDER="${FIXTURE}/craftorder-amalgam" \
+      run_craft "${scratch}/fifteen-b" "${grapha}:${graphb}" "${make_log}" || exit 1
+
+   [ "`make_calls "${make_log}"`" = '2' ] || \
+      fail "#15b expected 2 builds (the amalgamation and dep), got `make_calls "${make_log}"`"
+
+   key15b="`sed -n "s|^MISS;dep;\([^;]*\).*|\1|p" "${graphb}/.events" | tail -1`"
+   [ ! -z "${key15b}" ] || fail "#15b no MISS was recorded for dep"
+   [ "${key15b}" != "${key15a}" ] || \
+      fail "#15b a graph without the amalgamation and one with it shared the key of dep"
+   [ -f "${graphb}/${key15b}.tgz" ] || \
+      fail "#15b the node was not published into the writable layer"
+   [ -f "${grapha}/${key15a}.tgz" ] || fail "#15b the other graph's entry was disturbed"
+
+   #
+   # ... and the salt is stable, so the graph answers itself on the next run
+   #
+   make_log="${directory}/make-15c.log"
+   CRAFTORDER="${FIXTURE}/craftorder-amalgam" \
+      run_craft "${scratch}/fifteen-c" "${grapha}:${graphb}" "${make_log}" || exit 1
+
+   [ "`make_calls "${make_log}"`" = '0' ] || \
+      fail "#15c the node was rebuilt although this graph published it before"
+   grep -q "^HIT;dep;${key15b}" "${graphb}/.events" || \
+      fail "#15c the entry of this graph was not served"
+
+   log_verbose "----- #15 PASSED (the resolution of the graph is part of the key) -----"
+
+   #
+   # #16 A requirement that a node of this craftorder will provide is not
+   #     missing, it is just not there yet: in a multi-phase craft the
+   #     libraries are linked after all the headers and compiles, so the
+   #     dependency directory can not have them at lookup time. The entry has
+   #     to be served, not rebuilt (see craft::store::has_expected_provider).
+   #
+   eventualbase="${directory}/eventual-base"
+   eventualtop="${directory}/eventual-top"
+
+   make_log="${directory}/make-16a.log"
+   run_craft "${scratch}/sixteen-a" "${eventualbase}" "${make_log}" || exit 1
+
+   [ "`make_calls "${make_log}"`" = '1' ] || fail "#16a expected 1 build"
+
+   key1="`key_of "${eventualbase}/.events" 'MISS'`"
+   [ -f "${eventualbase}/${key1}.tgz" ] || fail "#16a the node was not published"
+
+   #
+   # "dep" is a node of this craftorder, so libdep.so will be there once it is
+   # built. The entry may not be passed over for it (it is not there yet).
+   #
+   redirect_exekutor "${eventualbase}/${key1}.needed" printf "%s\n" \
+      'libdep.so.0' || exit 1
+
+   make_log="${directory}/make-16b.log"
+   run_craft "${scratch}/sixteen-b" "${eventualbase}:${eventualtop}" "${make_log}" || exit 1
+
+   [ "`make_calls "${make_log}"`" = '0' ] || \
+      fail "#16b the entry was rebuilt although this craft provides libdep.so"
+   grep -Fq "from shared store (${eventualbase})" "${scratch}/sixteen-b/craft.log" || \
+      fail "#16b the entry was not served"
+   grep -q 'does not fit here' "${scratch}/sixteen-b/craft.log" && \
+      fail "#16b the entry was passed over"
+
+   log_verbose "----- #16 PASSED (a requirement this craft will provide is not missing) -----"
+
+   #
+   # #17 A claim is all that keeps two runs from publishing the same entry at
+   #     once, so it may not be given up lightly. But a claim that a killed
+   #     build left behind must not disable sharing for its entry forever
+   #     either. The claim records its owner (host, pid, time) and is broken
+   #     only when that owner is provably gone.
+   #
+   lockbase="${directory}/lock-base"
+   locktop="${directory}/lock-top"
+
+   #
+   # the mock is the only thing that runs while a claim is held, so it records
+   # the owner file for us
+   #
+   locklog="${directory}/lock-owner-17a.log"
+
+   make_log="${directory}/make-17a.log"
+   run_craft "${scratch}/seventeen-a" "${lockbase}" "${make_log}" \
+             "MULLE_MAKE_LOCK_DIR=${lockbase}" "MULLE_MAKE_LOCK_LOG=${locklog}" || exit 1
+
+   [ "`make_calls "${make_log}"`" = '1' ] || fail "#17a expected 1 build"
+
+   #
+   # ... and the claim the build held was owned in exactly the format that
+   # is_lock_stale reads. If the two ever drift apart, a killed build silently
+   # falls back to the age threshold instead of being broken right away.
+   #
+   grep -Eq '\|[^|;]+;[0-9]+;[0-9]+$' "${locklog}" || \
+      fail "#17a the claim had no well formed owner: `cat "${locklog}" 2>&1`"
+
+   key1="`key_of "${lockbase}/.events" 'MISS'`"
+   [ -f "${lockbase}/${key1}.tgz" ] || fail "#17a the node was not published"
+
+   #
+   # Forget the entry again: a build that is killed leaves the claim behind
+   # *instead* of the entry, that is the situation to reproduce.
+   #
+   rexekutor rm -f "${lockbase}/${key1}.tgz" \
+                   "${lockbase}/${key1}.prefix" \
+                   "${lockbase}/${key1}.needed" || exit 1
+
+   #
+   # ... a claim whose owner pid is gone. The host must match the one
+   #     mulle-craft computes, so it is pinned for both runs.
+   #
+   ( exit 0 ) &
+   deadpid=$!
+   wait "${deadpid}" 2> /dev/null || true
+
+   rexekutor mkdir -p "${lockbase}/${key1}.lock" || exit 1
+   redirect_exekutor "${lockbase}/${key1}.lock/owner" printf "%s\n" \
+      "test-lock-host;${deadpid};`date '+%s'`" || exit 1
+
+   make_log="${directory}/make-17b.log"
+   run_craft "${scratch}/seventeen-b" "${lockbase}" "${make_log}" \
+             'MULLE_HOSTNAME=test-lock-host' || exit 1
+
+   [ "`make_calls "${make_log}"`" = '1' ] || fail "#17b expected 1 build"
+   [ -f "${lockbase}/${key1}.tgz" ] || \
+      fail "#17b the entry of a killed build stayed unshareable (the stale claim was not broken)"
+   grep -q 'Broke a stale shared store claim' "${scratch}/seventeen-b/craft.log" || \
+      fail "#17b the stale claim was broken silently"
+
+   #
+   # ... and the broken claim is gone, not moved somewhere into the layer
+   #
+   [ "`find "${lockbase}" -name '*.lock*' | grep -c ''`" = '0' ] || \
+      fail "#17b the broken claim was left behind: `find "${lockbase}" -name '*.lock*'`"
+
+   #
+   # Now the opposite: the owner is alive (this test process), so the claim is
+   # respected. The node is built locally, but must not be published.
+   #
+   busy_before="`grep -c '^BUSY;dep;' "${lockbase}/.events"`"
+
+   rexekutor rm -f "${lockbase}/${key1}.tgz" || exit 1
+
+   rexekutor mkdir -p "${lockbase}/${key1}.lock" || exit 1
+   redirect_exekutor "${lockbase}/${key1}.lock/owner" printf "%s\n" \
+      "test-lock-host;$$;`date '+%s'`" || exit 1
+
+   make_log="${directory}/make-17c.log"
+   run_craft "${scratch}/seventeen-c" "${lockbase}" "${make_log}" \
+             'MULLE_HOSTNAME=test-lock-host' || exit 1
+
+   busy_after="`grep -c '^BUSY;dep;' "${lockbase}/.events"`"
+
+   [ "`make_calls "${make_log}"`" = '1' ] || fail "#17c expected 1 build"
+   [ "${busy_after}" = "`expr "${busy_before}" + 1`" ] || \
+      fail "#17c a claim with a live owner was not reported as BUSY (${busy_before} -> ${busy_after})"
+   [ ! -f "${lockbase}/${key1}.tgz" ] || \
+      fail "#17c a node was published although the claim is held by a live owner"
+   [ -d "${lockbase}/${key1}.lock" ] || fail "#17c the live claim was broken"
+
+   #
+   # And a claim whose owner can not be read may not be interpreted either.
+   # This one has the right shape but a time that is not a time, and it was
+   # recorded on another host, so only the age of the lock directory is left to
+   # go on. Taking the garbage for a timestamp would make a fresh, live claim
+   # look ancient (#9 covers the shape that does not parse at all).
+   #
+   busy_before="`grep -c '^BUSY;dep;' "${lockbase}/.events"`"
+
+   rexekutor rm -f "${lockbase}/${key1}.tgz" || exit 1
+
+   rexekutor mkdir -p "${lockbase}/${key1}.lock" || exit 1
+   redirect_exekutor "${lockbase}/${key1}.lock/owner" printf "%s\n" \
+      'other-lock-host;12345;not-a-time' || exit 1
+
+   make_log="${directory}/make-17d.log"
+   run_craft "${scratch}/seventeen-d" "${lockbase}" "${make_log}" \
+             'MULLE_HOSTNAME=test-lock-host' || exit 1
+
+   busy_after="`grep -c '^BUSY;dep;' "${lockbase}/.events"`"
+
+   [ "`make_calls "${make_log}"`" = '1' ] || fail "#17d expected 1 build"
+   [ "${busy_after}" = "`expr "${busy_before}" + 1`" ] || \
+      fail "#17d a claim with an unreadable owner was not respected (${busy_before} -> ${busy_after})"
+   [ ! -f "${lockbase}/${key1}.tgz" ] || \
+      fail "#17d a node was published although the claim could not be read"
+
+   log_verbose "----- #17 PASSED (a stale claim is broken, a live one is respected) -----"
+
+   #
+   # #18 A build that fails has to let go of its claim. Otherwise its entry
+   #     stays unshareable for everyone until the claim is old enough to be
+   #     broken by age alone, and a failed build is not an exotic event.
+   #
+   failbase="${directory}/fail-base"
+
+   make_log="${directory}/make-18a.log"
+   (
+      cd "${FIXTURE}" &&
+      MULLE_MAKE="${MOCK}" \
+      MULLE_MAKE_LOG="${make_log}" \
+      MULLE_MAKE_FAIL='install' \
+      DEPENDENCY_DIR="${scratch}/eighteen-a/dependency" \
+      ADDICTION_DIR="${scratch}/eighteen-a/addiction" \
+      KITCHEN_DIR="${scratch}/eighteen-a/kitchen" \
+      MULLE_TMP_DIR="${scratch}/eighteen-a" \
+      BUILD_DIR="${scratch}/eighteen-a/build" \
+      MULLE_CRAFT_SHARED_DEPENDENCY_PATH="${failbase}" \
+         exekutor "${MULLE_CRAFT}" --craftorder-file "${FIXTURE}/craftorder" craftorder \
+                                    --platform "${MULLE_UNAME}" --sdk Default --debug
+   ) > "${scratch}/eighteen-a.log" 2>&1
+
+   #
+   # the build was attempted and failed (its exit code is deliberately not
+   # asserted, the craft is allowed to report it however it wants)
+   #
+   [ "`make_calls "${make_log}"`" = '1' ] || fail "#18a the mock build was not attempted"
+   [ "`find "${failbase}" -name '*.tgz' 2> /dev/null | grep -c ''`" = '0' ] || \
+      fail "#18a a failed build published an entry"
+
+   #
+   # ... and it left no claim behind
+   #
+   [ "`find "${failbase}" -name '*.lock*' 2> /dev/null | grep -c ''`" = '0' ] || \
+      fail "#18a a failed build left its claim behind: `find "${failbase}" -name '*.lock*' 2> /dev/null`"
+
+   #
+   # ... so the next run builds and publishes it, instead of being told the
+   #     claim is taken (that it also does not have to wait for the claim to
+   #     age out is the point of #17)
+   #
+   make_log="${directory}/make-18b.log"
+   run_craft "${scratch}/eighteen-b" "${failbase}" "${make_log}" || exit 1
+
+   [ "`make_calls "${make_log}"`" = '1' ] || fail "#18b expected 1 build"
+
+   key1="`key_of "${failbase}/.events" 'MISS'`"
+   [ -f "${failbase}/${key1}.tgz" ] || fail "#18b the node was not published"
+
+   grep -q '^BUSY;dep;' "${failbase}/.events" && \
+      fail "#18b the next run was told that the claim of the failed build was taken"
+
+   log_verbose "----- #18 PASSED (a failed build releases its claim) -----"
+
+   #
+   # #19 "mulle-craft clean <name>" (and through it "mulle-sde clean <name>")
+   #     means "rebuild this node from what is on disk". In a shared store the
+   #     rebuild would otherwise be answered from the cache again, which would
+   #     undo the clean, so the node has to be forgotten there as well.
+   #
+   cleanbase="${directory}/clean-base"
+
+   make_log="${directory}/make-19a.log"
+   run_craft "${scratch}/nineteen-a" "${cleanbase}" "${make_log}" || exit 1
+
+   [ "`make_calls "${make_log}"`" = '1' ] || fail "#19a expected 1 build"
+   [ -d "${cleanbase}/dep" ] || fail "#19a the node was not stored"
+
+   key1="`key_of "${cleanbase}/.events" 'MISS'`"
+   [ -f "${cleanbase}/${key1}.tgz" ] || fail "#19a no entry was published"
+
+   #
+   # ... a clean of the node forgets it in the writable layer
+   #
+   run_clean "${scratch}/nineteen-clean" "${cleanbase}" "${directory}/clean-19.log" dep || {
+      cat "${directory}/clean-19.log" >&2
+      fail "#19 the clean failed"
+   }
+
+   [ ! -d "${cleanbase}/dep" ] || fail "#19 the store entry survived the clean"
+
+   #
+   # ... so the next craft really rebuilds instead of being answered from the
+   #     cache (that the cache is not consulted again is the whole point)
+   #
+   make_log="${directory}/make-19b.log"
+   run_craft "${scratch}/nineteen-b" "${cleanbase}" "${make_log}" || exit 1
+
+   [ "`make_calls "${make_log}"`" = '1' ] || \
+      fail "#19 the rebuild was answered from the cache although the node was cleaned"
+
+   key1="`key_of "${cleanbase}/.events" 'MISS'`"
+   [ -f "${cleanbase}/${key1}.tgz" ] || fail "#19 the rebuilt node was not published"
+
+   #
+   # ... and cleaning a node that is not stored at all is not an error: there
+   #     simply is no cache in the way
+   #
+   run_clean "${scratch}/nineteen-empty" "${directory}/empty-layer" \
+             "${directory}/clean-19-empty.log" dep || {
+      cat "${directory}/clean-19-empty.log" >&2
+      fail "#19 cleaning an unstored node failed"
+   }
+
+   log_verbose "----- #19 PASSED (clean forgets the node, so the rebuild is not answered from the cache) -----"
+
+   #
+   # #20 A checkout with local modifications must not switch sharing off. The
+   #     contents of the working tree become part of the key instead, so the
+   #     same uncommitted state is shared and a different one is not. This is
+   #     the mulle-gfx case: every project symlinks the same sibling whose
+   #     checkout has local modifications, and nothing was shared because of it.
+   #
+   dirtybase="${directory}/dirty-base"
+
+   #
+   # ... make the checkout dirty, by a change to a tracked file (nothing is
+   #     committed, so HEAD stays what it was)
+   #
+   redirect_exekutor "${FIXTURE}/dep/CMakeLists.txt" printf "%s\n" \
+      'cmake_minimum_required(VERSION 3.0)' 'project(dep)' '# local modification one' || exit 1
+
+   make_log="${directory}/make-20a.log"
+   run_craft "${scratch}/twenty-a" "${dirtybase}" "${make_log}" || exit 1
+
+   [ "`make_calls "${make_log}"`" = '1' ] || fail "#20a expected 1 build"
+
+   key1="`key_of "${dirtybase}/.events" 'MISS'`"
+   [ -f "${dirtybase}/${key1}.tgz" ] || fail "#20a the node with local modifications was not published"
+
+   #
+   # ... and the user is told that what was stored stands for uncommitted
+   #     content (as agreed: the dirty state is reported, not hidden)
+   #
+   grep -q 'from a checkout with local modifications' "${scratch}/twenty-a/craft.log" || \
+      fail "#20a publishing uncommitted content was not reported"
+
+   #
+   # ... the *same* uncommitted state is shared, which is what used to be
+   #     impossible: a dirty checkout was refused outright
+   #
+   make_log="${directory}/make-20b.log"
+   run_craft "${scratch}/twenty-b" "${dirtybase}" "${make_log}" || exit 1
+
+   [ "`make_calls "${make_log}"`" = '0' ] || \
+      fail "#20b a node with local modifications was not shared"
+   grep -q '^HIT;dep;' "${dirtybase}/.events" || fail "#20b no HIT was recorded"
+
+   #
+   # ... but a *different* uncommitted state is not: the key covers the contents
+   #     of the working tree, not merely the names of the changed files
+   #
+   redirect_exekutor "${FIXTURE}/dep/CMakeLists.txt" printf "%s\n" \
+      'cmake_minimum_required(VERSION 3.0)' 'project(dep)' '# local modification two' || exit 1
+
+   make_log="${directory}/make-20c.log"
+   run_craft "${scratch}/twenty-c" "${dirtybase}" "${make_log}" || exit 1
+
+   [ "`make_calls "${make_log}"`" = '1' ] || \
+      fail "#20c a different uncommitted state was answered from the cache"
+
+   key2="`key_of "${dirtybase}/.events" 'MISS'`"
+   [ "${key2}" != "${key1}" ] || fail "#20c changing the working tree did not change the key"
+
+   #
+   # ... and restoring the checkout gives back a clean identity again, which
+   #     differs from the dirty ones and is not reported as uncommitted
+   #
+   (
+      cd "${FIXTURE}/dep" &&
+      git checkout -- CMakeLists.txt
+   ) || exit 1
+
+   make_log="${directory}/make-20d.log"
+   run_craft "${scratch}/twenty-d" "${dirtybase}" "${make_log}" || exit 1
+
+   [ "`make_calls "${make_log}"`" = '1' ] || fail "#20d expected 1 build"
+
+   key3="`key_of "${dirtybase}/.events" 'MISS'`"
+   [ "${key3}" != "${key1}" ] || fail "#20d a clean checkout kept the dirty identity"
+   [ "${key3}" != "${key2}" ] || fail "#20d a clean checkout kept the dirty identity"
+   grep -q 'from a checkout with local modifications' "${scratch}/twenty-d/craft.log" && \
+      fail "#20d a clean checkout was reported as having local modifications"
+
+   log_verbose "----- #20 PASSED (local modifications are shared by content, not refused) -----"
+
+   log_info "----- ALL PASSED -----"
+
+   rmdir_safer "${directory}"
+}
+
+
+init()
+{
+   MULLE_CRAFT="${MULLE_CRAFT:-${PWD}/../../mulle-craft}"
+}
+
+
+init "$@"
+main "$@"

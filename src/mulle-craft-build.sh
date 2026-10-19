@@ -69,7 +69,10 @@ Environment:
    CRAFTINFO_PATH             : places to find craftinfos
    DEPENDENCY_DIR             : place to put dependencies into
    DEPENDENCY_TARBALLS        : tarballs to install into dependency, ':' sep
-   MULLE_CRAFT_SHARED_DEPENDENCY_DIR : opt-in shared dependency store (empty => off)
+   MULLE_CRAFT_SHARED_DEPENDENCY_PATH : opt-in shared dependency store layers,
+                                ':' separated, first is read first, last is
+                                written to (empty => off)
+   MULLE_CRAFT_SHARED_DEPENDENCY_DIR : single shared dependency store (compatibility)
    MULLE_CRAFT_SHARED_DRY_RUN : YES => report shared store hits, but do not restore
    MULLE_CRAFT_MAKE_FLAGS     : additional flags passed to mulle-make
    MULLE_CRAFT_CONFIGURATIONS : configurations to build, ':' separated
@@ -918,36 +921,43 @@ crafting with -f"
 }
 
 
-craft::build::build_dependency_with_dispense()
+craft::build::r_staging_dir()
 {
-   log_entry "craft::build::build_dependency_with_dispense" "$@"
+   r_filepath_concat "$1" ".dependency"
+   r_absolutepath "${RVAL}"
+}
+
+
+#
+# Build a node into its private staging directory (per node, empty). The
+# staging directory is deliberately left in place, so that the caller can
+# capture it into the shared store before materializing it into the dependency
+# directory. Callers get its path from craft::build::r_staging_dir.
+#
+craft::build::build_dependency_staged()
+{
+   log_entry "craft::build::build_dependency_staged" "$@"
 
    local cmd="$1"
    local dependency_dir="$2"
 
    shift 2
 
-   local project="$1"
-   local name="$2"
-   local marks="$3"
    local kitchendir="$4"
-   local sdk="$5"
-   local platform="$6"
-   local configuration="$7"
-   local style="$8"
-   local toolchain="$9"
 
    local rc
-   local tmpdependency_dir
+   local stagedir
 
-   r_filepath_concat "${kitchendir}" ".dependency"
-   r_absolutepath "${RVAL}"
-   tmpdependency_dir="${RVAL}"
+   craft::build::r_staging_dir "${kitchendir}"
+   stagedir="${RVAL}"
 
-   mkdir_if_missing "${tmpdependency_dir}"
+   rmdir_safer "${stagedir}"
+   mkdir_if_missing "${stagedir}" || return 1
+
+   log_debug "staging into ${stagedir} (for ${dependency_dir})"
 
    craft::build::build_project "${cmd}" \
-                               "${tmpdependency_dir}" \
+                               "${stagedir}" \
                                "$@"
    rc=$?
 
@@ -957,14 +967,76 @@ craft::build::build_dependency_with_dispense()
    then
       if [ $rc -ne 0 ]
       then
-         log_verbose "Not dispensing because of non-zero exit"
+         log_verbose "Not materializing because of non-zero exit"
       else
-         log_verbose "Not dispensing because not installing"
+         log_verbose "Not materializing because not installing"
       fi
-      rmdir_safer "${tmpdependency_dir}"
-      return $rc
+      rmdir_safer "${stagedir}"
    fi
 
+   return $rc
+}
+
+
+craft::build::build_dependency_with_dispense()
+{
+   log_entry "craft::build::build_dependency_with_dispense" "$@"
+
+   local cmd="$1"
+   local dependency_dir="$2"
+
+   local kitchendir="$6"
+
+   local rc
+   local stagedir
+
+   craft::build::build_dependency_staged "$@"
+   rc=$?
+
+   if [ ${rc} -ne 0 ]
+   then
+      return ${rc}
+   fi
+
+   craft::build::r_staging_dir "${kitchendir}"
+   stagedir="${RVAL}"
+
+   #
+   # dispense_staged expects the node arguments (project name marks |
+   # kitchendir sdk platform configuration style), drop cmd and dependency_dir
+   #
+   shift 2
+
+   craft::build::dispense_staged "${stagedir}" "${dependency_dir}" "$@"
+   rc=$?
+
+   rmdir_safer "${stagedir}"
+
+   return ${rc}
+}
+
+
+#
+# Dispense a staged product into the dependency directory; mulle-dispense moves
+# the files, so the staging directory is empty afterwards.
+#
+craft::build::dispense_staged()
+{
+   log_entry "craft::build::dispense_staged" "$@"
+
+   local stagedir="$1"
+   local dependency_dir="$2"
+
+   shift 2
+
+   local name="$2"
+   local marks="$3"
+   local sdk="$5"
+   local platform="$6"
+   local configuration="$7"
+   local style="$8"
+
+   local rc
    local options
 
    options="--move"
@@ -1040,13 +1112,11 @@ craft::build::build_dependency_with_dispense()
                   "${MULLE_TECHNICAL_FLAGS}" \
                dispense \
                   "${options}" \
-                  "${tmpdependency_dir}" \
+                  "${stagedir}" \
                   "${dependency_dir}"
    rc=$?
 
    log_debug "dispense finished with $rc"
-
-   rmdir_safer "${tmpdependency_dir}"
 
    # if [ -z "${PARALLEL_PHASE}" ]
    # then
@@ -1075,13 +1145,16 @@ craft::build::build_craftorder_node()
    local project="$1"
    local name="$2"
    local marks="$3"
-#   local kitchendir="$4"
+   local kitchendir="$4"
    local sdk="$5"
    local platform="$6"
    local configuration="$7"
    local style="$8"
    local toolchain="$9"
-#   local phase="$10"
+   #
+   # NOT "$10": that is ${1} followed by a literal 0
+   #
+   local phase="${10}"
 
    # no-platform- no-build, no-build-... will be filtered out in the
    # craftorder already
@@ -1146,24 +1219,79 @@ craft::build::build_craftorder_node()
    #
    # Shared dependency store (opt-in, see mulle-craft-store.sh).
    #
-   # On a hit the node is restored from the store instead of built. On a miss
-   # the node is built normally and the files it contributed are captured.
+   # The flow is: if an archive exists (in any layer) unpack it instead of
+   # building. Otherwise, if there is a writable layer, build into a private
+   # staging directory, archive it and unpack what was just published.
+   # Otherwise build straight into the dependency directory.
+   #
+   # Dependencies that need "no-inplace" (dispense) handling are never shared,
+   # there must be no such thing in the store.
    #
    local store_key
-   local store_node
+   local store_base
+   local store_layer
+   local store_layer_display
+   local store_write_layer
    local store_claim
-   local store_before
-   local store_stamp
 
    store_key=""
-   store_node=""
+   store_base=""
+   store_layer=""
+   store_layer_display=""
+   store_write_layer=""
    store_claim='NO'
-   store_before=""
-   store_stamp=""
 
    include "craft::store"
 
-   if craft::store::is_enabled && [ "${cmd}" = 'install' ]
+   case ",${marks}," in
+      *',no-inplace,'*)
+         log_verbose "Build ${C_MAGENTA}${C_BOLD}${name}${C_VERBOSE} with dispense"
+         craft::build::build_dependency_with_dispense "${cmd}" \
+                                                      "${dependency_dir}" \
+                                                      "$@"
+         return $?
+      ;;
+   esac
+
+   #
+   # A multi-phase craft ("Headers Compile Link") visits this node once per
+   # phase. The first install phase is where the store answers; it records what
+   # happened in the per run state file, so that the following phases skip a
+   # node that is already taken care of instead of building it again.
+   #
+   local store_state
+   local store_served
+
+   store_state=""
+   store_served='NO'
+
+   if craft::store::r_node_state "${name}"
+   then
+      case "${RVAL}" in
+         'served'*)
+            store_served='YES'
+         ;;
+
+         'staged'*)
+            store_state='staged'
+            # "staged;<base>"
+            store_base="${RVAL#*;}"
+         ;;
+      esac
+   fi
+
+   if [ "${store_served}" = 'YES' ]
+   then
+      log_verbose "Skipping ${C_MAGENTA}${C_BOLD}${name}${C_VERBOSE} (the shared store already provided it)"
+      return 0
+   fi
+
+   if [ "${store_state}" = 'staged' ]
+   then
+      store_claim='YES'
+   fi
+
+   if craft::store::is_enabled && [ "${cmd}" = 'install' ] && [ -z "${store_state}" ]
    then
       if craft::store::r_node_key "${project}" \
                                     "${name}" \
@@ -1176,40 +1304,95 @@ craft::build::build_craftorder_node()
       then
          store_key="${RVAL}"
 
-         craft::store::r_node_dir "${store_key}"
-         store_node="${RVAL}"
-
-         if craft::store::has "${store_node}"
+         #
+         # Pick the node from the last layer that has it. Only when no layer
+         # has it, it is built and published into the writable (= last) layer.
+         #
+         if craft::store::r_find_node "${store_key}" "${dependency_dir}"
          then
-            craft::store::log_event "HIT" "${name}" "${store_key}"
+            store_base="${RVAL}"
+            store_layer="${RVAL2}"
+
+            craft::store::log_event "HIT" "${name}" "${store_key}" "${store_layer}"
+
+            #
+            # Name the layer it came from: with more than one layer the same
+            # node can be served from a base or from the layer this run built
+            # into, and that is the one thing the user wants to know here.
+            #
+            craft::store::r_layer_display "${store_layer}"
+            store_layer_display="${RVAL}"
 
             if [ "${MULLE_CRAFT_SHARED_DRY_RUN:-}" != 'YES' ]
             then
-               log_verbose "Restoring ${C_MAGENTA}${C_BOLD}${name}${C_VERBOSE} from shared store"
+               #
+               # Name what was picked, not just where it came from: the same
+               # node is stored once per sdk/platform/configuration, so a node
+               # that is reported twice in one craft (a native build and a
+               # cross build, say) is only explicable with this.
+               #
+               log_info "Copy ${C_MAGENTA}${C_BOLD}${name}${C_INFO} from shared store (${store_layer_display}) [${sdk}-${platform}-${configuration}]"
 
-               if ! craft::store::restore "${dependency_dir}" "${store_node}"
+               if ! craft::store::restore "${dependency_dir}" "${store_base}"
                then
                   fail "Could not restore \"${name}\" from the shared dependency store"
                fi
 
+               craft::store::mark_state "${name}" 'served'
                return 0
             fi
+
+            _log_verbose "Not copying ${C_MAGENTA}${C_BOLD}${name}${C_VERBOSE} from shared \
+store layer \"${store_layer_display}\" (dry run), it is built here"
          else
-            craft::store::log_event "MISS" "${name}" "${store_key}"
-
-            if craft::store::claim "${store_node}"
+            #
+            # RVAL4 names the libraries that kept the store from answering (set
+            # by r_find_node). Say so, otherwise a node that the store visibly
+            # holds but builds anyway is a mystery.
+            #
+            if [ ! -z "${RVAL4}" ]
             then
-               store_claim='YES'
+               _log_warning "The shared store has ${C_MAGENTA}${C_BOLD}${name}${C_WARNING} only in a form that \
+does not fit here: it needs ${C_RESET_BOLD}${RVAL4}${C_WARNING}, which nothing in this craftorder provides. \
+Built here instead and published into the writable layer."
+            fi
 
-               _r_make_tmp_in_dir "${KITCHEN_DIR}" ".store-before" "f" || exit 1
-               store_before="${RVAL}"
-               craft::store::_write_manifest "${dependency_dir}" "${store_before}"
+            craft::store::r_write_layer
+            store_write_layer="${RVAL}"
 
-               _r_make_tmp_in_dir "${KITCHEN_DIR}" ".store-stamp" "f" || exit 1
-               store_stamp="${RVAL}"
-               touch "${store_stamp}"
+            if craft::store::layer::is_read_only "${store_write_layer}"
+            then
+               #
+               # A pure consumer: everyone picks, nobody writes. Not an error,
+               # the node is built locally but not published.
+               #
+               craft::store::log_event "RO" "${name}" "${store_key}"
             else
-               craft::store::log_event "BUSY" "${name}" "${store_key}"
+               craft::store::log_event "MISS" "${name}" "${store_key}"
+
+               #
+               # A checkout with local modifications is shared by the contents
+               # of its working tree instead of being refused (see r_node_key).
+               # Publishing is the direction worth saying out loud: from now on
+               # the entry stands for uncommitted content.
+               #
+               if [ "${MULLE_CRAFT_STORE_WORKTREE}" = 'YES' ]
+               then
+                  _log_warning "Publishing ${C_MAGENTA}${C_BOLD}${name}${C_WARNING} from a checkout with local \
+modifications (${project})."
+               fi
+
+               craft::store::r_node_base "${store_write_layer}" "${store_key}"
+               store_base="${RVAL}"
+
+               if craft::store::claim "${store_base}"
+               then
+                  store_claim='YES'
+
+                  craft::store::mark_state "${name}" "staged;${store_base}"
+               else
+                  craft::store::log_event "BUSY" "${name}" "${store_key}"
+               fi
             fi
          fi
       else
@@ -1218,45 +1401,130 @@ craft::build::build_craftorder_node()
    fi
 
    local rc
+   local store_last_phase
 
    #
-   # Depending on marks, either install and dispense or just install
+   # In a multi-phase craft only the Link phase owns the complete product. The
+   # phases before it build into the same staging directory as well, but all
+   # they may do is make their results visible to the following phases (they
+   # install the headers that the other nodes are compiled against).
    #
-   case ",${marks}," in
-      *',no-inplace,'*)
-         log_verbose "Build ${C_MAGENTA}${C_BOLD}${name}${C_VERBOSE} with dispense"
-         craft::build::build_dependency_with_dispense "${cmd}" \
-                                                      "${dependency_dir}" \
-                                                      "$@"
-         rc=$?
-      ;;
+   store_last_phase='YES'
+   if [ ! -z "${PARALLEL_PHASE:-}" ]
+   then
+      case "${phase}" in
+         'Link')
+         ;;
 
-      *)
-         log_verbose "Build ${C_MAGENTA}${C_BOLD}${name}${C_VERBOSE}"
-         craft::build::build_project "${cmd}" \
-                                     "${dependency_dir}" \
-                                     "$@"
-         rc=$?
-      ;;
-   esac
+         *)
+            store_last_phase='NO'
+         ;;
+      esac
+   fi
 
+   #
+   # When we hold the claim the products are needed twice: as the store archive
+   # and in the dependency directory. So build into a private staging directory,
+   # archive it, and then unpack the archive (loop back to the store lookup).
+   #
    if [ "${store_claim}" = 'YES' ]
    then
-      if [ ${rc} -eq 0 ]
+      local store_stage
+      local store_fresh
+
+      craft::build::r_staging_dir "${kitchendir}"
+      store_stage="${RVAL}"
+
+      #
+      # an earlier phase of this run may have started the staging directory
+      # already, it holds the work of the phases before this one
+      #
+      store_fresh='YES'
+      if [ "${store_state}" = 'staged' ]
       then
-         if ! craft::store::capture "${dependency_dir}" \
-                                    "${store_node}" \
-                                    "${store_before}" \
-                                    "${store_stamp}"
+         store_fresh='NO'
+      fi
+
+      if [ "${store_fresh}" = 'YES' ]
+      then
+         rmdir_safer "${store_stage}"
+         mkdir_if_missing "${store_stage}" || return 1
+      fi
+
+      log_verbose "Build ${C_MAGENTA}${C_BOLD}${name}${C_VERBOSE} into staging (${phase})"
+
+      craft::build::build_project "${cmd}" \
+                                  "${store_stage}" \
+                                  "$@"
+      rc=$?
+
+      if [ ${rc} -eq 0 ] && [ "${store_last_phase}" = 'NO' ]
+      then
+         log_verbose "Making the ${phase} results of ${name} visible"
+
+         if ! craft::store::_copy_tree "${store_stage}" "${dependency_dir}"
          then
-            log_warning "Could not populate the shared dependency store with \"${name}\""
+            rc=1
          fi
       fi
 
-      craft::store::release "${store_node}"
+      if [ "${store_last_phase}" = 'YES' ]
+      then
+         if [ ${rc} -eq 0 ]
+         then
+            if craft::store::capture "${store_stage}" \
+                                     "${store_base}" \
+                                     "${store_stage}" \
+                                     "${dependency_dir}"
+            then
+               if ! craft::store::restore "${dependency_dir}" "${store_base}"
+               then
+                  rc=1
+               fi
+            else
+               _log_warning "Could not archive \"${name}\" into the shared dependency store, \
+it stays visible to this project only"
+
+               if ! craft::store::_copy_tree "${store_stage}" "${dependency_dir}"
+               then
+                  rc=1
+               else
+                  craft::store::rewrite_prefix "${dependency_dir}" \
+                                               "${store_stage}" \
+                                               "${dependency_dir}" || true
+               fi
+            fi
+         fi
+
+         rmdir_safer "${store_stage}"
+
+         #
+         # The claim is released on every path, not just the successful one. A
+         # build that failed would otherwise keep it forever and nobody could
+         # ever publish that entry again. is_lock_stale is the backstop for the
+         # paths that never get here at all, a killed or aborted run.
+         #
+         craft::store::release "${store_base}"
+
+         if [ ${rc} -eq 0 ]
+         then
+            craft::store::mark_state "${name}" 'served'
+         fi
+      fi
+
+      return ${rc}
    fi
 
-   return ${rc}
+   #
+   # Not claimed (store off, skipped, busy, read-only or a key that can not be
+   # shared): build straight into the dependency directory.
+   #
+   log_verbose "Build ${C_MAGENTA}${C_BOLD}${name}${C_VERBOSE}"
+
+   craft::build::build_project "${cmd}" \
+                               "${dependency_dir}" \
+                               "$@"
+   return $?
 }
 
 
@@ -1485,6 +1753,14 @@ craft::build::handle_parallel()
 
    _r_make_tmp_in_dir "${KITCHEN_DIR}" ".build-status" "f" || exit 1
    statusfile="${RVAL}"
+
+   #
+   # Lives for exactly this run: which node the shared store has already taken
+   # care of, so the Compile and Link phases can skip it (see mulle-craft-store).
+   #
+   local MULLE_CRAFT_STORE_STATE
+
+   MULLE_CRAFT_STORE_STATE="${statusfile}.store"
 
    local parallel_link='NO'
 
@@ -1766,6 +2042,21 @@ craft::build::_do_craftorder()
 
    log_setting "craftorder      : ${craftorder}"
 
+   #
+   # The store key of every node also carries the resolution decisions of this
+   # craftorder (see craft::store::r_craftorder_providers). Compute them once,
+   # from the *whole* craftorder and not from what is left to build: the graph
+   # is the same for the second run, or the key would not be stable.
+   #
+   include "craft::store"
+
+   if craft::store::is_enabled
+   then
+      craft::store::r_craftorder_providers "${craftorder}"
+      MULLE_CRAFT_STORE_PROVIDERS="${RVAL}"
+      MULLE_CRAFT_STORE_NODES="${RVAL2}"
+   fi
+
    local remaining
 
    remaining="${craftorder}"
@@ -2044,9 +2335,10 @@ craft::build::do_craftorder()
 
    craft::dependency::update_end 'complete' || exit 1  # CORRECT
 
-   if [ ! -z "${MULLE_CRAFT_SHARED_DEPENDENCY_DIR:-}" ]
+   include "craft::store"
+
+   if craft::store::is_enabled
    then
-      include "craft::store"
       craft::store::print_summary
    fi
 }

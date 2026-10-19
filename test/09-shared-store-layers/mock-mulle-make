@@ -1,0 +1,94 @@
+#! /usr/bin/env bash
+# A mock mulle-make: records its call and really installs deterministic files
+# into the prefix. Enough to drive craft::build::build_craftorder_node and the
+# shared store without a compiler.
+[ "${TRACE}" = 'YES' ] && set -x
+
+name=''
+prefix=''
+conf=''
+platform=''
+sdk=''
+style=''
+cmd=''
+positional=''
+
+while [ $# -ne 0 ]
+do
+   case "$1" in
+      --prefix)        prefix="$2"; shift ;;
+      --name)          name="$2"; shift ;;
+      --configuration) conf="$2"; shift ;;
+      --platform)      platform="$2"; shift ;;
+      --sdk)           sdk="$2"; shift ;;
+      --library-style) style="$2"; shift ;;
+      build|install|clean|headers) cmd="$1" ;;
+      -*)              ;;
+      *)               positional="$1" ;;
+   esac
+   shift
+done
+
+[ -z "${prefix}" ] && prefix="${positional}"
+[ -z "${name}" ] && name="$(basename "${positional}")"
+
+if [ -n "${MULLE_MAKE_LOG:-}" ]
+then
+   printf '%s|%s|%s|%s|%s|%s|%s|MULLE_TEST=%s|OTHER_CFLAGS=[%s]\n' \
+      "${cmd}" "${name}" "${conf}" "${platform}" "${sdk}" "${style}" "${prefix}" \
+      "${MULLE_TEST:-}" "${OTHER_CFLAGS:-}" >> "${MULLE_MAKE_LOG}"
+fi
+
+#
+# MULLE_MAKE_LOCK_LOG=<file> MULLE_MAKE_LOCK_DIR=<layer> makes the mock record
+# the claims that are held while it runs. It is the only place a claim is
+# observable, because the store releases it again as soon as the build is done.
+#
+if [ -n "${MULLE_MAKE_LOCK_LOG:-}" -a -n "${MULLE_MAKE_LOCK_DIR:-}" ]
+then
+   find "${MULLE_MAKE_LOCK_DIR}" -path '*.lock/owner' -type f 2> /dev/null | \
+   while IFS= read -r f
+   do
+      owner="`head -1 "$f"`"
+      printf '%s|%s\n' "${f}" "${owner}" >> "${MULLE_MAKE_LOCK_LOG}"
+   done
+fi
+
+#
+# MULLE_MAKE_FAIL=<cmd> makes the named command fail, to exercise what a failed
+# build leaves behind. The call is recorded first, so it is still visible.
+#
+if [ "${MULLE_MAKE_FAIL:-}" = "${cmd}" ]
+then
+   exit 1
+fi
+
+case "${cmd}" in
+   install|build)
+      mkdir -p "${prefix}/lib" "${prefix}/include" || exit 1
+      printf 'name=%s\nconfiguration=%s\nplatform=%s\nsdk=%s\nstyle=%s\n' \
+         "${name}" "${conf}" "${platform}" "${sdk}" "${style}" \
+         > "${prefix}/include/${name}.h" || exit 1
+      printf 'name=%s\nconfiguration=%s\nplatform=%s\nsdk=%s\nstyle=%s\n' \
+         "${name}" "${conf}" "${platform}" "${sdk}" "${style}" \
+         > "${prefix}/lib/lib${name}.a" || exit 1
+
+      #
+      # an empty directory and a pkg-config file naming an absolute prefix:
+      # exactly the two things a manifest based capture could not handle
+      #
+      mkdir -p "${prefix}/share/emptydir" "${prefix}/lib/pkgconfig" || exit 1
+      printf 'prefix=%s\nexec_prefix=%s\n' "${prefix}" "${prefix}" \
+         > "${prefix}/lib/pkgconfig/${name}.pc" || exit 1
+
+      #
+      # widen the window a concurrent publisher needs to observe the lock
+      #
+      if [ -n "${MULLE_MAKE_SLEEP:-}" ]
+      then
+         sleep "${MULLE_MAKE_SLEEP}"
+      fi
+   ;;
+esac
+
+exit 0
